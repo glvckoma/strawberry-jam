@@ -1,9 +1,7 @@
 const path = require('path')
 const os = require('os')
-const { rename, copyFile, rm, mkdir } = require('fs/promises')
-const { existsSync } = require('fs')
-const { rename, copyFile, rm, mkdir } = require('fs/promises') // Added rename
-const { existsSync } = require('fs')
+const { rename, copyFile, rm, mkdir } = require('fs/promises') // Keep only one declaration
+const { existsSync } = require('fs') // Keep only one declaration
 const { spawn } = require('child_process')
 // Removed treeKill as it's not used in the restore logic directly
 const { promisify } = require('util')
@@ -94,25 +92,68 @@ module.exports = class Patcher {
 
     try {
       process.noAsar = true
+      // console.log('[Patcher] Attempting to patch application...'); // Removed log
+      // console.log(`[Patcher] Original ASAR path: ${asarPath}`); // Removed log
+      // console.log(`[Patcher] Backup ASAR path: ${backupAsarPath}`); // Removed log
+      // console.log(`[Patcher] Custom ASAR path: ${customAsarPath}`); // Removed log
 
       // Backup original app.asar if it exists and backup doesn't
-      if (!existsSync(backupAsarPath) && existsSync(asarPath)) {
-        console.log(`Backing up original app.asar to ${backupAsarPath}`)
-        await rename(asarPath, backupAsarPath)
-      } else if (existsSync(backupAsarPath)) {
-        console.log('Backup app.asar already exists.')
-      } else if (!existsSync(asarPath)) {
-         console.warn('Original app.asar not found, cannot create backup.')
+      const backupExists = existsSync(backupAsarPath);
+      const originalExists = existsSync(asarPath);
+      // console.log(`[Patcher] Backup exists? ${backupExists}`); // Removed log
+      // console.log(`[Patcher] Original exists? ${originalExists}`); // Removed log
+
+      if (!backupExists && originalExists) {
+        // console.log(`[Patcher] Conditions met: Backing up original app.asar to ${backupAsarPath}`); // Removed log
+        try {
+          await rename(asarPath, backupAsarPath);
+          // console.log(`[Patcher] Rename call successful.`); // Removed log
+          // Verify immediately after rename
+          // if (existsSync(backupAsarPath)) { // Removed verification log block
+          //   console.log(`[Patcher] Verified backup file exists immediately after rename: ${backupAsarPath}`);
+          // } else {
+          //    console.error(`[Patcher] CRITICAL: Backup file NOT found immediately after rename!`);
+          // }
+        } catch (renameError) {
+          console.error(`[Patcher] Error during rename operation for backup: ${renameError.message}`); // Keep error log
+          // Decide if we should stop patching here or continue
+          // For now, let's log the error and continue to copy (might overwrite)
+        }
+      } else if (backupExists) {
+        // console.log('[Patcher] Backup app.asar already exists. Skipping backup step.'); // Removed log
+      } else if (!originalExists) {
+         console.warn('[Patcher] Original app.asar not found, cannot create backup.'); // Keep warning
       }
 
       // Copy custom asar over the original path
-      console.log(`Copying custom ASAR to ${asarPath}`)
-      await copyFile(customAsarPath, asarPath)
+      // console.log(`[Patcher] Attempting to copy custom ASAR from ${customAsarPath} to ${asarPath}`); // Removed log
+      try {
+        await copyFile(customAsarPath, asarPath);
+        // console.log(`[Patcher] Custom ASAR copy successful.`); // Removed log
+      } catch (copyError) {
+         console.error(`[Patcher] Error copying custom ASAR: ${copyError.message}`); // Keep error log
+         // If copy fails, maybe try to restore backup immediately?
+         // await this.restoreOriginalAsar(); // Consider adding this
+         throw copyError; // Re-throw to indicate patching failed
+      }
+
 
       // Clear cache
+      // console.log(`[Patcher] Checking cache path: ${ANIMAL_JAM_CLASSIC_CACHE_PATH}`); // Removed log
       if (existsSync(ANIMAL_JAM_CLASSIC_CACHE_PATH)) {
-        await rm(ANIMAL_JAM_CLASSIC_CACHE_PATH, { recursive: true })
-        await mkdir(ANIMAL_JAM_CLASSIC_CACHE_PATH, { recursive: true })
+        // console.log(`[Patcher] Cache exists. Attempting to clear...`); // Removed log
+        try {
+          await rm(ANIMAL_JAM_CLASSIC_CACHE_PATH, { recursive: true });
+          await mkdir(ANIMAL_JAM_CLASSIC_CACHE_PATH, { recursive: true });
+          // console.log(`[Patcher] Cache cleared successfully.`); // Removed log
+        } catch (cacheError) {
+           console.error(`[Patcher] Error clearing cache: ${cacheError.message}`); // Keep error log
+        }
+      } else {
+        // console.log(`[Patcher] Cache path does not exist. Skipping clear.`); // Removed log
+        // Why were these here? Removing them as they seem incorrect in the 'else' block.
+        // await rm(ANIMAL_JAM_CLASSIC_CACHE_PATH, { recursive: true })
+        // await mkdir(ANIMAL_JAM_CLASSIC_CACHE_PATH, { recursive: true })
       }
     } catch (error) {
       console.error(`Failed to patch Animal Jam Classic: ${error.message}`)
@@ -130,17 +171,18 @@ module.exports = class Patcher {
     const backupAsarPath = BACKUP_ASAR_PATH
 
     try {
+      // console.log(`[Restore] Checking for backup at: ${backupAsarPath}`); // Removed log
+      const backupFound = existsSync(backupAsarPath);
+      // console.log(`[Restore] Backup found? ${backupFound}`); // Removed log
+
       // Check if backup exists before attempting restore
-      if (existsSync(backupAsarPath)) {
-        console.log(`Restoring original app.asar from ${backupAsarPath}`)
-        // Ensure the target path is clear before renaming backup
-        if (existsSync(asarPath)) {
-            await rm(asarPath); // Remove the patched asar first
-        }
+      if (backupFound) {
+        // console.log(`[Restore] Attempting to restore original app.asar from ${backupAsarPath}`) // Removed log
+        // Just rename the backup over the existing file (overwrite)
         await rename(backupAsarPath, asarPath)
-        console.log('Original app.asar restored successfully.')
+        // console.log('Original app.asar restored successfully.') // Removed log
       } else {
-        console.log('No backup app.asar found to restore.')
+        // console.log('No backup app.asar found to restore.') // Removed log
       }
     } catch (error) {
       console.error(`Failed to restore original app.asar: ${error.message}`)

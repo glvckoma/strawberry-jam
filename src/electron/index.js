@@ -80,6 +80,7 @@ class Electron {
     this._isLeakCheckRunning = false; // Added for leak check state
     this._isLeakCheckPaused = false; // Flag for pause state
     this._isLeakCheckStopped = false; // Flag for stop state
+    this._isQuitting = false; // Flag to prevent multiple quit handler runs
     this._setupIPC()
   }
 
@@ -634,17 +635,25 @@ class Electron {
 
     // Add the will-quit handler
     app.on('will-quit', async (event) => {
-      console.log('[App Quit] will-quit event triggered. Attempting to restore original app.asar...');
+      // Only run the restore logic once
+      if (this._isQuitting) {
+        console.log('[App Quit] will-quit handler already running, skipping subsequent calls.');
+        return; // Skip if already quitting
+      }
+      this._isQuitting = true; // Set the flag
+
+      // console.log('[App Quit] will-quit event triggered (first run). Attempting to restore original app.asar...'); // Removed log
       // Prevent immediate quitting
       event.preventDefault();
       try {
         // Call the restore method on our patcher instance
         await this._patcher.restoreOriginalAsar();
-        console.log('[App Quit] Restoration attempt finished.');
+        // console.log('[App Quit] Restoration attempt finished (first run).'); // Removed log
       } catch (error) {
-        console.error('[App Quit] Error during ASAR restoration:', error);
+        console.error('[App Quit] Error during ASAR restoration (first run):', error); // Keep error log
       } finally {
         // Allow the app to quit now
+        // console.log('[App Quit] Proceeding with app.quit().'); // Removed log
         app.quit();
       }
     });
@@ -754,9 +763,12 @@ class Electron {
       })
     }
 
-    // Enable auto-updater for production builds
+    // Enable auto-updater ONLY for production builds
     if (!isDevelopment) {
-      this._initAutoUpdater()
+      console.log('[Updater] Development mode detected. Auto-updater disabled.');
+    } else {
+      console.log('[Updater] Production mode detected. Initializing auto-updater.');
+      this._initAutoUpdater(); // Only call this if NOT in development
     }
 
     // --- Auto-resume Leak Check (Moved to 'renderer-ready' listener) ---
