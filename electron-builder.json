@@ -1,0 +1,80 @@
+{
+  "productName": "strawberry-jam",
+  "electronVersion": "32.0.1",
+  "directories": {
+    "output": "build"
+  },
+  "win": {
+    "icon": "./assets/icon.ico",
+    "asar": "true",
+    "target": {
+      "target": "nsis",
+      "arch": [
+        "x64"
+      ]
+    }
+  },
+  "mac": {
+    "icon": "./assets/icon.png",
+    "asar": "true",
+    "target": [
+      {
+        "target": "dmg",
+        "arch": [
+          "x64",
+          "arm64"
+        ]
+      },
+      {
+        "target": "zip",
+        "arch": [
+          "x64",
+          "arm64"
+        ]
+      }
+    ]
+  },
+  "extraFiles": [
+    {
+      "from": "plugins",
+      "to": "plugins",
+      "filter": [
+        "**/*",
+        "!UsernameLogger/**/*"
+      ]
+    },
+    {
+      "from": "assets",
+      "to": "assets",
+      "filter": [
+        "**/*",
+        "!memory-bank/**/*",
+        "!extracted-winapp-dev/**/*",
+        "!extracted-winapp-public/**/*",
+        "!*-backup.asar",
+        "!*-dev.asar"
+      ]
+    },
+    "public/**/*",
+    "settings.json"
+  ],
+  "extraResources": [
+    {
+      "from": "assets",
+      "to": "assets",
+      "filter": [
+        "**/*",
+        "!memory-bank/**/*",
+        "!extracted-winapp-dev/**/*",
+        "!extracted-winapp-public/**/*",
+        "!*-backup.asar",
+        "!*-dev.asar"
+      ]
+    },
+    "public/"
+  ],
+  "publish": {
+    "provider": "github",
+    "releaseType": "release"
+  }
+}
