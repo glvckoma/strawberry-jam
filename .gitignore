@@ -11,10 +11,15 @@ assets/*-backup.asar
 assets/*-dev.asar
 memory-bank/
 plugins/UsernameLogger/
-data/* # Ignore contents, but allow empty dir via .gitkeep
+data/* 
 !data/.gitkeep
 assets/memory-bank/
 .clinerules
 process_logs.js
-# pack-and-run.js # Temporarily commented out to allow tracking
 dev/
+data/ajc_accounts.txt
+data/collected_usernames.txt
+data/found_accounts.txt
+data/potential_accounts.txt
+data/processed_usernames.txt
+data/working_accounts.txt
