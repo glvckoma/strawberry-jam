@@ -1,0 +1,20 @@
+node_modules/
+build/
+dev-app-update.yml
+plugin_packages/
+.DS_Store
+assets/extracted-winapp-dev/
+assets/extracted-winapp-public/
+assets/winapp.asar
+assets/osxapp.asar
+assets/*-backup.asar
+assets/*-dev.asar
+memory-bank/
+plugins/UsernameLogger/
+data/* # Ignore contents, but allow empty dir via .gitkeep
+!data/.gitkeep
+assets/memory-bank/
+.clinerules
+process_logs.js
+# pack-and-run.js # Temporarily commented out to allow tracking
+dev/
