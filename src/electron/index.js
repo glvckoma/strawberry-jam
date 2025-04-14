@@ -6,7 +6,7 @@ const { fork } = require('child_process')
 const { autoUpdater } = require('electron-updater')
 const Store = require('electron-store'); // Added for leak checker
 const { startLeakCheck } = require('./leakChecker'); // Added for leak checker
-// Removed incorrect logger import
+const Patcher = require('./renderer/application/patcher'); // Import the Patcher class
 
 const isDevelopment = process.env.NODE_ENV === 'development'
 
@@ -76,6 +76,7 @@ class Electron {
     this._window = null
     this._apiProcess = null
     this._store = new Store(); // Instantiate Store
+    this._patcher = new Patcher(null); // Instantiate Patcher (pass null for application)
     this._isLeakCheckRunning = false; // Added for leak check state
     this._isLeakCheckPaused = false; // Flag for pause state
     this._isLeakCheckStopped = false; // Flag for stop state
@@ -626,8 +627,28 @@ class Electron {
     })
 
     app.on('window-all-closed', () => {
+      // Original logic: Quit if not on macOS when all windows are closed.
+      // ASAR restoration is handled in 'will-quit'.
       if (process.platform !== 'darwin') app.quit()
     })
+
+    // Add the will-quit handler
+    app.on('will-quit', async (event) => {
+      console.log('[App Quit] will-quit event triggered. Attempting to restore original app.asar...');
+      // Prevent immediate quitting
+      event.preventDefault();
+      try {
+        // Call the restore method on our patcher instance
+        await this._patcher.restoreOriginalAsar();
+        console.log('[App Quit] Restoration attempt finished.');
+      } catch (error) {
+        console.error('[App Quit] Error during ASAR restoration:', error);
+      } finally {
+        // Allow the app to quit now
+        app.quit();
+      }
+    });
+
 
     return this
   }
