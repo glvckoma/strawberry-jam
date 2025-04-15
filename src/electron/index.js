@@ -104,6 +104,12 @@ class Electron {
 
     ipcMain.on('open-url', (_, url) => shell.openExternal(url))
 
+    // --- App Version IPC Handler ---
+    ipcMain.handle('get-app-version', () => {
+      devLog('[IPC] Handling get-app-version');
+      return app.getVersion();
+    });
+
     // --- Settings IPC Handlers ---
     ipcMain.handle('get-setting', (event, key) => {
       devLog(`[IPC] Handling 'get-setting' for key: ${key}`);
