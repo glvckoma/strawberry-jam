@@ -60,40 +60,6 @@
             <span class="font-medium">Settings</span>
           </a>
         </li>
-        <!-- Enhanced Dropdown -->
-        <li class="relative">
-          <div class="flex items-center px-3 mb-1">
-            <span class="sidebar-section-title flex-grow">Links</span>
-            <button id="toggleLinksSection" class="ml-2 text-sidebar-text hover:text-highlight-green p-1.5 rounded transition-all sidebar-chevron" aria-label="Toggle Links">
-              <i class="fas fa-chevron-down"></i>
-            </button>
-          </div>
-          <div id="linksSectionContent" class="collapsible-section collapsed" style="max-height: 500px; opacity: 1; overflow: hidden; transition: max-height 0.3s cubic-bezier(0.4,0,0.2,1), opacity 0.3s cubic-bezier(0.4,0,0.2,1);">
-            <div class="pl-3 border-l border-sidebar-border/30 space-y-1">
-              <a href="#"
-                class="flex items-center space-x-3 text-sidebar-text hover:bg-tertiary-bg group py-2 px-3 rounded-md transition-all"
-                onclick="jam.application.open('https://discord.gg/HzFe7XpuPs')">
-                <i class="fab fa-discord text-indigo-400 w-5 text-center"></i>
-                <span>Discord</span>
-                <i class="fas fa-external-link-alt ml-auto text-xs opacity-0 group-hover:opacity-60"></i>
-              </a>
-              <a href="#"
-                class="flex items-center space-x-3 text-sidebar-text hover:bg-tertiary-bg group py-2 px-3 rounded-md transition-all"
-                onclick="jam.application.open('https://github.com/glvckoma/strawberry-jam')">
-                <i class="fab fa-github text-text-primary w-5 text-center"></i>
-                <span>GitHub</span>
-                <i class="fas fa-external-link-alt ml-auto text-xs opacity-0 group-hover:opacity-60"></i>
-              </a>
-              <a href="#"
-                class="flex items-center space-x-3 text-sidebar-text hover:bg-tertiary-bg group py-2 px-3 rounded-md transition-all"
-                onclick="jam.application.open('https://jam.exposed')">
-                <i class="fas fa-palette text-peachy-beige w-5 text-center"></i>
-                <span>Masterpieces</span>
-                <i class="fas fa-external-link-alt ml-auto text-xs opacity-0 group-hover:opacity-60"></i>
-              </a>
-            </div>
-          </div>
-        </li>
       </ul>
       </div>
     </div>
@@ -135,11 +101,30 @@
 
     <!-- Header -->
     <header id="header" class="flex items-center p-4 bg-secondary-bg border-b border-sidebar-border shadow">
-      <button id="menuButton" class="text-lg text-sidebar-text focus:outline-none">
+      <button id="menuButton" class="text-lg text-sidebar-text focus:outline-none p-2 rounded hover:bg-tertiary-bg transition-colors">
         <i id="menuIcon" class="fas fa-bars"></i>
       </button>
 
-      <img class="h-10 mx-auto" />
+      <!-- Centered Link Icons Container -->
+      <div class="flex-grow flex flex-col justify-center items-center">
+        <div id="headerLinksContainer" class="flex justify-center items-center space-x-4 transition-all duration-300 ease-in-out" style="max-height: 50px; opacity: 1;">
+          <a href="#" class="text-sidebar-text hover:text-indigo-400 p-2 rounded hover:bg-tertiary-bg transition-colors" onclick="jam.application.open('https://discord.gg/HzFe7XpuPs')" aria-label="Discord" data-tooltip="Discord">
+            <i class="fab fa-discord text-xl"></i> <!-- Increased size slightly -->
+          </a>
+        <a href="#" class="text-sidebar-text hover:text-highlight-green p-2 rounded hover:bg-tertiary-bg transition-colors" onclick="jam.application.open('https://github.com/glvckoma/strawberry-jam')" aria-label="GitHub" data-tooltip="GitHub">
+          <i class="fab fa-github text-xl"></i> <!-- Increased size slightly -->
+        </a>
+        <a href="#" class="text-sidebar-text hover:text-peachy-beige p-2 rounded hover:bg-tertiary-bg transition-colors" onclick="jam.application.open('https://jam.exposed')" aria-label="Masterpieces" data-tooltip="Masterpieces">
+          <i class="fas fa-palette text-xl"></i> <!-- Increased size slightly -->
+        </a>
+        <a href="#" class="text-sidebar-text hover:text-blue-400 p-2 rounded hover:bg-tertiary-bg transition-colors" onclick="jam.application.open('https://github.com/glvckoma/AJC-Price-Checker')" aria-label="AJC Price Checker" data-tooltip="AJC Price Checker">
+          <i class="fas fa-tags text-xl"></i> <!-- Price Checker Icon -->
+        </a>
+        </div>
+        <button id="toggleHeaderLinksButton" class="text-sidebar-text/50 hover:text-sidebar-text text-xs mt-1 focus:outline-none p-1" aria-label="Toggle Header Links">
+          <i class="fas fa-ellipsis-h"></i> <!-- Changed icon to three dots -->
+        </button>
+      </div>
 
       <button id="closeButton"
         class="p-2 rounded hover:bg-error-red hover:text-white transition-colors text-sidebar-text focus:outline-none" style="-webkit-app-region: no-drag;">
@@ -342,22 +327,6 @@
           }
         });
       }
-      // Collapsible Links Section
-      const linksToggle = document.getElementById("toggleLinksSection");
-      const linksContent = document.getElementById("linksSectionContent");
-      if (linksToggle && linksContent) {
-        linksToggle.addEventListener("click", function () {
-          linksContent.classList.toggle("collapsed");
-          const icon = linksToggle.querySelector("i");
-          if (linksContent.classList.contains("collapsed")) {
-            icon.classList.remove("fa-chevron-up");
-            icon.classList.add("fa-chevron-down");
-          } else {
-            icon.classList.remove("fa-chevron-down");
-            icon.classList.add("fa-chevron-up");
-          }
-        });
-      }
       // Plugins refresh button
       const pluginsRefresh = document.getElementById("refreshPluginsSection");
       if (pluginsRefresh) {
@@ -369,6 +338,39 @@
           }
         });
       }
+
+      // Header Links Toggle
+      const headerLinksContainer = document.getElementById("headerLinksContainer");
+      const toggleHeaderLinksButton = document.getElementById("toggleHeaderLinksButton");
+      const toggleIcon = toggleHeaderLinksButton.querySelector("i");
+      const storageKey = 'headerLinksVisible';
+
+      const setLinksVisibility = (visible) => {
+        if (visible) {
+          headerLinksContainer.style.maxHeight = '50px'; // Or enough height for the icons
+          headerLinksContainer.style.opacity = '1';
+          headerLinksContainer.style.overflow = 'visible'; // Allow hover effects etc.
+          // toggleIcon class change removed
+          localStorage.setItem(storageKey, 'true');
+        } else {
+          headerLinksContainer.style.maxHeight = '0px';
+          headerLinksContainer.style.opacity = '0';
+          headerLinksContainer.style.overflow = 'hidden';
+          // toggleIcon class change removed
+          localStorage.setItem(storageKey, 'false');
+        }
+      };
+
+      // Initial state from localStorage
+      const initialStateVisible = localStorage.getItem(storageKey) !== 'false'; // Default to true if not set or invalid
+      setLinksVisibility(initialStateVisible);
+
+      // Toggle button click listener
+      toggleHeaderLinksButton.addEventListener("click", function () {
+        const currentlyVisible = localStorage.getItem(storageKey) !== 'false';
+        setLinksVisibility(!currentlyVisible);
+      });
+
     });
   </script>
 
@@ -479,22 +481,9 @@
         $('#incomingCount, #outgoingCount, #totalCount').text('0')
       })
 
-      window.applyFilter = applyFilter
-      window.openTab = openTab
+    window.applyFilter = applyFilter
+    window.openTab = openTab
     })
-
-    $('#linksDropdownToggle').on('click', function () {
-      $('#linksDropdown').slideToggle(200)
-      $('#linksDropdownIcon').toggleClass('rotate-180')
-    })
-
-    $(document).on('click', function (event) {
-      if (!$(event.target).closest('#linksDropdownToggle, #linksDropdown').length) {
-        $('#linksDropdown').slideUp(200)
-        $('#linksDropdownIcon').removeClass('rotate-180')
-      }
-    })
-
   </script>
 </body>
 

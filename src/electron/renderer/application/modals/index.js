@@ -144,21 +144,28 @@ class ModalSystem {
    * Close the currently active modal
    */
   close () {
+    // console.log('[ModalSystem] close() called.'); // Log removed
     if (this.activeModal) {
-      const { $container, name } = this.activeModal
+      // console.log('[ModalSystem] Active modal found:', this.activeModal.name); // Log removed
+      const { $container, name } = this.activeModal;
 
-      const modalModule = this.registeredModals.get(name)
+      const modalModule = this.registeredModals.get(name);
       if (modalModule && typeof modalModule.close === 'function') {
-        modalModule.close(this.application)
+        // console.log('[ModalSystem] Calling modal-specific close handler for:', name); // Log removed
+        modalModule.close(this.application);
       }
 
-      $container.addClass('hidden')
+      // console.log('[ModalSystem] Hiding container:', $container); // Log removed
+      $container.addClass('hidden');
 
       setTimeout(() => {
-        $container.empty()
-      }, 300)
+        // console.log('[ModalSystem] Emptying container after timeout:', $container); // Log removed
+        $container.empty();
+      }, 300);
 
-      this.activeModal = null
+      this.activeModal = null;
+    } else {
+      // console.log('[ModalSystem] No active modal to close.'); // Log removed
     }
   }
 }

@@ -15,25 +15,21 @@ exports.name = 'settings'
  */
 exports.render = function (app, data = {}) {
   const $modal = $(`
-    <div class="flex items-center justify-center min-h-screen p-4">
+    <div class="flex items-center justify-center min-h-screen">
       <!-- Modal Backdrop -->
       <div class="fixed inset-0 bg-black/50 transition-opacity"></div>
       
-      <!-- Modal Content -->
-      <div class="relative bg-secondary-bg rounded-lg shadow-xl max-w-md w-full">
-        <!-- Modal Header -->
-        <div class="flex items-center justify-between p-4 border-b border-sidebar-border">
+      <div class="relative bg-secondary-bg rounded-lg shadow-xl max-w-md w-full flex flex-col max-h-[85vh] overflow-hidden">
+        <div class="flex items-center p-4 border-b border-sidebar-border flex-shrink-0">
           <h3 class="text-lg font-semibold text-text-primary">
             <i class="fas fa-cog text-highlight-yellow mr-2"></i>
             Settings
           </h3>
-          <button type="button" class="text-sidebar-text hover:text-text-primary" id="closeSettingsBtn">
+          <button type="button" class="ml-auto p-2 w-8 h-8 flex-shrink-0 rounded hover:bg-error-red hover:text-white text-sidebar-text focus:outline-none flex items-center justify-center" id="closeSettingsBtn">
             <i class="fas fa-times"></i>
           </button>
         </div>
-        
-        <!-- Modal Body -->
-        <div class="p-5">
+        <div class="p-5 overflow-y-auto">
           <!-- Network Settings Content -->
           <div class="space-y-4">
             <!-- Server IP -->
@@ -114,8 +110,7 @@ exports.render = function (app, data = {}) {
           </div>
         </div>
 
-        <!-- Modal Footer -->
-        <div class="flex items-center justify-end p-4 border-t border-sidebar-border">
+        <div class="flex items-center justify-end p-4 border-t border-sidebar-border flex-shrink-0">
           <button type="button" class="bg-sidebar-hover text-text-primary px-4 py-2 mr-2 rounded hover:bg-sidebar-hover/70 transition" id="cancelSettingsBtn">
             Cancel
           </button>
@@ -169,8 +164,9 @@ function setupEventHandlers ($modal, app) {
 
   // --- Attach Core Modal Handlers ---
   $modal.find('#closeSettingsBtn, #cancelSettingsBtn').on('click', () => {
-    app.modals.close()
-  })
+    // console.log('[Settings Modal] Close/Cancel button clicked.'); // Log removed
+    app.modals.close();
+  });
 
   $modal.find('#saveSettingsBtn').on('click', () => {
     saveSettings($modal, app)
