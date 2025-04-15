@@ -919,5 +919,16 @@ module.exports = class Application extends EventEmitter {
     // Signal to main process that renderer is ready (for auto-resume logic)
     devLog('[Renderer] Application instantiated, sending renderer-ready signal.');
     ipcRenderer.send('renderer-ready');
+
+    // Attach close button listener
+    const closeButton = document.getElementById('closeButton');
+    if (closeButton) {
+      closeButton.addEventListener('click', () => {
+        this.close(); // Call the existing close method
+      });
+      devLog('[Renderer] Close button listener attached.');
+    } else {
+      devError('[Renderer] Close button element (#closeButton) not found!');
+    }
   }
 }

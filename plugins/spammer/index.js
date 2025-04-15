@@ -313,4 +313,7 @@ class Spammer {
 
   const spammer = new Spammer();
   window.spammer = spammer;
+
+  // Ensure the spammer stops when the window is closed
+  window.addEventListener('beforeunload', spammer.stopClick);
 });

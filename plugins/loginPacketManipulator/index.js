@@ -27,6 +27,7 @@ console.log("[LoginPacketManipulator] index.js loaded at " + new Date().toISOStr
     // --- State ---
     let originalLoginPacket = null; // Store the full original packet
     let interceptEnabled = true; // Simple flag to enable/disable interception
+    let unsubscribePacketListener = null; // To store the unsubscribe function
 
     // --- DOM Elements ---
     const editorContainer = document.getElementById("login-packet-editor");
@@ -379,7 +380,8 @@ console.log("[LoginPacketManipulator] index.js loaded at " + new Date().toISOStr
 
     // --- Packet Hooking ---
     try {
-      window.jam.onPacket(function (packetData) {
+      // Store the unsubscribe function returned by onPacket
+      unsubscribePacketListener = window.jam.onPacket(function (packetData) {
         if (!interceptEnabled || !packetData || packetData.direction !== 'in') {
           return; // Only process incoming packets if enabled
         }
@@ -441,5 +443,17 @@ console.log("[LoginPacketManipulator] index.js loaded at " + new Date().toISOStr
   } else {
     window.addEventListener('jam-ready', initializePlugin, { once: true });
   }
+
+  // Add cleanup listener for window close
+  window.addEventListener('beforeunload', () => {
+    if (typeof unsubscribePacketListener === 'function') {
+      try {
+        unsubscribePacketListener();
+        console.log("[LoginPacketManipulator] Unsubscribed from packet listener.");
+      } catch (e) {
+        console.error("[LoginPacketManipulator] Error unsubscribing from packet listener:", e);
+      }
+    }
+  });
 
 })();

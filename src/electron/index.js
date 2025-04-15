@@ -1,8 +1,8 @@
-const { app, BrowserWindow, globalShortcut, shell, ipcMain, protocol, net, dialog } = require('electron') // Added dialog
+const { app, BrowserWindow, globalShortcut, shell, ipcMain, protocol, net, dialog, session } = require('electron') // Added session
 const path = require('path')
 const fs = require('fs').promises; // Added for state management
 const crypto = require('crypto'); // Added for unique IDs
-const { fork } = require('child_process')
+const { fork, spawn } = require('child_process') // Added spawn
 const { autoUpdater } = require('electron-updater')
 const Store = require('electron-store'); // Added for leak checker
 const { startLeakCheck } = require('./leakChecker'); // Added for leak checker
@@ -67,6 +67,12 @@ protocol.registerSchemesAsPrivileged([
   { scheme: 'app', privileges: { standard: true, secure: true, supportFetchAPI: true } }
 ]);
 
+// --- Standalone Cache Clear Logic (for startup) ---
+// This function is no longer needed as the logic was removed from startup
+// async function clearAppCacheOnStartup() { ... }
+// --- End Standalone Cache Clear Logic ---
+
+
 class Electron {
   /**
    * Constructor.
@@ -81,6 +87,7 @@ class Electron {
     this._isLeakCheckPaused = false; // Flag for pause state
     this._isLeakCheckStopped = false; // Flag for stop state
     this._isQuitting = false; // Flag to prevent multiple quit handler runs
+    this._isClearingCacheAndQuitting = false; // Flag for cache clear on quit
     this._setupIPC()
   }
 
@@ -93,12 +100,7 @@ class Electron {
     ipcMain.on('window-close', () => this._window.close())
     ipcMain.on('window-minimize', () => this._window.minimize())
     ipcMain.on('open-settings', (_, url) => shell.openExternal(url))
-    ipcMain.on('application-relaunch', () => {
-      setTimeout(() => {
-        app.relaunch()
-        app.exit()
-      }, 5000)
-    })
+    // Removed application-relaunch handler
 
     ipcMain.on('open-url', (_, url) => shell.openExternal(url))
 
@@ -118,6 +120,7 @@ class Electron {
     ipcMain.handle('set-setting', (event, key, value) => {
       devLog(`[IPC] Handling 'set-setting' for key: ${key} with value:`, value); // Log value being set
       try {
+        // Removed special handling for autoClearCacheOnUpdate
         this._store.set(key, value);
         devLog(`[Store] Successfully set '${key}'.`); // Log success
         return { success: true };
@@ -415,6 +418,128 @@ class Electron {
     }).bind(this));
     // --- End Renderer Ready Listener ---
 
+    // --- Danger Zone IPC Handlers ---
+    ipcMain.handle('danger-zone:clear-cache', async () => {
+      devLog('[IPC] Handling danger-zone:clear-cache');
+      // 1. Confirm other instances are closed (using dialog)
+      const continueClear = await this._confirmNoOtherInstances('clear the cache');
+      if (!continueClear) {
+        return { success: false, message: 'Cache clearing cancelled by user.' };
+      }
+
+      // 2. Clear Electron session data, get BOTH cache paths, spawn helper for BOTH
+      try {
+        devLog('[Clear Cache] Clearing Electron session cache...');
+        await session.defaultSession.clearCache();
+        devLog('[Clear Cache] Clearing Electron session storage data (cookies, localstorage)...');
+        await session.defaultSession.clearStorageData({ storages: ['cookies', 'localstorage'] }); // Specify storages
+        devLog('[Clear Cache] Electron session data cleared.');
+
+        // Get both cache paths
+        const cachePaths = this._getCachePaths(); // Use the refactored method
+        if (!cachePaths || cachePaths.length === 0) {
+           devLog('[Clear Cache] Could not determine cache paths. Skipping helper script.');
+           // Still quit after clearing session data
+        } else {
+          const helperScriptPath = path.join(__dirname, 'clear-cache-helper.js');
+          devLog(`[Clear Cache] Spawning helper script: ${helperScriptPath} with paths:`, cachePaths);
+
+           // Resolve helper path correctly for packaged vs dev
+           let resolvedHelperPath;
+           if (app.isPackaged) {
+             resolvedHelperPath = path.join(process.resourcesPath, 'clear-cache-helper.js');
+           } else {
+             resolvedHelperPath = helperScriptPath; // Use path relative to __dirname in dev
+           }
+           devLog(`[Clear Cache] Resolved helper path: ${resolvedHelperPath}`);
+
+           try {
+               await fs.access(resolvedHelperPath); // Verify helper exists
+
+               // Spawn the helper script detached with both paths
+               const child = spawn('node', [resolvedHelperPath, ...cachePaths], { // Spawn node explicitly
+                 detached: true,
+                 stdio: 'ignore' // Ignore stdio to allow parent to exit
+               });
+               child.on('error', (err) => { console.error('[Clear Cache] Failed to spawn helper script:', err); });
+               child.unref(); // Allow the parent process to exit independently
+               devLog('[Clear Cache] Helper script spawned.');
+           } catch (accessError) {
+                console.error(`[Clear Cache] Helper script not found at: ${resolvedHelperPath}`, accessError);
+                // Proceed to quit even if helper fails to spawn
+           }
+        }
+
+        devLog('[Clear Cache] Quitting application.');
+        app.quit(); // Quit the main application immediately
+        return { success: true, message: 'Internal cache cleared. External cache clearing scheduled. Application will close.' };
+
+      } catch (error) {
+        console.error('[Clear Cache] Error clearing cache, spawning helper, or quitting:', error);
+        dialog.showMessageBoxSync(this._window, {
+          type: 'error',
+          title: 'Clear Cache Error',
+          message: `Failed to initiate cache clearing: ${error.message}`,
+          buttons: ['OK']
+        });
+        return { success: false, error: error.message };
+      }
+
+      // Set the flag and quit. The actual work happens in 'will-quit'.
+      this._isClearingCacheAndQuitting = true;
+      devLog('[Clear Cache] Flag set. Quitting application to trigger will-quit handler.');
+      app.quit();
+      // Return success, although the real work hasn't happened yet.
+      // The window will close before the handler finishes.
+      return { success: true, message: 'Cache clearing initiated. Application will close.' };
+
+    });
+
+    ipcMain.handle('danger-zone:uninstall', async () => {
+      devLog('[IPC] Handling danger-zone:uninstall');
+      // 1. Confirm other instances are closed (using dialog)
+      const continueUninstall = await this._confirmNoOtherInstances('uninstall Strawberry Jam');
+      if (!continueUninstall) {
+        return { success: false, message: 'Uninstall cancelled by user.' };
+      }
+
+      // 2. Locate and execute uninstaller
+      try {
+        const uninstallerPath = this._getUninstallerPath();
+        if (!uninstallerPath) {
+          throw new Error('Uninstaller path could not be determined for this OS.');
+        }
+
+        await fs.access(uninstallerPath); // Check if it exists
+        devLog(`[Uninstall] Found uninstaller at: ${uninstallerPath}`);
+
+        // Spawn detached process
+        spawn(uninstallerPath, [], {
+          detached: true,
+          stdio: 'ignore' // Prevent parent from waiting
+        }).unref(); // Allow parent to exit independently
+
+        devLog('[Uninstall] Uninstaller process spawned. Quitting application.');
+
+        // 3. Quit Strawberry Jam immediately
+        app.quit();
+        return { success: true }; // Note: We don't know if uninstall *actually* succeeded
+
+      } catch (error) {
+        console.error('[Uninstall] Error:', error);
+        const errorMsg = error.code === 'ENOENT' ? 'Uninstaller executable not found.' : error.message;
+        dialog.showMessageBoxSync(this._window, { // Use sync dialog before quitting
+          type: 'error',
+          title: 'Uninstall Error',
+          message: `Failed to start uninstaller: ${errorMsg}`,
+          buttons: ['OK']
+        });
+        // Don't quit on error
+        return { success: false, error: errorMsg };
+      }
+    });
+    // --- End Danger Zone IPC Handlers ---
+
   }
 
  // --- Helper methods for State Management ---
@@ -458,6 +583,118 @@ class Electron {
        return { success: false, error: error.message };
      }
    }
+
+  // --- Helper method to confirm no other instances ---
+  async _confirmNoOtherInstances(actionDescription) {
+    const gotTheLock = app.requestSingleInstanceLock();
+    if (gotTheLock) {
+      // We are the only instance, release the lock immediately
+      app.releaseSingleInstanceLock();
+      return true; // Proceed
+    } else {
+      // Another instance is running
+      const choice = await dialog.showMessageBox(this._window, {
+        type: 'warning',
+        title: 'Multiple Instances Detected',
+        message: `It looks like another Strawberry Jam window is open.\n\nPlease close all other Strawberry Jam windows before attempting to ${actionDescription}.`,
+        buttons: ['Cancel', 'I have closed other windows'],
+        defaultId: 0, // Default to Cancel
+        cancelId: 0
+      });
+      return choice.response === 1; // Return true only if user clicks "I have closed..."
+    }
+  }
+
+  // --- Helper method to GET Cache Paths (Returns both paths again) ---
+  _getCachePaths() {
+    devLog('[Cache Paths] Getting cache paths...');
+    const roamingPath = app.getPath('appData');
+    const cachePaths = [];
+
+    if (process.platform === 'win32') {
+      cachePaths.push(path.join(roamingPath, 'AJ Classic'));
+      cachePaths.push(path.join(roamingPath, 'strawberry-jam'));
+    } else if (process.platform === 'darwin') { // macOS
+      const libraryPath = app.getPath('home') + '/Library/Application Support'; // Use explicit path for consistency
+      cachePaths.push(path.join(libraryPath, 'AJ Classic'));
+      cachePaths.push(path.join(libraryPath, 'strawberry-jam')); // Assuming same name on macOS
+    } else {
+      console.warn('[Cache Paths] Unsupported platform for cache clearing:', process.platform);
+      // Return empty array or handle differently if needed
+    }
+
+    devLog('[Cache Paths] Identified cache paths:', cachePaths);
+    return cachePaths;
+  }
+
+  // --- Helper method for Cache Clearing (Now only used for auto-update potentially - needs review) ---
+  async _clearAppCache() {
+    // This method might still be used by the auto-update logic in will-quit.
+    // It currently clears BOTH paths using fs.rm.
+    // If used for auto-update, it should probably also use the session API + helper script pattern.
+    // For now, leaving it as is, but marking for review.
+    // TODO: Review if this method is still needed and update its logic if necessary.
+    devLog('[Cache Clear Method - REVIEW NEEDED] Starting cache clearing process...');
+    const roamingPath = app.getPath('appData');
+    const cachePaths = [];
+     if (process.platform === 'win32') {
+      cachePaths.push(path.join(roamingPath, 'AJ Classic'));
+      cachePaths.push(path.join(roamingPath, 'strawberry-jam'));
+    } else if (process.platform === 'darwin') { // macOS
+      const libraryPath = app.getPath('home') + '/Library/Application Support';
+      cachePaths.push(path.join(libraryPath, 'AJ Classic'));
+      cachePaths.push(path.join(libraryPath, 'strawberry-jam')); // Assuming same name on macOS
+    } else {
+       console.warn('[Cache Clear Method] Unsupported platform:', process.platform);
+       return;
+    }
+
+    let errors = [];
+    for (const cachePath of cachePaths) {
+      try {
+        devLog(`[Cache Clear Method] Attempting to delete: ${cachePath}`);
+        await fs.rm(cachePath, { recursive: true, force: true });
+        devLog(`[Cache Clear Method] Successfully deleted: ${cachePath}`);
+      } catch (error) {
+        if (error.code === 'ENOENT') {
+          devLog(`[Cache Clear Method] Path not found, skipping: ${cachePath}`);
+        } else {
+          console.error(`[Cache Clear Method] Failed to delete ${cachePath}:`, error);
+          errors.push(`Failed to delete ${path.basename(cachePath)}: ${error.message}`);
+        }
+      }
+    }
+
+    if (errors.length > 0) {
+      // Decide how to handle errors here - maybe log to a file?
+      console.error('[Cache Clear Method] Finished with errors:', errors.join('; '));
+      // Avoid throwing an error if called from will-quit to not block shutdown
+    } else {
+       devLog('[Cache Clear Method] Cache clearing process completed.');
+    }
+  }
+
+  // --- Helper method to get Uninstaller Path ---
+  _getUninstallerPath() { // This can remain an instance method
+    if (process.platform === 'win32') {
+      // Standard location for NSIS installers installed for the current user
+      const localAppData = app.getPath('home') + '\\AppData\\Local';
+      return path.join(localAppData, 'Programs', 'strawberry-jam', 'Uninstall strawberry-jam.exe');
+    } else if (process.platform === 'darwin') {
+      // macOS apps are typically self-contained bundles. Uninstallation is usually drag-to-trash.
+      // There isn't a standard separate uninstaller executable.
+      // We might need to guide the user or skip this step on macOS.
+      console.warn('[Uninstall] Standard uninstaller executable not applicable on macOS.');
+      // For now, return null to indicate it's not found/applicable
+      return null;
+      // Alternative: Could try to delete the .app bundle from /Applications? Risky.
+      // return '/Applications/Strawberry Jam.app'; // Example, needs verification
+    } else {
+      console.warn('[Uninstall] Unsupported platform for uninstaller:', process.platform);
+      return null;
+    }
+  }
+
  // --- Leak Check Control Method ---
   /**
    * Initiates or resumes the leak check process based on current state.
@@ -608,7 +845,10 @@ class Electron {
   create () {
     // Protocol scheme registration is done earlier (before class definition)
 
-    app.whenReady().then(() => {
+    app.whenReady().then(async () => { // Make the callback async
+      // --- REMOVED Check for AJ Classic Cache Clear Flag on Startup ---
+
+
       // Register the actual handler logic once the app is ready, BEFORE creating the window
       protocol.handle('app', (request) => {
         const url = request.url.slice('app://'.length)
@@ -635,6 +875,7 @@ class Electron {
 
     // Add the will-quit handler
     app.on('will-quit', async (event) => {
+      console.log('[App Quit] Entering will-quit handler.'); // LOGGING ADDED
       // Only run the restore logic once
       if (this._isQuitting) {
         console.log('[App Quit] will-quit handler already running, skipping subsequent calls.');
@@ -642,21 +883,101 @@ class Electron {
       }
       this._isQuitting = true; // Set the flag
 
-      // console.log('[App Quit] will-quit event triggered (first run). Attempting to restore original app.asar...'); // Removed log
       // Prevent immediate quitting
       event.preventDefault();
+      console.log('[App Quit] Default quit prevented.'); // LOGGING ADDED
       try {
-        // Call the restore method on our patcher instance
-        await this._patcher.restoreOriginalAsar();
-        // console.log('[App Quit] Restoration attempt finished (first run).'); // Removed log
+        console.log('[App Quit] Entering main try block.'); // LOGGING ADDED
+        // --- Manual Cache Clear Logic (Moved Here) ---
+        if (this._isClearingCacheAndQuitting) {
+          console.log('[App Quit] Manual cache clearing requested.'); // LOGGING CHANGED
+          try {
+            console.log('[App Quit] Clearing Electron session cache...'); // LOGGING CHANGED & Restored
+            await session.defaultSession.clearCache(); // Restored
+            console.log('[App Quit] Session cache cleared.'); // LOGGING ADDED
+            console.log('[App Quit] Clearing Electron session storage data...'); // LOGGING CHANGED & Restored
+            await session.defaultSession.clearStorageData({ storages: ['cookies', 'localstorage'] }); // Restored
+            console.log('[App Quit] Session storage data cleared.'); // LOGGING ADDED
+            // Removed SKIPPED log
+
+            const cachePaths = this._getCachePaths();
+            if (cachePaths && cachePaths.length > 0) {
+              let resolvedHelperPath;
+              if (app.isPackaged) {
+                resolvedHelperPath = path.join(process.resourcesPath, 'clear-cache-helper.js');
+              } else {
+                resolvedHelperPath = path.join(__dirname, 'clear-cache-helper.js');
+              }
+              devLog(`[App Quit] Resolved helper path: ${resolvedHelperPath}`);
+
+              try {
+                await fs.access(resolvedHelperPath); // Verify helper exists
+                const appExePath = app.getPath('exe');
+                const helperArgs = [
+                  resolvedHelperPath,
+                  ...cachePaths,
+                  '--relaunch-after-clear', // Add flag
+                  appExePath // Pass executable path
+                ];
+                console.log(`[App Quit] Spawning helper script detached: node ${helperArgs.join(' ')}`); // LOGGING CHANGED
+
+                // Spawn detached, don't wait for it. It will handle relaunch.
+                const child = spawn('node', helperArgs, {
+                  detached: true,
+                  stdio: 'ignore'
+                });
+                child.on('error', (err) => { console.error('[App Quit] Failed to spawn helper script:', err); });
+                child.unref(); // Allow parent (this process) to exit independently
+                console.log('[App Quit] Helper script spawned detached.'); // LOGGING CHANGED
+
+              } catch (helperError) {
+                console.error(`[App Quit] Failed to find or spawn helper script (${resolvedHelperPath}):`, helperError);
+                // Log the error but continue with shutdown/restore
+              }
+            } else {
+              devLog('[App Quit] Could not determine cache paths. Skipping helper script.');
+            }
+          } catch (clearError) {
+            console.error('[App Quit] Error during manual cache clearing:', clearError);
+            // Log error but continue with shutdown/restore
+          }
+        }
+        // --- End Manual Cache Clear Logic ---
+
+        // Call the restore method on our patcher instance AFTER cache clearing
+        console.log('[App Quit] Restoring original ASAR...'); // LOGGING CHANGED
+        await this._patcher.restoreOriginalAsar(); // Restored this line
+        console.log('[App Quit] ASAR restoration finished.'); // LOGGING CHANGED
+
+        // --- General Cleanup ---
+        console.log('[App Quit] Performing general cleanup...'); // LOGGING CHANGED
+        // Signal Leak Checker to stop if running
+        if (this._isLeakCheckRunning) {
+          devLog('[App Quit] Signaling running Leak Checker to stop...');
+          this._isLeakCheckStopped = true;
+          this._isLeakCheckPaused = false; // Ensure pause is cleared
+          // Note: We don't await checker stop here to avoid blocking quit indefinitely
+        }
+
+        // Terminate the forked API process
+        if (this._apiProcess && !this._apiProcess.killed) { // Restored this block
+          console.log('[App Quit] Terminating API process...'); // LOGGING CHANGED
+          this._apiProcess.kill();
+          console.log('[App Quit] API process terminated.'); // LOGGING CHANGED
+        }
+        // Removed SKIPPED log for API termination
+        console.log('[App Quit] General cleanup finished.'); // LOGGING CHANGED
+        // --- End General Cleanup ---
+
+        console.log('[App Quit] Main try block finished.'); // LOGGING ADDED
       } catch (error) {
-        console.error('[App Quit] Error during ASAR restoration (first run):', error); // Keep error log
+        console.error('[App Quit] Error during will-quit handler execution:', error);
       } finally {
-        // Allow the app to quit now
-        // console.log('[App Quit] Proceeding with app.quit().'); // Removed log
-        app.quit();
-      }
-    });
+        console.log('[App Quit] Entering finally block. Forcing exit with app.exit(0).'); // LOGGING CHANGED
+        // Force exit as allowing default quit process to resume seems unreliable
+        app.exit(0); // ADDED FORCE EXIT
+      } // End finally
+    }); // End app.on('will-quit', ...)
 
 
     return this
@@ -764,11 +1085,18 @@ class Electron {
     }
 
     // Enable auto-updater ONLY for production builds
-    if (!isDevelopment) {
-      console.log('[Updater] Development mode detected. Auto-updater disabled.');
-    } else {
+    if (app.isPackaged) { // Use app.isPackaged for a more reliable check
       console.log('[Updater] Production mode detected. Initializing auto-updater.');
-      this._initAutoUpdater(); // Only call this if NOT in development
+      this._initAutoUpdater();
+    } else {
+      console.log('[Updater] Development mode detected. Auto-updater disabled.');
+      // Add placeholder dev-app-update.yml to prevent errors in dev
+      const devUpdateConfigPath = path.join(app.getAppPath(), 'dev-app-update.yml');
+      fs.access(devUpdateConfigPath).catch(() => {
+        fs.writeFile(devUpdateConfigPath, 'provider: github').catch(err => {
+          console.error('[Updater] Failed to write dev-app-update.yml:', err);
+        });
+      });
     }
 
     // --- Auto-resume Leak Check (Moved to 'renderer-ready' listener) ---

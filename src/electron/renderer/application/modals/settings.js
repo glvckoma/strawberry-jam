@@ -87,6 +87,30 @@ exports.render = function (app, data = {}) {
             </div>
             <!-- End LeakCheck Settings Section -->
 
+            <!-- Danger Zone Section -->
+            <div class="mt-6 pt-4 border-t border-sidebar-border space-y-4">
+              <h4 class="text-md font-semibold text-red-500 mb-3">
+                <i class="fas fa-exclamation-triangle mr-2"></i>Danger Zone
+              </h4>
+
+              <!-- Clear Cache Button -->
+              <div>
+                <button type="button" id="clearCacheBtn" class="w-full bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 transition">
+                  Clear Cache Now
+                </button>
+                <p class="mt-1 text-xs text-gray-400">Deletes cache for both Animal Jam Classic and Strawberry Jam. Requires app restart.</p>
+              </div>
+
+              <!-- Uninstall Button -->
+              <div class="mt-4">
+                <button type="button" id="uninstallBtn" class="w-full bg-red-800 text-white px-4 py-2 rounded hover:bg-red-900 transition">
+                  Uninstall Strawberry Jam
+                </button>
+                <p class="mt-1 text-xs text-gray-400">Removes Strawberry Jam from your computer. This action is irreversible.</p>
+              </div>
+            </div>
+            <!-- End Danger Zone Section -->
+
           </div>
         </div>
 
@@ -136,6 +160,9 @@ function setupEventHandlers ($modal, app) {
   // REMOVED const $stopButton = $modal.find('#stopLeakCheckBtn');
   const $outputDirInput = $modal.find('#leakCheckOutputDir');
   const $browseButton = $modal.find('#browseOutputDirBtn');
+  const $clearCacheButton = $modal.find('#clearCacheBtn');
+  const $uninstallButton = $modal.find('#uninstallBtn');
+  // REMOVED $autoClearCheckbox
 
   // REMOVED updateButtonStates function
   // REMOVED loadInitialState function definition
@@ -177,6 +204,57 @@ function setupEventHandlers ($modal, app) {
   // REMOVED $pauseButton click handler
   // REMOVED $stopButton click handler
 
+  // --- Danger Zone Handlers ---
+  $clearCacheButton.on('click', async () => {
+    const confirmed = await showConfirmationModal(
+      'Clear Cache Confirmation',
+      'Are you sure you want to clear the cache for both Animal Jam Classic and Strawberry Jam? This action cannot be undone. Strawberry Jam will close, and the cache will be cleared in the background. Please wait a few seconds before reopening.',
+      'Close App & Clear Cache',
+      'Cancel'
+    );
+
+    if (confirmed) {
+      showToast('Attempting to clear cache...', 'warning');
+      try {
+        const result = await ipcRenderer.invoke('danger-zone:clear-cache');
+        if (!result.success) {
+          showToast(`Failed to clear cache: ${result.error || result.message || 'Unknown error'}`, 'error');
+        }
+        // No success toast needed as the app should quit if successful.
+      } catch (error) {
+        console.error('Error invoking clear cache:', error);
+        showToast(`Error clearing cache: ${error.message}`, 'error');
+      }
+    }
+  });
+
+  $uninstallButton.on('click', async () => {
+    const confirmed = await showConfirmationModal(
+      'Uninstall Confirmation',
+      'Are you absolutely sure you want to uninstall Strawberry Jam? This will remove the application and cannot be undone. Strawberry Jam will close to start the uninstaller.',
+      'Close App & Uninstall',
+      'Cancel'
+    );
+
+    if (confirmed) {
+      showToast('Attempting to uninstall...', 'warning');
+      try {
+        const result = await ipcRenderer.invoke('danger-zone:uninstall');
+        if (!result.success) {
+          // Show error if uninstall failed to start (e.g., uninstaller not found)
+           showToast(`Failed to start uninstall: ${result.error || result.message || 'Unknown error'}`, 'error');
+        }
+         // No success toast needed as the app should quit if successful.
+      } catch (error) {
+        console.error('Error invoking uninstall:', error);
+        showToast(`Error starting uninstall: ${error.message}`, 'error');
+      }
+    }
+  });
+
+  // No handler needed for checkbox change, state is saved with "Save Changes"
+
+  // --- End Danger Zone Handlers ---
 
   // --- End Button Click Handlers ---
 
@@ -210,12 +288,14 @@ async function loadSettings ($modal, app) { // Made async
         $modal.find('#leakCheckApiKey').val(apiKey || '');
 
         // Load LeakCheck Output Directory via IPC invoke
-        const outputDir = await ipcRenderer.invoke('get-setting', 'leakCheckOutputDir'); // Use direct ipcRenderer
-        $modal.find('#leakCheckOutputDir').val(outputDir || ''); // Set value or empty string
+        const outputDir = await ipcRenderer.invoke('get-setting', 'leakCheckOutputDir');
+        $modal.find('#leakCheckOutputDir').val(outputDir || '');
+
+        // REMOVED Load Auto Clear Cache setting
 
       } catch (ipcError) {
         console.error('IPC Error loading settings:', ipcError);
-        showToast('Error loading LeakCheck settings', 'error'); // Changed toast message
+        showToast('Error loading specific settings', 'error'); // Changed toast message
       }
     } else {
       console.error('ipcRenderer not available for loading settings');
@@ -259,7 +339,8 @@ async function saveSettings ($modal, app) { // Made async
 
     // Save LeakCheck API Key and Output Directory via IPC invoke
     const leakCheckApiKey = $modal.find('#leakCheckApiKey').val().trim();
-    const leakCheckOutputDir = $modal.find('#leakCheckOutputDir').val().trim(); // Get output dir value
+    const leakCheckOutputDir = $modal.find('#leakCheckOutputDir').val().trim();
+    // REMOVED autoClearCacheOnUpdate variable
 
     if (hasIpc) {
       try {
@@ -281,10 +362,12 @@ async function saveSettings ($modal, app) { // Made async
             }
         }
 
+        // REMOVED Save Auto Clear Cache setting
+
       } catch (ipcError) { // Catch errors from invoke calls
         settingsSaved = false;
-        console.error('IPC Error saving LeakCheck settings:', ipcError);
-        showToast('IPC Error: Failed to save LeakCheck settings', 'error');
+        console.error('IPC Error saving settings:', ipcError);
+        showToast('IPC Error: Failed to save settings', 'error');
       }
     } else {
       settingsSaved = false;
@@ -322,4 +405,44 @@ function showToast (message, type = 'success') {
   setTimeout(() => {
     toast.fadeOut(300, function () { $(this).remove() })
   }, 3000)
+}
+
+/**
+ * Show a custom confirmation modal
+ * @param {string} title - The modal title
+ * @param {string} message - The confirmation message
+ * @param {string} confirmText - Text for the confirm button
+ * @param {string} cancelText - Text for the cancel button
+ * @returns {Promise<boolean>} - Resolves true if confirmed, false otherwise
+ */
+function showConfirmationModal(title, message, confirmText = 'Confirm', cancelText = 'Cancel') {
+  return new Promise((resolve) => {
+    const $confirmModal = $(`
+      <div class="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4 confirmation-modal">
+        <div class="relative bg-secondary-bg rounded-lg shadow-xl max-w-sm w-full">
+          <div class="p-5 text-center">
+            <i class="fas fa-exclamation-triangle text-red-500 text-4xl mb-4"></i>
+            <h3 class="text-lg font-semibold text-text-primary mb-2">${title}</h3>
+            <p class="text-sm text-gray-400 mb-6">${message}</p>
+            <div class="flex justify-center gap-4">
+              <button type="button" class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700 transition" id="confirmCancelBtn">${cancelText}</button>
+              <button type="button" class="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 transition" id="confirmActionBtn">${confirmText}</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `);
+
+    $confirmModal.find('#confirmCancelBtn').on('click', () => {
+      $confirmModal.remove();
+      resolve(false);
+    });
+
+    $confirmModal.find('#confirmActionBtn').on('click', () => {
+      $confirmModal.remove();
+      resolve(true);
+    });
+
+    $('body').append($confirmModal);
+  });
 }

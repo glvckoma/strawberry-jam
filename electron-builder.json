@@ -71,7 +71,11 @@
         "!*-dev.asar"
       ]
     },
-    "public/"
+    "public/",
+    {
+      "from": "src/electron/clear-cache-helper.js",
+      "to": "clear-cache-helper.js"
+    }
   ],
   "publish": {
     "provider": "github",
