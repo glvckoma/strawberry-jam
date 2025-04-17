@@ -1,0 +1,61 @@
+{
+  "name": "strawberry-jam",
+  "description": "strawberry jam is my personal fork of the project jam created and developed by sxip.",
+  "main": "src/index.js",
+  "version": "1.0.4",
+  "author": "glvckoma",
+  "scripts": {
+    "devtools": "electron dev/index.js",
+    "dev": "npx cross-env NODE_ENV=development nodemon",
+    "pack:asar:dev": "npx asar pack assets/extracted-winapp-dev assets/winapp.asar --unpack *.node",
+    "clean:public": "node clean-public-build.js",
+    "pack:asar:public": "npm run clean:public && npx asar pack assets/extracted-winapp-public assets/winapp.asar --unpack *.node",
+    "build:win:dev": "npm run pack:asar:dev && npx electron-builder build -w",
+    "build:win:public": "npm run pack:asar:public && npx electron-builder build -w",
+    "build:mac-docker:dev": "npx electron-builder build --mac -c.mac.target=zip --x64 --arm64 -p never --config.asar=true --config.npmRebuild=true -c.mac.identity=null --config.electronDownload.mirror=https://npmmirror.com/mirrors/electron/",
+    "build:mac-docker:public": "npm run clean:public && npx electron-builder build --mac -c.mac.target=zip --x64 --arm64 -p never --config.asar=true --config.npmRebuild=true -c.mac.identity=null --config.electronDownload.mirror=https://npmmirror.com/mirrors/electron/",
+    "version:patch": "npm version patch",
+    "version:minor": "npm version minor",
+    "version:major": "npm version major",
+    "verify": "node verify-build.js",
+    "plugin:tag": "node src/utils/manage-plugin-tags.js",
+    "plugin:tag:list": "node src/utils/manage-plugin-tags.js list",
+    "publish:win": "npm run version:patch && npm run build:win:public && npm run verify && npx electron-builder build -w -p always",
+    "publish:mac-docker": "docker run --rm -e GH_TOKEN -v \"%cd%\":/project -v \"%cd%/build\":/project/build electronuserland/builder:wine /bin/bash -c \"npm run pack:asar:public && npm run verify && npx electron-builder build --mac -c.mac.target=zip --x64 --arm64 -p always --config.asar=true --config.npmRebuild=true -c.mac.identity=null --config.electronDownload.mirror=https://npmmirror.com/mirrors/electron/\""
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/glvckoma/strawberry-jam"
+  },
+  "devDependencies": {
+    "asar": "^3.2.0",
+    "electron": "^32.0.1",
+    "electron-builder": "^24.13.3",
+    "eslint": "^7.18.0",
+    "eslint-config-standard": "^16.0.2",
+    "eslint-plugin-import": "^2.22.1",
+    "eslint-plugin-node": "^11.1.0",
+    "eslint-plugin-promise": "^4.2.1",
+    "nodemon": "^2.0.7"
+  },
+  "dependencies": {
+    "ajv": "^8.6.2",
+    "axios": "^1.8.4",
+    "chalk": "^5.4.1",
+    "cheerio": "^1.0.0",
+    "cross-env": "^7.0.3",
+    "electron-store": "^7.0.1",
+    "electron-updater": "^4.3.9",
+    "express": "^4.17.1",
+    "inquirer": "^12.5.2",
+    "jquery": "^3.6.0",
+    "live-plugin-manager": "^0.17.1",
+    "node-gyp": "^8.4.1",
+    "npm": "^10.8.2",
+    "request": "^2.88.2",
+    "request-promise-native": "^1.0.9",
+    "tailwindcss": "^3.4.10",
+    "tree-kill": "^1.2.2",
+    "yargs": "^17.7.2"
+  }
+}
