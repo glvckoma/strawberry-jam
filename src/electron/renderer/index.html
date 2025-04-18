@@ -56,11 +56,12 @@
           <a href="#" id="playButton"
             class="flex items-center space-x-3 text-sidebar-text hover:bg-tertiary-bg group px-3 py-2.5 rounded-md transition-all"
             onclick="jam.application.openAnimalJam()">
-            <div class="w-8 h-8 flex items-center justify-center bg-tertiary-bg/50 rounded-md group-hover:bg-highlight-green/10 transition-colors">
+            <div class="w-8 h-8 flex items-center justify-center bg-highlight-green/20 rounded-md group-hover:bg-highlight-green/30 transition-colors">
               <i class="fas fa-play text-highlight-green"></i>
             </div>
-            <span class="font-medium">Play</span>
+            <span class="font-medium">Launch Strawberry Jam</span>
             <div class="ml-auto opacity-0 group-hover:opacity-100 transition-opacity">
+              <i class="fas fa-external-link-alt text-xs text-highlight-green"></i>
             </div>
           </a>
         </li>
@@ -101,6 +102,12 @@
           <ul id="pluginList" class="space-y-2.5">
             <!-- Plugin items will be added dynamically -->
           </ul>
+          
+          <!-- Empty plugin message -->
+          <div id="emptyPluginMessage" class="hidden text-center py-4 text-gray-400">
+            <i class="fas fa-puzzle-piece mb-2 text-lg opacity-50"></i>
+            <p class="text-xs">No plugins installed</p>
+          </div>
         </div>
       </div>
     </div>
@@ -124,6 +131,8 @@
       <div class="flex-grow flex justify-center items-center">
          <img id="fruitIcon" src="app://assets/strawberry.png" alt="Fruit Icon" class="h-11 w-11 cursor-pointer pointer-events-auto transition-transform" style="z-index: 10; -webkit-app-region: no-drag;">
       </div>
+
+      <!-- Fruit Icon Container remains, removed connection status indicator from header -->
 
       <button id="closeButton"
         class="p-2 rounded hover:bg-error-red hover:text-white transition-colors text-sidebar-text focus:outline-none" style="-webkit-app-region: no-drag;">
@@ -213,6 +222,15 @@
 
     <!-- Footer -->
     <footer class="bg-secondary-bg border-t border-sidebar-border p-4 mt-auto">
+      <!-- Status Bar with Connection Status and Time -->
+      <div class="flex items-center justify-between mb-2">
+        <div id="connection-status" class="flex items-center text-xs text-gray-400">
+          <span class="w-1.5 h-1.5 rounded-full bg-error-red mr-1.5 pulse-animation"></span>
+          <span>Disconnected</span>
+        </div>
+        <div class="text-xs text-gray-400" id="timestamp-display"></div>
+      </div>
+      
       <div id="commandContainer" class="relative">
         <i class="fas fa-terminal absolute left-3 top-1/2 transform -translate-y-1/2 text-sidebar-text/70"></i>
         <input id="input" type="text"
@@ -264,6 +282,79 @@
       max-height: 0 !important;
       opacity: 0;
       pointer-events: none;
+    }
+    
+    /* Connection Status Styles - Footer based */
+    #connection-status {
+      transition: all 0.3s ease;
+    }
+    
+    #connection-status.text-highlight-green span:first-child {
+      background-color: #10b981; /* green-500 */
+    }
+    
+    #connection-status.text-gray-400 span:first-child {
+      background-color: #ef4444; /* red-500 */
+    }
+    
+    /* Message Animation Styles */
+    .message-animate-in {
+      animation: messageIn 0.3s ease-out forwards;
+    }
+    
+    @keyframes messageIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    
+    /* Enhanced Scrollbar Styling */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    
+    ::-webkit-scrollbar-track {
+      background: rgba(28, 30, 38, 0.5);
+      border-radius: 8px;
+    }
+    
+    ::-webkit-scrollbar-thumb {
+      background: rgba(58, 61, 77, 0.8);
+      border-radius: 8px;
+      transition: background 0.2s ease;
+    }
+    
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(90, 95, 109, 0.9);
+    }
+    
+    /* Pulse Animation for Connection Status */
+    .pulse-animation {
+      animation: pulse 2s infinite;
+    }
+    
+    @keyframes pulse {
+      0% {
+        box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+      }
+      70% {
+        box-shadow: 0 0 0 6px rgba(239, 68, 68, 0);
+      }
+      100% {
+        box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+      }
+    }
+    
+    @keyframes pulse-green {
+      0% {
+        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+      }
+      70% {
+        box-shadow: 0 0 0 6px rgba(16, 185, 129, 0);
+      }
+      100% {
+        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+      }
     }
   </style>
   <script>

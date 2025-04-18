@@ -926,7 +926,7 @@ class Electron {
     // Add the will-quit handler
     app.on('will-quit', async (event) => {
       console.log('[App Quit] Entering will-quit handler.'); // LOGGING ADDED
-      // Only run the restore logic once
+      // Only run the cleanup logic once
       if (this._isQuitting) {
         console.log('[App Quit] will-quit handler already running, skipping subsequent calls.');
         return; // Skip if already quitting
@@ -982,22 +982,19 @@ class Electron {
 
               } catch (helperError) {
                 console.error(`[App Quit] Failed to find or spawn helper script (${resolvedHelperPath}):`, helperError);
-                // Log the error but continue with shutdown/restore
+                // Log the error but continue with shutdown
               }
             } else {
               devLog('[App Quit] Could not determine cache paths. Skipping helper script.');
             }
           } catch (clearError) {
             console.error('[App Quit] Error during manual cache clearing:', clearError);
-            // Log error but continue with shutdown/restore
+            // Log error but continue with shutdown
           }
         }
         // --- End Manual Cache Clear Logic ---
 
-        // Call the restore method on our patcher instance AFTER cache clearing
-        console.log('[App Quit] Restoring original ASAR...'); // LOGGING CHANGED
-        await this._patcher.restoreOriginalAsar(); // Restored this line
-        console.log('[App Quit] ASAR restoration finished.'); // LOGGING CHANGED
+        // No need to restore original ASAR since we're using a standalone installation
 
         // --- General Cleanup ---
         console.log('[App Quit] Performing general cleanup...'); // LOGGING CHANGED

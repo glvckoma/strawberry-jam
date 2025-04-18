@@ -17,38 +17,20 @@ const HttpClient = require('../../../services/HttpClient')
 const ModalSystem = require('./modals')
 
 /**
- * Message status icons.
+ * Message status icons (using FontAwesome).
  * @type {Object}
  * @constant
  */
-const messageStatus = Object.freeze({
-  success: {
-    icon: 'success.png'
-  },
-  logger: {
-    icon: 'logger.png'
-  },
-  action: {
-    icon: 'action.png'
-  },
-  wait: {
-    icon: 'wait.png'
-  },
-  celebrate: {
-    icon: 'celebrate.png'
-  },
-  warn: {
-    icon: 'warn.png'
-  },
-  notify: {
-    icon: 'notify.png'
-  },
-  speech: {
-    icon: 'speech.png'
-  },
-  error: {
-    icon: 'error.png'
-  }
+const messageIcons = Object.freeze({
+  success: 'fa-check-circle',
+  error: 'fa-times-circle',
+  wait: 'fa-spinner fa-pulse',
+  celebrate: 'fa-trophy',
+  warn: 'fa-exclamation-triangle',
+  notify: 'fa-info-circle',
+  speech: 'fa-comment-alt',
+  logger: 'fa-file-alt',
+  action: 'fa-bolt'
 })
 
 module.exports = class Application extends EventEmitter {
@@ -568,7 +550,7 @@ module.exports = class Application extends EventEmitter {
     }
 
     const createElement = (tag, classes = '', content = '') => {
-      return $('<' + tag + '>').addClass(classes).html(content)
+      return $('<' + tag + '>').addClass(classes + ' message-animate-in').html(content)
     }
 
     const getTime = () => {
@@ -580,12 +562,14 @@ module.exports = class Application extends EventEmitter {
     }
 
     const status = (type, message) => {
-      const statusInfo = messageStatus[type]
-      if (!statusInfo) throw new Error('Invalid Status Type.')
+      const icon = messageIcons[type]
+      if (!icon) throw new Error('Invalid Status Type.')
       return `
-        <div class="flex items-center space-x-2">
-          <img src="app://assets/icons/${statusInfo.icon}" class="w-4 h-4 opacity-90" />
-          <span class="font-medium">${message || ''}</span>
+        <div class="flex items-center space-x-2 w-full">
+          <div class="flex">
+            <i class="fas ${icon} mr-2"></i>
+          </div>
+          <span>${message || ''}</span>
         </div>
       `
     }
@@ -912,8 +896,26 @@ module.exports = class Application extends EventEmitter {
 
     if (type === 'ui') this.$pluginList.prepend($listItem)
     else this.$pluginList.append($listItem)
-
+    
+    // Check if we need to hide the empty plugin message
+    this._updateEmptyPluginMessage()
+    
     return $listItem
+  }
+  
+  /**
+   * Updates the empty plugin message visibility
+   * @private
+   */
+  _updateEmptyPluginMessage() {
+    const $emptyPluginMessage = $('#emptyPluginMessage')
+    if ($emptyPluginMessage.length > 0) {
+      const hasPlugins = this.$pluginList.children().not(function() {
+        return this.nodeType === 3 || $(this).text().trim() === ''
+      }).length > 0
+      
+      $emptyPluginMessage.toggleClass('hidden', hasPlugins)
+    }
   }
 
   /**
@@ -931,18 +933,50 @@ module.exports = class Application extends EventEmitter {
     this.dispatch = new Dispatch(this, this.dataPath);
     devLog('[Renderer] Dispatch initialized with data path');
     
-    await Promise.all([
-      this.settings.load(),
-      this.dispatch.load()
-    ])
+    // Load settings
+    await this.settings.load();
+    this.consoleMessage({
+      message: 'Settings loaded successfully.',
+      type: 'notify'
+    });
+    
+    // Load plugins with detailed messaging
+    const pluginsPromise = this.dispatch.load().then(() => {
+      const pluginCount = this.dispatch.plugins ? this.dispatch.plugins.size : 0;
+      const gamePlugins = [...(this.dispatch.plugins || [])].filter(([_, plugin]) => plugin.type === 'game').length;
+      const uiPlugins = [...(this.dispatch.plugins || [])].filter(([_, plugin]) => plugin.type === 'ui').length;
+      
+      this.consoleMessage({
+        message: `Loaded ${pluginCount} plugins (${gamePlugins} game, ${uiPlugins} UI).`,
+        type: 'success'
+      });
+    });
+    
+    await pluginsPromise;
 
     /**
      * Simple check for the host changes for animal jam classic.
      */
     const secureConnection = this.settings.get('secureConnection')
-    if (secureConnection) await this._checkForHostChanges()
+    if (secureConnection) {
+      this.consoleMessage({
+        message: 'Checking for server host changes...',
+        type: 'wait'
+      });
+      await this._checkForHostChanges()
+    }
 
+    // Start the server
+    this.consoleMessage({
+      message: 'Starting proxy server...',
+      type: 'wait'
+    });
     await this.server.serve()
+    this.consoleMessage({
+      message: 'Proxy server started on 127.0.0.1:443.',
+      type: 'success'
+    });
+    
     // this._setupPluginIPC(); // Call moved to constructor
     this.emit('ready')
 

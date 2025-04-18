@@ -287,7 +287,17 @@ module.exports = class Client {
     dispatch.intervals.forEach((interval) => dispatch.clearInterval(interval))
     dispatch.intervals.clear()
 
-    this.connected = false
-    this._server.clients.delete(this)
+    if (this.connected) {
+      this.connected = false
+      this._server.clients.delete(this)
+      
+      // Log the disconnection event
+      this._server.application.consoleMessage({
+        message: 'Disconnected from Animal Jam servers.',
+        type: 'warn'
+      })
+    } else {
+      this._server.clients.delete(this)
+    }
   }
 }

@@ -719,6 +719,10 @@ video {
   margin-right: 0.25rem;
 }
 
+.mr-1\.5{
+  margin-right: 0.375rem;
+}
+
 .mr-2{
   margin-right: 0.5rem;
 }
@@ -787,6 +791,10 @@ video {
   height: 0.125rem;
 }
 
+.h-1\.5{
+  height: 0.375rem;
+}
+
 .h-11{
   height: 2.75rem;
 }
@@ -833,6 +841,10 @@ video {
 
 .min-h-screen{
   min-height: 100vh;
+}
+
+.w-1\.5{
+  width: 0.375rem;
 }
 
 .w-11{
@@ -1353,6 +1365,11 @@ video {
   padding-bottom: 0.875rem;
 }
 
+.py-4{
+  padding-top: 1rem;
+  padding-bottom: 1rem;
+}
+
 .pl-10{
   padding-left: 2.5rem;
 }
@@ -1561,10 +1578,6 @@ video {
   opacity: 0.7;
 }
 
-.opacity-90{
-  opacity: 0.9;
-}
-
 .shadow{
   --tw-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
   --tw-shadow-colored: 0 1px 3px 0 var(--tw-shadow-color), 0 1px 2px -1px var(--tw-shadow-color);
@@ -1645,6 +1658,10 @@ video {
 
 .ease-in-out{
   transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.ease-out{
+  transition-timing-function: cubic-bezier(0, 0, 0.2, 1);
 }
 
 #header {
@@ -1888,8 +1905,8 @@ input:focus-visible {
   background-color: rgb(251 191 36 / 0.1);
 }
 
-.group:hover .group-hover\:bg-highlight-green\/10{
-  background-color: rgb(56 176 0 / 0.1);
+.group:hover .group-hover\:bg-highlight-green\/30{
+  background-color: rgb(56 176 0 / 0.3);
 }
 
 .group:hover .group-hover\:opacity-100{
