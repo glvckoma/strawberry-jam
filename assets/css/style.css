@@ -1146,6 +1146,10 @@ video {
   border-color: rgb(58 61 77 / var(--tw-border-opacity, 1));
 }
 
+.border-transparent{
+  border-color: transparent;
+}
+
 .bg-black\/50{
   background-color: rgb(0 0 0 / 0.5);
 }
@@ -1896,8 +1900,16 @@ input:focus-visible {
   --tw-ring-color: rgb(241 0 72 / var(--tw-ring-opacity, 1));
 }
 
-.group:hover .group-hover\:bg-amber-400\/10{
-  background-color: rgb(251 191 36 / 0.1);
+.group:hover .group-hover\:border-amber-400\/30{
+  border-color: rgb(251 191 36 / 0.3);
+}
+
+.group:hover .group-hover\:border-highlight-green\/20{
+  border-color: rgb(56 176 0 / 0.2);
+}
+
+.group:hover .group-hover\:bg-amber-400\/20{
+  background-color: rgb(251 191 36 / 0.2);
 }
 
 .group:hover .group-hover\:bg-highlight-green\/30{

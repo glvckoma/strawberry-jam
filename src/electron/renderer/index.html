@@ -56,7 +56,7 @@
           <a href="#" id="playButton"
             class="flex items-center space-x-3 text-sidebar-text hover:bg-tertiary-bg group px-3 py-2.5 rounded-md transition-all"
             onclick="jam.application.openAnimalJam()">
-            <div class="w-8 h-8 flex items-center justify-center bg-highlight-green/20 rounded-md group-hover:bg-highlight-green/30 transition-colors">
+            <div class="w-8 h-8 flex items-center justify-center bg-highlight-green/20 rounded-md group-hover:bg-highlight-green/30 border border-transparent group-hover:border-highlight-green/20 transition-colors">
               <i class="fas fa-play text-highlight-green"></i>
             </div>
             <span class="font-medium">Launch Strawberry Jam</span>
@@ -70,8 +70,8 @@
           <a href="#"
             class="flex items-center space-x-3 text-sidebar-text hover:bg-tertiary-bg group px-3 py-2.5 rounded-md transition-all"
             onclick="jam.application.openSettings()">
-            <div class="w-8 h-8 flex items-center justify-center bg-tertiary-bg/50 rounded-md group-hover:bg-amber-400/10 transition-colors">
-              <i class="fas fa-cog text-amber-400"></i>
+            <div class="w-8 h-8 flex items-center justify-center bg-tertiary-bg/50 rounded-md group-hover:bg-amber-400/20 border border-transparent group-hover:border-amber-400/30 transition-colors">
+              <i class="fas fa-wrench text-amber-400"></i>
             </div>
             <span class="font-medium">Settings</span>
           </a>
@@ -143,16 +143,16 @@
     <!-- Tab Navigation -->
     <div class="tabs w-full grid grid-cols-2 border-b border-sidebar-border bg-tertiary-bg">
       <button id="consoleTab"
-        class="tab-button active text-sidebar-text hover:bg-sidebar-hover py-2 text-sm font-medium transition-all relative overflow-hidden"
+        class="tab-button active text-sidebar-text hover:bg-sidebar-hover py-2 text-sm font-semibold transition-all relative overflow-hidden"
         data-tab="console">
         <i class="fas fa-terminal mr-2 text-xs"></i>Console
-        <span class="active-indicator absolute bottom-0 left-0 right-0 h-0.5 transform transition-transform"></span> <!-- Removed scale-x-0 -->
+        <span class="active-indicator absolute bottom-0 left-0 right-0 h-0.5 transform scale-x-0 transition-transform duration-300 ease-out"></span>
       </button>
       <button id="packetLoggingTab"
         class="tab-button text-sidebar-text hover:bg-sidebar-hover py-2 text-sm font-medium transition-all relative overflow-hidden"
         data-tab="packet-logging">
         <i class="fas fa-network-wired mr-2 text-xs"></i>Network
-        <span class="active-indicator absolute bottom-0 left-0 right-0 h-0.5 transform transition-transform"></span> <!-- Removed scale-x-0 -->
+        <span class="active-indicator absolute bottom-0 left-0 right-0 h-0.5 transform scale-x-0 transition-transform duration-300 ease-out"></span>
       </button>
     </div>
 
@@ -485,9 +485,14 @@
           const theme = fruitThemes[fruitKey];
           if (theme && theme.primary) {
             $('body').css('--theme-primary', theme.primary);
+            // Apply the color directly to the active tab indicator elements
+            $('.tab-button.active .active-indicator').css('background-color', theme.primary);
+            $('.tab-button.active .active-indicator').css('box-shadow', `0 0 6px 0 ${theme.primary}`);
             console.log(`Applied global theme: ${fruitKey}, primary: ${theme.primary}`);
           } else {
              $('body').css('--theme-primary', '#e83d52'); // Default fallback
+             $('.tab-button.active .active-indicator').css('background-color', '#e83d52');
+             $('.tab-button.active .active-indicator').css('box-shadow', '0 0 6px 0 #e83d52');
              console.log(`Applied default global theme (strawberry)`);
           }
         };
@@ -565,8 +570,25 @@
 
         $('.tab-content').removeClass('active').addClass('hidden')
         $(`#${tabId}`).removeClass('hidden').addClass('active')
+        
+        // Update tab buttons
         $('.tab-button').removeClass('active')
-        $(`.tab-button[data-tab="${tabId}"]`).addClass('active')
+        const $activeTab = $(`.tab-button[data-tab="${tabId}"]`).addClass('active')
+        
+        // Reset all indicators, then style the active one with theme color
+        $('.active-indicator').css({
+          'transform': 'scaleX(0)',
+          'background-color': '',
+          'box-shadow': ''
+        })
+        
+        // Get current theme color and apply to the active tab indicator
+        const themeColor = $('body').css('--theme-primary') || '#e83d52'
+        $activeTab.find('.active-indicator').css({
+          'transform': 'scaleX(1)',
+          'background-color': themeColor,
+          'box-shadow': `0 0 6px 0 ${themeColor}`
+        })
       }
 
       $('.tab-button').on('click', function () {
