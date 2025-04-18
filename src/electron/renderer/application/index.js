@@ -836,8 +836,8 @@ module.exports = class Application extends EventEmitter {
   renderPluginItems ({ name, type, description, author = 'Sxip' } = {}) {
     const getIconClass = () => {
       switch (type) {
-        case 'ui': return 'fa-desktop'
-        case 'game': return 'fa-gamepad'
+        case 'ui': return 'fa-window-restore'
+        case 'game': return 'fa-code'
       }
     }
 

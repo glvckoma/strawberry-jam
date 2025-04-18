@@ -1904,16 +1904,8 @@ input:focus-visible {
   border-color: rgb(251 191 36 / 0.3);
 }
 
-.group:hover .group-hover\:border-highlight-green\/20{
-  border-color: rgb(56 176 0 / 0.2);
-}
-
 .group:hover .group-hover\:bg-amber-400\/20{
   background-color: rgb(251 191 36 / 0.2);
-}
-
-.group:hover .group-hover\:bg-highlight-green\/30{
-  background-color: rgb(56 176 0 / 0.3);
 }
 
 .group:hover .group-hover\:opacity-100{
