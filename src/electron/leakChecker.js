@@ -2,9 +2,18 @@
 
 const fs = require('fs').promises;
 const path = require('path');
-const axios = require('axios');
 const os = require('os');
 const { app } = require('electron');
+
+// Dynamic axios loading to handle both CommonJS and ES module environments
+let axios;
+try {
+    // Try CommonJS require first
+    axios = require('axios');
+} catch (error) {
+    console.error('Failed to load axios via CommonJS require:', error.message);
+    // We'll handle this later when making requests
+}
 
 // Helper function for delay
 const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
@@ -61,6 +70,20 @@ async function startLeakCheck(options) {
             webContents.send('leak-check-result', { success, message, summary });
         }
     };
+
+    // Ensure axios is available
+    if (!axios) {
+        try {
+            // Try to load axios dynamically if it wasn't loaded at the top level
+            axios = require('axios');
+            log('info', '[LeakCheck] Successfully loaded axios dynamically');
+        } catch (error) {
+            log('error', `[LeakCheck] Failed to load axios: ${error.message}`);
+            await updateStateCallback({ status: 'error', lastProcessedIndex: startIndex - 1 });
+            sendResult(false, 'Failed to load axios HTTP client. Check installation.');
+            return;
+        }
+    }
 
     log('info', '[LeakCheck] Starting leak check process...');
     // sendStatus('Starting...'); // Replaced with log

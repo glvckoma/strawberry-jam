@@ -43,6 +43,7 @@ module.exports = class UsernameLogger {
     this.ignoredUsernames = new Set(); // Usernames to ignore
     this.isLeakCheckRunning = false; // Track if leak check is currently running
     this.isLeakCheckPaused = false; // Track if leak check is paused
+    this.isLeakCheckStopped = false; // Track if leak check should stop
     this.leakCheckLastProcessedIndex = -1; // Last processed index for resuming
     this.leakCheckTotalProcessed = 0; // Total usernames processed in current leak check
     
@@ -71,6 +72,7 @@ module.exports = class UsernameLogger {
     this.handleLeakCheckStopCommand = this.handleLeakCheckStopCommand.bind(this);
     this.handleDebugCommand = this.handleDebugCommand.bind(this);
     this.handleSetApiKeyCommand = this.handleSetApiKeyCommand.bind(this);
+    this.handleSetIndexCommand = this.handleSetIndexCommand.bind(this);
     this.initialize = this.initialize.bind(this);
 
     // Start initialization
@@ -88,10 +90,26 @@ module.exports = class UsernameLogger {
         
         // Merge saved config with defaults
         this.config = { ...this.config, ...savedConfig };
+
+        // Load persistent state
+        this.leakCheckLastProcessedIndex = savedConfig.leakCheckLastProcessedIndex ?? -1;
         
         this.application.consoleMessage({
           type: 'logger',
           message: `[Username Logger] Loaded configuration from ${this.configFilePath}`
+        });
+        
+        // Add diagnostic log for index
+        this.application.consoleMessage({
+          type: 'logger',
+          message: `[Username Logger] Loaded saved index: ${this.leakCheckLastProcessedIndex}`
+        });
+      } else {
+        // If config doesn't exist, ensure index is default
+        this.leakCheckLastProcessedIndex = -1;
+        this.application.consoleMessage({
+          type: 'warn',
+          message: `[Username Logger] Config file not found, using default index: -1`
         });
       }
     } catch (error) {
@@ -99,6 +117,8 @@ module.exports = class UsernameLogger {
         type: 'error',
         message: `[Username Logger] Error loading config: ${error.message}`
       });
+      // Ensure index is default on error
+      this.leakCheckLastProcessedIndex = -1;
     }
     
     // API Key is fetched on demand in runLeakCheck, no need to check/log here.
@@ -111,7 +131,10 @@ module.exports = class UsernameLogger {
   saveConfig() {
     try {
       // Don't save API key to config file for security
-      const configToSave = { ...this.config };
+      const configToSave = { 
+        ...this.config, 
+        leakCheckLastProcessedIndex: this.leakCheckLastProcessedIndex // Add index to save data
+      };
       delete configToSave.leakCheckApiKey;
       
       const configDir = path.dirname(this.configFilePath);
@@ -119,11 +142,31 @@ module.exports = class UsernameLogger {
         fs.mkdirSync(configDir, { recursive: true });
       }
       
+      // Add debug log to show what's being saved
+      this.application.consoleMessage({
+        type: 'logger',
+        message: `[Username Logger] Saving config with index: ${this.leakCheckLastProcessedIndex}`
+      });
+      
       fs.writeFileSync(this.configFilePath, JSON.stringify(configToSave, null, 2));
+      
+      // Verify file was written by reading it back
+      try {
+        const savedData = JSON.parse(fs.readFileSync(this.configFilePath, 'utf8'));
+        this.application.consoleMessage({
+          type: 'logger',
+          message: `[Username Logger] Verified saved index in config: ${savedData.leakCheckLastProcessedIndex}`
+        });
+      } catch (verifyError) {
+        this.application.consoleMessage({
+          type: 'warn',
+          message: `[Username Logger] Could not verify saved data: ${verifyError.message}`
+        });
+      }
       
       this.application.consoleMessage({
         type: 'logger',
-        message: `[Username Logger] Saved configuration to ${this.configFilePath}`
+        message: `[Username Logger] Saved configuration (including state) to ${this.configFilePath}`
       });
     } catch (error) {
       this.application.consoleMessage({
@@ -424,6 +467,13 @@ module.exports = class UsernameLogger {
       startIndex = this.leakCheckLastProcessedIndex + 1
     } = options;
 
+    // Debug log at the start of function
+    this.application.consoleMessage({
+      type: 'logger',
+      message: `[Username Logger] runLeakCheck called with options: limit=${limit}, startIndex=${startIndex}, current lastProcessedIndex=${this.leakCheckLastProcessedIndex}`
+    });
+
+    // Prevent multiple instances from running
     if (this.isLeakCheckRunning) {
       this.application.consoleMessage({
         type: 'warn',
@@ -436,40 +486,19 @@ module.exports = class UsernameLogger {
     const resetLeakCheckState = () => {
       this.isLeakCheckRunning = false;
       this.isLeakCheckPaused = false;
+      this.isLeakCheckStopped = false;
       this.leakCheckTotalProcessed = 0;
-      // Optionally clear session state if desired
-      // this.loggedUsernamesThisSession.clear();
+      this._cachedAxios = null; // Clear cached axios instance
     };
 
+    // Initialize state for this run
     this.isLeakCheckPaused = false;
+    this.isLeakCheckStopped = false;
     this.isLeakCheckRunning = true;
     this.leakCheckTotalProcessed = 0;
 
-    this.application.consoleMessage({
-      type: 'notify',
-      message: `[Username Logger] Starting leak check process...`
-    });
-
     try {
-      // Fetch API key on demand using IPC when the check starts
-      let apiKey;
-      try {
-        apiKey = await ipcRenderer.invoke('get-setting', 'leakCheckApiKey');
-        if (!apiKey) {
-          throw new Error('API Key is empty or not found in settings.');
-        }
-        this.application.consoleMessage({ type: 'logger', message: '[Username Logger] Successfully fetched API Key via IPC for leak check.' });
-        this.config.leakCheckApiKey = apiKey;
-      } catch (error) {
-        this.application.consoleMessage({
-          type: 'error',
-          message: `[Username Logger] Failed to get LeakCheck API Key via IPC: ${error.message}`
-        });
-        resetLeakCheckState();
-        return;
-      }
-
-      // Get file paths
+      // Get file paths first to ensure they're available
       const {
         collectedUsernamesPath,
         processedUsernamesPath,
@@ -478,14 +507,23 @@ module.exports = class UsernameLogger {
         ajcAccountsPath
       } = this.getFilePaths();
 
-      // Ensure output directory exists
-      const outputDir = this.getBasePath();
+      // Ensure all required paths are defined
+      if (!potentialAccountsPath) {
+        throw new Error('Potential accounts path is not defined');
+      }
+
+      // Fetch API key on demand using IPC when the check starts
+      let apiKey;
       try {
-        await fs.promises.mkdir(outputDir, { recursive: true });
+        apiKey = await ipcRenderer.invoke('get-setting', 'leakCheckApiKey');
+        if (!apiKey) {
+          throw new Error('API Key is empty or not found in settings.');
+        }
+        this.application.consoleMessage({ type: 'logger', message: '[Username Logger] Successfully fetched API Key via IPC for leak check.' });
       } catch (error) {
         this.application.consoleMessage({
           type: 'error',
-          message: `[Username Logger] Error creating output directory: ${error.message}`
+          message: `[Username Logger] Failed to get LeakCheck API Key via IPC: ${error.message}`
         });
         resetLeakCheckState();
         return;
@@ -569,7 +607,7 @@ module.exports = class UsernameLogger {
       let notFoundCount = 0;
       let errorCount = 0;
       let invalidCharCount = 0;
-      let currentOverallIndex = startIndex - 1;
+      let currentOverallIndex = startIndex - 1; // Initialize to startIndex - 1 since we increment at start of loop
       const BATCH_SIZE = 100; // Write to files every 100 processed usernames
       let processedBatch = [];
       let foundGeneralBatch = [];
@@ -593,171 +631,214 @@ module.exports = class UsernameLogger {
           }
           if (potentialBatch.length > 0) {
             await fs.promises.appendFile(potentialAccountsPath, potentialBatch.join('\n') + '\n');
-            // Also add potential to processed immediately
-            await fs.promises.appendFile(processedUsernamesPath, potentialBatch.join('\n') + '\n');
             potentialBatch = []; // Clear batch
           }
         } catch (writeError) {
-           this.application.consoleMessage({
-             type: 'error',
-             message: `[Username Logger] Batch File Write Error: ${writeError.message}`
-           });
+          this.application.consoleMessage({
+            type: 'error',
+            message: `[Username Logger] Batch File Write Error: ${writeError.message}`
+          });
         }
       };
 
+      // Try multiple methods to load HTTP client
+      let httpClient = null;
+      let isAxios = false;
+
+      // Cache the axios instance if we haven't loaded it yet
+      if (!this._cachedAxios) {
+        try {
+          // Method 1: Try to get axios from dispatch
+          this._cachedAxios = this.dispatch.require('axios');
+          if (!this._cachedAxios) {
+            throw new Error("dispatch.require('axios') returned null/undefined");
+          }
+          isAxios = true;
+        } catch (axiosLoadError1) {
+          try {
+            // Method 2: Try direct require for axios
+            this._cachedAxios = require('axios');
+            this.application.consoleMessage({
+              type: 'logger',
+              message: `[Username Logger] Loaded axios via direct require`
+            });
+            isAxios = true;
+          } catch (axiosLoadError2) {
+            // Method 3: Last resort - try global fetch if available
+            if (typeof fetch === 'function') {
+              this.application.consoleMessage({
+                type: 'warn',
+                message: `[Username Logger] Using fetch API as fallback after axios loading failed`
+              });
+              this._cachedAxios = fetch; // Assign fetch function
+              isAxios = false;
+            } else {
+              // No HTTP client available
+              throw new Error(`Failed to load HTTP client: ${axiosLoadError1.message}, ${axiosLoadError2.message}`);
+            }
+          }
+        }
+      }
+
+      httpClient = this._cachedAxios;
 
       for (const username of limitedUsernamesToCheck) {
-        // Check if we should stop or pause
-        if (this.isLeakCheckPaused) {
-          this.application.consoleMessage({
-            type: 'info',
-            message: `[Username Logger] Leak check paused at index ${currentOverallIndex}. Writing pending batches...`
-          });
-          await writeBatches(); // Write remaining data before pausing
-          this.leakCheckLastProcessedIndex = currentOverallIndex;
-          resetLeakCheckState();
-          return;
-        }
-        if (!this.isLeakCheckRunning) {
-          this.application.consoleMessage({
-            type: 'info',
-            message: `[Username Logger] Leak check stopped at index ${currentOverallIndex}. Writing pending batches...`
-          });
-          await writeBatches(); // Write remaining data before stopping
-          this.leakCheckLastProcessedIndex = currentOverallIndex;
-          resetLeakCheckState();
-          return;
-        }
-
-        currentOverallIndex++;
+        currentOverallIndex++; // Increment index at start of loop
         processedInThisRun++;
-        this.leakCheckTotalProcessed++;
 
-        if (processedInThisRun % 10 === 0 || processedInThisRun === 1) {
+        // Check if we should stop or pause
+        if (this.isLeakCheckStopped || this.isLeakCheckPaused) {
+          const action = this.isLeakCheckStopped ? 'stopped' : 'paused';
           this.application.consoleMessage({
             type: 'logger',
-            message: `[Username Logger] Progress: ${processedInThisRun}/${limitedUsernamesToCheck.length} (Index ${currentOverallIndex})`
+            message: `[Username Logger] Leak check ${action} at index ${currentOverallIndex}. Writing pending batches...`
           });
-        }
-
-        if (alreadyCheckedUsernames.has(username.toLowerCase())) {
-          continue;
+          await writeBatches();
+          this.leakCheckLastProcessedIndex = currentOverallIndex; // Save the current index
+          this.saveConfig(); // Persist the saved index
+          resetLeakCheckState();
+          return;
         }
 
         try {
           await wait(DEFAULT_RATE_LIMIT_DELAY);
 
-          // Require axios using dispatch when needed
-          const axios = this.dispatch.require('axios');
-          if (!axios) {
-            throw new Error("Failed to load 'axios' dependency via dispatch.require(). Is it installed?");
+          let response;
+          if (isAxios) {
+            // Use axios if available
+            response = await httpClient.get(`${LEAK_CHECK_API_URL}/${encodeURIComponent(username)}`, {
+              params: { type: 'username' },
+              headers: { 'X-API-Key': apiKey },
+              validateStatus: (status) => status < 500
+            });
+          } else {
+            // Fallback to fetch API
+            try {
+              const fetchResponse = await httpClient(`${LEAK_CHECK_API_URL}/${encodeURIComponent(username)}?type=username`, {
+                method: 'GET',
+                headers: { 'X-API-Key': apiKey }
+              });
+
+              // Handle fetch response properly
+              if (!fetchResponse.ok) {
+                throw new Error(`HTTP error! status: ${fetchResponse.status}`);
+              }
+
+              const responseText = await fetchResponse.text();
+              let responseData;
+              try {
+                responseData = JSON.parse(responseText);
+              } catch (jsonError) {
+                responseData = {
+                  error: `Failed to parse response as JSON: ${responseText.substring(0, 100)}...`,
+                  success: false,
+                  found: 0
+                };
+              }
+
+              response = {
+                status: fetchResponse.status,
+                data: responseData,
+                ok: fetchResponse.ok
+              };
+            } catch (fetchError) {
+              throw new Error(`Fetch request failed: ${fetchError.message}`);
+            }
           }
 
-          const response = await axios.get(`${LEAK_CHECK_API_URL}/${encodeURIComponent(username)}`, {
-            params: { type: 'username' },
-            headers: { 'X-API-Key': apiKey },
-            validateStatus: (status) => status < 500
-          });
-
+          // Process the response
           let addedToProcessedList = false;
 
-          if (response.status === 200 && response.data?.success && response.data?.found > 0) {
-            foundCount++;
-            addedToProcessedList = true;
+          if (response.status === 200 && response.data?.success) {
+            // Handle successful response
+            if (response.data.found > 0) {
+              foundCount++;
+              addedToProcessedList = true;
+              this.application.consoleMessage({
+                type: 'logger',
+                message: `[Username Logger] Found ${response.data.found} results for: ${username}`
+              });
 
-            this.application.consoleMessage({
-              type: 'success',
-              message: `[Username Logger] Found ${response.data.found} results for: ${username}`
-            });
+              let passwordsFoundGeneral = 0;
+              let passwordsFoundAjc = 0;
 
-            let passwordsFoundGeneral = 0;
-            let passwordsFoundAjc = 0;
+              if (Array.isArray(response.data.result)) {
+                for (const breach of response.data.result) {
+                  if (breach.password) {
+                    const accountEntry = `${username}:${breach.password}\n`;
+                    let targetPath = foundAccountsPath;
+                    let isAjcSource = false;
 
-            if (Array.isArray(response.data.result)) {
-              for (const breach of response.data.result) {
-                if (breach.password) {
-                  const accountEntry = `${username}:${breach.password}\n`;
-                  let isAjcSource = false;
+                    // Check if source exists and name is AnimalJam.com
+                    if (breach.source) {
+                      const sourceName = typeof breach.source === 'object' 
+                        ? breach.source.name 
+                        : breach.source;
+                      if (sourceName === "AnimalJam.com") {
+                        targetPath = ajcAccountsPath;
+                        isAjcSource = true;
+                      }
+                    }
 
-                  if (breach.source && typeof breach.source === 'object' && breach.source.name === "AnimalJam.com") {
-                    isAjcSource = true;
-                  } else if (typeof breach.source === 'string' && breach.source === "AnimalJam.com") {
-                    isAjcSource = true;
-                  }
-
-                  // Add to appropriate batch instead of writing directly
-                  if (isAjcSource) {
-                    foundAjcBatch.push(`${username}:${breach.password}`);
-                    passwordsFoundAjc++;
-                  } else {
-                    foundGeneralBatch.push(`${username}:${breach.password}`);
-                    passwordsFoundGeneral++;
+                    try {
+                      await fs.promises.appendFile(targetPath, accountEntry); // Added .promises
+                      if (isAjcSource) passwordsFoundAjc++; else passwordsFoundGeneral++;
+                    } catch (writeError) {
+                      this.application.consoleMessage({
+                        type: 'error',
+                        message: `[Username Logger] File Write Error (${path.basename(targetPath)}): ${writeError.message}`
+                      });
+                    }
                   }
                 }
+
+                // Log summary of found passwords
+                if (passwordsFoundAjc > 0 || passwordsFoundGeneral > 0) {
+                  this.application.consoleMessage({
+                    type: 'logger',
+                    message: `[Username Logger] Saved ${passwordsFoundAjc} password(s) to ajc_accounts.txt and ${passwordsFoundGeneral} password(s) to found_accounts.txt.`
+                  });
+                } else {
+                  this.application.consoleMessage({
+                    type: 'logger',
+                    message: `[Username Logger] No passwords found in results for ${username}, but breach exists.`
+                  });
+                }
               }
-            }
-
-            if (passwordsFoundAjc > 0 || passwordsFoundGeneral > 0) {
-              let logMessage = "[Username Logger] Saved ";
-              if (passwordsFoundAjc > 0) logMessage += `${passwordsFoundAjc} password(s) to ${path.basename(ajcAccountsPath)}`;
-              if (passwordsFoundAjc > 0 && passwordsFoundGeneral > 0) logMessage += " and ";
-              if (passwordsFoundGeneral > 0) logMessage += `${passwordsFoundGeneral} password(s) to ${path.basename(foundAccountsPath)}`;
-
-              this.application.consoleMessage({
-                type: 'logger',
-                message: logMessage + "."
-              });
             } else {
+              notFoundCount++;
+              addedToProcessedList = true;
               this.application.consoleMessage({
                 type: 'logger',
-                message: `[Username Logger] No passwords found in results for ${username}, but breach exists.`
+                message: `[Username Logger] Not Found: ${username}`
               });
             }
-          } else if (response.status === 200 && response.data?.success && response.data?.found === 0) {
-            notFoundCount++;
-            addedToProcessedList = true;
-
-            this.application.consoleMessage({
-              type: 'logger',
-              message: `[Username Logger] Not Found: ${username}`
-            });
           } else if (response.status === 400 && response.data?.error === 'Invalid characters in query') {
             invalidCharCount++;
             addedToProcessedList = false;
-
             this.application.consoleMessage({
               type: 'warn',
-            message: `[Username Logger] API Error (Invalid Chars): ${username}. Adding to potential/processed batches.`
-          });
+              message: `[Username Logger] Invalid Characters for API: ${username}. Saving for manual check.`
+            });
 
-          // Add to potential batch AND mark for processed batch
-          if (!alreadyCheckedUsernames.has(username.toLowerCase())) {
-             potentialBatch.push(username);
-             processedBatch.push(username); // Add to processed batch as well
-             alreadyCheckedUsernames.add(username.toLowerCase());
-             this.ignoredUsernames.add(username.toLowerCase());
-          }
+            if (!alreadyCheckedUsernames.has(username.toLowerCase())) {
+              try {
+                await fs.promises.appendFile(potentialAccountsPath, `${username}\n`);
+                alreadyCheckedUsernames.add(username.toLowerCase());
+              } catch (writeError) {
+                this.application.consoleMessage({
+                  type: 'error',
+                  message: `[Username Logger] File Write Error (${path.basename(potentialAccountsPath)}): ${writeError.message}`
+                });
+              }
+            }
           } else {
             errorCount++;
             addedToProcessedList = false;
-
-            let apiErrorMsg = response.data?.error || JSON.stringify(response.data);
-            if (response.status === 400 && apiErrorMsg.includes('Too short query')) {
-              this.application.consoleMessage({
-                type: 'warn',
-                message: `[Username Logger] API Error (Too Short): ${username}. Query must be >= 3 chars.`
-              });
-            } else if (response.status === 429) {
-              this.application.consoleMessage({
-                type: 'error',
-                message: `[Username Logger] API Error (Rate Limit): ${username}. Status ${response.status} - ${apiErrorMsg}. Consider increasing delay.`
-              });
-            } else {
-              this.application.consoleMessage({
-                type: 'error',
-                message: `[Username Logger] API Error (Unexpected): ${username}. Status ${response.status} - ${apiErrorMsg}`
-              });
-            }
+            this.application.consoleMessage({
+              type: 'error',
+              message: `[Username Logger] Unexpected API Response for ${username}: Status ${response.status} - ${JSON.stringify(response.data)}`
+            });
           }
 
           // Add to processed batch if needed
@@ -769,31 +850,28 @@ module.exports = class UsernameLogger {
 
           // Write batches periodically
           if (processedInThisRun % BATCH_SIZE === 0) {
+            this.application.consoleMessage({ type: 'logger', message: `[Username Logger] Attempting periodic batch write. Stop flag: ${this.isLeakCheckStopped}` });
             await writeBatches();
+            this.application.consoleMessage({ type: 'logger', message: `[Username Logger] Periodic batch write complete. Stop flag: ${this.isLeakCheckStopped}` });
           }
 
         } catch (requestError) {
           errorCount++;
-
-          let errorMessage = requestError.message;
-          if (requestError.response) {
-            errorMessage = `Status ${requestError.response.status} - ${JSON.stringify(requestError.response.data)}`;
-          } else if (requestError.request) {
-            errorMessage = 'No response received from API server.';
-          }
-
           this.application.consoleMessage({
             type: 'error',
-            message: `[Username Logger] Request Error for ${username}: ${errorMessage}`
+            message: `[Username Logger] Request Error for ${username}: ${requestError.message}`
           });
         }
-      } // End of main loop
+      }
 
       // Write any remaining data in batches after the loop finishes
-      this.application.consoleMessage({ type: 'logger', message: '[Username Logger] Writing final batches...' });
+      this.application.consoleMessage({ type: 'logger', message: `[Username Logger] Writing final batches... Stop flag: ${this.isLeakCheckStopped}` });
       await writeBatches();
+      this.application.consoleMessage({ type: 'logger', message: `[Username Logger] Final batch write complete. Stop flag: ${this.isLeakCheckStopped}` });
 
+      // Update the last processed index
       this.leakCheckLastProcessedIndex = currentOverallIndex;
+      this.saveConfig(); // Persist the saved index after successful completion
 
       const summary = {
         processed: processedInThisRun,
@@ -810,12 +888,12 @@ module.exports = class UsernameLogger {
         message: `[Username Logger] Leak check complete. Processed: ${processedInThisRun}, Found: ${foundCount}, Not Found: ${notFoundCount}, Errors: ${errorCount}, Invalid: ${invalidCharCount}`
       });
 
-      resetLeakCheckState();
     } catch (fatalError) {
       this.application.consoleMessage({
         type: 'error',
-        message: `[Username Logger] Fatal error in leak check: ${fatalError.message || fatalError}`
+        message: `[Username Logger] Fatal error in leak check: ${fatalError.message}`
       });
+    } finally {
       resetLeakCheckState();
     }
   }
@@ -851,10 +929,12 @@ module.exports = class UsernameLogger {
       return;
     }
     
-    this.isLeakCheckRunning = false;
+    // Let the leak check process gracefully stop itself by marking it as stopped
+    // This allows it to save state properly through updateStateCallback
+    this.isLeakCheckStopped = true;
     this.application.consoleMessage({
       type: 'notify',
-      message: `[Username Logger] Leak check stopped.`
+      message: `[Username Logger] Leak check will stop after current operation completes.`
     });
   }
   
@@ -1119,19 +1199,36 @@ module.exports = class UsernameLogger {
     }
     
     let limit = Infinity;
-    let startIndex = 0;
+    let startIndex = this.leakCheckLastProcessedIndex + 1; // Default to resuming from last position
+    
+    // Debug log the current saved index
+    this.application.consoleMessage({
+      type: 'logger',
+      message: `[Username Logger] Current saved index is ${this.leakCheckLastProcessedIndex}, would resume from ${startIndex}`
+    });
     
     if (parameters.length > 0) {
       const param = parameters[0].toLowerCase();
       
       if (param === 'resume') {
-        startIndex = this.leakCheckLastProcessedIndex + 1;
+        // Already defaulting to resume above, just add a message
         this.application.consoleMessage({
           type: 'notify',
           message: `[Username Logger] Resuming leak check from index ${startIndex}.`
         });
+      } else if (param === 'restart' || param === 'reset') {
+        // New option to explicitly restart from the beginning
+        startIndex = 0;
+        this.application.consoleMessage({
+          type: 'notify',
+          message: `[Username Logger] Restarting leak check from the beginning (index 0).`
+        });
       } else if (param === 'all') {
-        // Use defaults (process all)
+        // Keep startIndex as is (resume) but use all usernames
+        this.application.consoleMessage({
+          type: 'notify',
+          message: `[Username Logger] Processing all remaining usernames from index ${startIndex}.`
+        });
       } else if (param === 'latest') {
         // Get the latest N usernames
         const count = parameters[1] ? parseInt(parameters[1], 10) : 50;
@@ -1154,7 +1251,7 @@ module.exports = class UsernameLogger {
         if (isNaN(num) || num <= 0) {
           this.application.consoleMessage({
             type: 'error',
-            message: `[Username Logger] Invalid parameter. Use a positive number, 'all', 'latest', or 'resume'.`
+            message: `[Username Logger] Invalid parameter. Use a positive number, 'all', 'latest', 'resume', or 'restart'.`
           });
           return;
         }
@@ -1162,12 +1259,18 @@ module.exports = class UsernameLogger {
         limit = num;
         this.application.consoleMessage({
           type: 'notify',
-          message: `[Username Logger] Processing up to ${limit} usernames.`
+          message: `[Username Logger] Processing up to ${limit} usernames from index ${startIndex}.`
         });
       }
+    } else {
+      // No parameters - default is to resume
+      this.application.consoleMessage({
+        type: 'notify',
+        message: `[Username Logger] Resuming leak check from index ${startIndex}.`
+      });
     }
     
-    // Run the leak check
+    // Run the leak check with the determined parameters
     this.runLeakCheck({ limit, startIndex });
   }
   
@@ -1323,6 +1426,42 @@ Example: userlogsettings nearby off
     }
   }
 
+  // Add this new function to handle setting the index directly
+  /**
+   * Sets the leak check index directly to a specific value.
+   * @param {object} params - Command parameters.
+   * @param {string[]} params.parameters - Command arguments.
+   */
+  handleSetIndexCommand({ parameters }) {
+    if (parameters.length === 0) {
+      this.application.consoleMessage({
+        type: 'warn',
+        message: `[Username Logger] Please specify an index number. Usage: !setindex 1234`
+      });
+      return;
+    }
+    
+    const newIndex = parseInt(parameters[0], 10);
+    if (isNaN(newIndex) || newIndex < 0) {
+      this.application.consoleMessage({
+        type: 'error',
+        message: `[Username Logger] Invalid index. Please provide a non-negative number.`
+      });
+      return;
+    }
+    
+    // Set the index
+    this.leakCheckLastProcessedIndex = newIndex;
+    
+    // Save configuration to persist the change
+    this.saveConfig();
+    
+    this.application.consoleMessage({
+      type: 'success',
+      message: `[Username Logger] Index set to ${newIndex}. Next leak check will start from index ${newIndex + 1}.`
+    });
+  }
+
   // Initialization logic that was previously at the bottom
   async initialize() {
     await this.loadConfig(); // Load configuration first
@@ -1394,6 +1533,12 @@ Example: userlogsettings nearby off
       name: 'userloghelp',
       description: 'Show help for all UsernameLogger commands.',
       callback: this.handleHelpCommand
+    });
+    
+    this.dispatch.onCommand({
+      name: 'setindex',
+      description: 'Sets the leak check index to a specific position. Usage: !setindex 1234',
+      callback: this.handleSetIndexCommand
     });
     
     
