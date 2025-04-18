@@ -843,8 +843,8 @@ module.exports = class Application extends EventEmitter {
 
     const getIconColorClass = () => {
       switch (type) {
-        case 'ui': return 'text-highlight-green bg-highlight-green/10'
-        case 'game': return 'text-highlight-yellow bg-highlight-yellow/10'
+        case 'ui': return 'text-highlight-green'
+        case 'game': return 'text-highlight-yellow'
       }
     }
 
@@ -856,9 +856,10 @@ module.exports = class Application extends EventEmitter {
       click: onClickEvent
     })
 
-    const $iconContainer = $('<div>', {
-      class: `w-8 h-8 flex items-center justify-center ${getIconColorClass()} rounded mr-3 flex-shrink-0`
-    }).append($('<i>', { class: `fas ${getIconClass()} text-base` }))
+    // Replace icon container with just the icon
+    const $icon = $('<i>', { 
+      class: `fas ${getIconClass()} ${getIconColorClass()} text-xl mr-3` 
+    })
 
     const $contentContainer = $('<div>', { class: 'flex-1 min-w-0' })
     const $titleRow = $('<div>', { class: 'flex items-center' })
@@ -893,7 +894,7 @@ module.exports = class Application extends EventEmitter {
     })
 
     $contentContainer.append($titleRow, $metaRow, $description)
-    $container.append($iconContainer, $contentContainer)
+    $container.append($icon, $contentContainer)
     $listItem.append($container)
 
     if (type === 'ui') this.$pluginList.prepend($listItem)

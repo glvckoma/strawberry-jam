@@ -56,9 +56,7 @@
           <a href="#" id="playButton"
             class="flex items-center space-x-3 text-sidebar-text hover:bg-tertiary-bg group px-3 py-2.5 rounded-md transition-all"
             onclick="jam.application.openAnimalJam()">
-            <div class="w-8 h-8 flex items-center justify-center bg-tertiary-bg/50 rounded-md group-hover:bg-amber-400/20 border border-transparent group-hover:border-amber-400/30 transition-colors">
-              <i class="fas fa-gamepad text-amber-400"></i>
-            </div>
+            <i class="fas fa-gamepad theme-icon text-xl"></i>
             <span class="font-medium">Launch Strawberry Jam</span>
             <div class="ml-auto opacity-0 group-hover:opacity-100 transition-opacity">
               <i class="fas fa-external-link-alt text-xs" style="color: var(--theme-primary);"></i>
@@ -70,9 +68,7 @@
           <a href="#"
             class="flex items-center space-x-3 text-sidebar-text hover:bg-tertiary-bg group px-3 py-2.5 rounded-md transition-all"
             onclick="jam.application.openSettings()">
-            <div class="w-8 h-8 flex items-center justify-center bg-tertiary-bg/50 rounded-md group-hover:bg-amber-400/20 border border-transparent group-hover:border-amber-400/30 transition-colors">
-              <i class="fas fa-wrench text-amber-400"></i>
-            </div>
+            <i class="fas fa-wrench text-gray-400 text-xl"></i>
             <span class="font-medium">Settings</span>
           </a>
         </li>
@@ -397,10 +393,10 @@
       const pluginsRefresh = document.getElementById("refreshPluginsSection");
       if (pluginsRefresh) {
         pluginsRefresh.addEventListener("click", function () {
-          if (window.jam && window.jam.dispatch && typeof window.jam.dispatch.refresh === "function") {
-            window.jam.dispatch.refresh();
-          } else if (typeof jam !== "undefined" && jam.dispatch && typeof jam.dispatch.refresh === "function") {
-            jam.dispatch.refresh();
+          if (window.jam && window.jam.application && window.jam.application.dispatch && typeof window.jam.application.dispatch.refresh === "function") {
+            window.jam.application.dispatch.refresh();
+          } else if (typeof jam !== "undefined" && jam.application && jam.application.dispatch && typeof jam.application.dispatch.refresh === "function") {
+            jam.application.dispatch.refresh();
           }
         });
       }
@@ -484,6 +480,63 @@
         });
       }
       
+      // Function to apply theme to all synchronized elements
+      const applySynchronizedElements = (color) => {
+        // Update hover styles by dynamically adding/updating stylesheet rules
+        let styleEl = document.getElementById('dynamic-theme-styles');
+        
+        // Create the style element if it doesn't exist
+        if (!styleEl) {
+          styleEl = document.createElement('style');
+          styleEl.id = 'dynamic-theme-styles';
+          document.head.appendChild(styleEl);
+        }
+        
+        // Create CSS rules for all themed elements
+        styleEl.textContent = `
+          /* Chevron and header link button hover colors */
+          #toggleHeaderLinksButton:hover, 
+          .sidebar-chevron:hover {
+            color: ${color} !important;
+          }
+          
+          /* Launch button theme styling */
+          #playButton .fa-external-link-alt {
+            color: ${color} !important;
+          }
+          
+          /* Theme icons */
+          .theme-icon {
+            color: ${color} !important;
+          }
+          
+          /* Menu button hover */
+          #menuButton:hover {
+            color: ${color} !important;
+          }
+          
+          /* Tab indicators */
+          .tab-button.active .active-indicator {
+            background-color: ${color} !important;
+            box-shadow: 0 0 6px 0 ${color} !important;
+          }
+          
+          /* Any element with hover:text-theme-primary class */
+          .hover\\:text-theme-primary:hover {
+            color: ${color} !important;
+          }
+        `;
+        
+        // Directly set colors on existing elements
+        $('.tab-button.active .active-indicator').css({
+          'background-color': color,
+          'box-shadow': `0 0 6px 0 ${color}`
+        });
+        
+        // Update Launch button external link icon color
+        $('#playButton .fa-external-link-alt').css('color', color);
+      };
+      
       // jQuery fruit icon click handler
       const $fruitIcon = $('#fruitIcon');
       if ($fruitIcon.length) {
@@ -519,24 +572,14 @@
             // Update theme colors using our helper function
             updateThemeColors(theme.primary);
             
-            // Apply the color directly to active tab indicators
-            $('.tab-button.active .active-indicator').css({
-              'background-color': theme.primary,
-              'box-shadow': `0 0 6px 0 ${theme.primary}`
-            });
-            
-            console.log(`Applied global theme: ${fruitKey}, primary: ${theme.primary}`);
+            // Apply to all synchronized elements
+            applySynchronizedElements(theme.primary);
           } else {
             // Default fallback to strawberry color
             updateThemeColors('#e83d52');
             
-            // Apply default to active tab indicators
-            $('.tab-button.active .active-indicator').css({
-              'background-color': '#e83d52',
-              'box-shadow': '0 0 6px 0 #e83d52'
-            });
-            
-            console.log(`Applied default global theme (strawberry)`);
+            // Apply to all synchronized elements
+            applySynchronizedElements('#e83d52');
           }
         };
         
