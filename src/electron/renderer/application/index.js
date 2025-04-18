@@ -2,12 +2,15 @@
 const { ipcRenderer } = require('electron')
 const { EventEmitter } = require('events')
 
+// Define isDevelopment for environment checks
+const isDevelopment = process.env.NODE_ENV === 'development';
+
 // Helper: Only log in development
 function devLog(...args) {
-  if (process.env.NODE_ENV === 'development') console.log(...args);
+  if (isDevelopment) console.log(...args);
 }
 function devError(...args) {
-  if (process.env.NODE_ENV === 'development') console.error(...args);
+  if (isDevelopment) console.error(...args);
 }
 const Server = require('../../../networking/server')
 const Settings = require('./settings')
@@ -933,47 +936,41 @@ module.exports = class Application extends EventEmitter {
     this.dispatch = new Dispatch(this, this.dataPath);
     devLog('[Renderer] Dispatch initialized with data path');
     
-    // Load settings
+    // Load settings (log only in dev mode)
     await this.settings.load();
+    if (isDevelopment) {
+      devLog('[Settings] Settings loaded successfully');
+    }
+    
+    // Display the loading plugins message first (like original Jam)
     this.consoleMessage({
-      message: 'Settings loaded successfully.',
-      type: 'notify'
+      message: 'Loading plugins...',
+      type: 'wait'
     });
     
-    // Load plugins with detailed messaging
-    const pluginsPromise = this.dispatch.load().then(() => {
-      const pluginCount = this.dispatch.plugins ? this.dispatch.plugins.size : 0;
-      const gamePlugins = [...(this.dispatch.plugins || [])].filter(([_, plugin]) => plugin.type === 'game').length;
-      const uiPlugins = [...(this.dispatch.plugins || [])].filter(([_, plugin]) => plugin.type === 'ui').length;
-      
-      this.consoleMessage({
-        message: `Loaded ${pluginCount} plugins (${gamePlugins} game, ${uiPlugins} UI).`,
-        type: 'success'
-      });
-    });
+    // Load plugins with concise messaging
+    await this.dispatch.load();
     
-    await pluginsPromise;
+    // Log plugin counts in a simpler format
+    const pluginCount = this.dispatch.plugins ? this.dispatch.plugins.size : 0;
+    this.consoleMessage({
+      message: `Successfully loaded ${pluginCount} plugins.`,
+      type: 'success'
+    });
 
-    /**
-     * Simple check for the host changes for animal jam classic.
-     */
+    // Host change check - only log in development mode
     const secureConnection = this.settings.get('secureConnection')
     if (secureConnection) {
-      this.consoleMessage({
-        message: 'Checking for server host changes...',
-        type: 'wait'
-      });
+      if (isDevelopment) {
+        devLog('[Host] Checking for server host changes...');
+      }
       await this._checkForHostChanges()
     }
 
     // Start the server
-    this.consoleMessage({
-      message: 'Starting proxy server...',
-      type: 'wait'
-    });
     await this.server.serve()
     this.consoleMessage({
-      message: 'Proxy server started on 127.0.0.1:443.',
+      message: 'Server started on 127.0.0.1:443.',
       type: 'success'
     });
     

@@ -1,9 +1,12 @@
 const path = require('path')
 const { PluginManager: PM } = require('live-plugin-manager')
 
+// Define isDevelopment for environment checks
+const isDevelopment = process.env.NODE_ENV === 'development';
+
 // Helper: Only log in development
 function devLog(...args) {
-  if (process.env.NODE_ENV === 'development') console.log(...args);
+  if (isDevelopment) console.log(...args);
 }
 const fs = require('fs').promises
 const Ajv = new (require('ajv'))({ useDefaults: true })

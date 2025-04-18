@@ -40,42 +40,26 @@ document.addEventListener('DOMContentLoaded', () => {
 })
 
 const initializeApp = async () => {
-  // Enhanced console messaging - Startup sequence
+  // Simple startup message like the original Jam
   application.consoleMessage({
     message: 'Starting Strawberry Jam...',
-    type: 'wait'
-  })
-  
-  application.consoleMessage({
-    message: 'Initializing application...',
     type: 'wait'
   })
 
   try {
     await application.instantiate()
-
-    application.consoleMessage({
-      message: 'Loading plugins...',
-      type: 'wait'
-    })
-    
-    // Short delay to show the loading plugins message
-    await new Promise(resolve => setTimeout(resolve, 300))
-    
-    application.consoleMessage({
-      message: 'Successfully initialized.',
-      type: 'success'
-    })
-
-    // Setup connection status monitoring
-    setupConnectionMonitoring()
     
     application.attachNetworkingEvents()
+    
+    // Setup connection status monitoring
+    setupConnectionMonitoring()
   } catch (error) {
     application.consoleMessage({
       message: `Error during initialization: ${error.message}`,
       type: 'error'
     })
+    
+    console.error('Initialization error details:', error)
   }
 }
 

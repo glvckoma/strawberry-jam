@@ -24,11 +24,11 @@ const getDataPath = (app) => { // Accept app as parameter
     throw new Error("getDataPath requires the Electron app object as an argument.");
   }
   if (app.isPackaged) {
-    // Path for packaged app (e.g., C:\Users\Username\AppData\Local\Programs\aj-classic\data)
+    // Path for packaged app (e.g., C:\Users\Username\AppData\Local\Programs\strawberry-jam\data)
     // Note: app.getPath('appData') gives Roaming, app.getPath('userData') gives Roaming\strawberry-jam
     // We need Local AppData, so construct it manually.
     const localAppData = process.env.LOCALAPPDATA || path.join(app.getPath('home'), 'AppData', 'Local')
-    return path.join(localAppData, 'Programs', 'aj-classic', 'data')
+    return path.join(localAppData, 'Programs', 'strawberry-jam', 'data')
   } else {
     // Path for development environment (project root/data)
     return path.join(app.getAppPath(), 'data')

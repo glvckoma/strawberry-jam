@@ -93,35 +93,39 @@ module.exports = class UsernameLogger {
         // Load persistent state
         this.leakCheckLastProcessedIndex = savedConfig.leakCheckLastProcessedIndex ?? -1;
         
-        this.application.consoleMessage({
-          type: 'logger',
-          message: `[Username Logger] Loaded configuration from ${this.configFilePath}`
-        });
-        
-        // Add diagnostic log for index
-        this.application.consoleMessage({
-          type: 'logger',
-          message: `[Username Logger] Loaded saved index: ${this.leakCheckLastProcessedIndex}`
-        });
+        // Only log detailed info in development mode
+        if (process.env.NODE_ENV === 'development') {
+          this.application.consoleMessage({
+            type: 'logger',
+            message: `[Username Logger] Loaded configuration from ${this.configFilePath}`
+          });
+          
+          this.application.consoleMessage({
+            type: 'logger',
+            message: `[Username Logger] Loaded saved index: ${this.leakCheckLastProcessedIndex}`
+          });
+        }
       } else {
         // If config doesn't exist, ensure index is default
         this.leakCheckLastProcessedIndex = -1;
-        this.application.consoleMessage({
-          type: 'warn',
-          message: `[Username Logger] Config file not found, using default index: -1`
-        });
+        if (process.env.NODE_ENV === 'development') {
+          this.application.consoleMessage({
+            type: 'warn',
+            message: `[Username Logger] Config file not found, using default index: -1`
+          });
+        }
       }
     } catch (error) {
-      this.application.consoleMessage({
-        type: 'error',
-        message: `[Username Logger] Error loading config: ${error.message}`
-      });
+      // Only show error in development mode
+      if (process.env.NODE_ENV === 'development') {
+        this.application.consoleMessage({
+          type: 'error',
+          message: `[Username Logger] Error loading config: ${error.message}`
+        });
+      }
       // Ensure index is default on error
       this.leakCheckLastProcessedIndex = -1;
     }
-    
-    // API Key is fetched on demand in runLeakCheck, no need to check/log here.
-    
   } // End of loadConfig method
   
   /**
@@ -184,8 +188,8 @@ module.exports = class UsernameLogger {
     if (!this.dispatch.dataPath) {
       // Fallback or error handling if dispatch doesn't have the dataPath yet
       console.error("[Username Logger] Error: this.dispatch.dataPath is not available!");
-      // Provide a default fallback path (e.g., local data directory)
-      const fallbackPath = path.join(os.homedir(), 'AppData', 'Local', 'Programs', 'aj-classic', 'data');
+      // Provide a default fallback path using strawberry-jam directory
+      const fallbackPath = path.join(os.homedir(), 'AppData', 'Local', 'Programs', 'strawberry-jam', 'data');
       try {
         if (!fs.existsSync(fallbackPath)) {
           fs.mkdirSync(fallbackPath, { recursive: true });
@@ -215,7 +219,87 @@ module.exports = class UsernameLogger {
     return { ...newPaths };
   };
 
-  // Removed migrateData function as requested
+  /**
+   * Migrates data from the old aj-classic path to the new strawberry-jam path.
+   * @returns {Promise<void>}
+   */
+  async migrateFromOldPath() {
+    // Only run migration if it hasn't been done before
+    if (this.config.migrationCompleted) {
+      return;
+    }
+    
+    try {
+      // Define old path
+      const oldBasePath = path.join(os.homedir(), 'AppData', 'Local', 'Programs', 'aj-classic', 'data');
+      
+      // Check if old path exists
+      if (!fs.existsSync(oldBasePath)) {
+        // No old data to migrate
+        this.config.migrationCompleted = true;
+        this.saveConfig();
+        return;
+      }
+      
+      // Get current paths
+      const newPaths = this.getFilePaths();
+      
+      // Define old file paths
+      const oldPaths = {
+        collectedUsernamesPath: path.join(oldBasePath, COLLECTED_USERNAMES_FILE),
+        processedUsernamesPath: path.join(oldBasePath, PROCESSED_FILE),
+        potentialAccountsPath: path.join(oldBasePath, POTENTIAL_ACCOUNTS_FILE),
+        foundAccountsPath: path.join(oldBasePath, FOUND_GENERAL_FILE),
+        ajcAccountsPath: path.join(oldBasePath, FOUND_AJC_FILE)
+      };
+      
+      // Ensure new directory exists
+      const newBasePath = this.getBasePath();
+      if (!fs.existsSync(newBasePath)) {
+        fs.mkdirSync(newBasePath, { recursive: true });
+      }
+      
+      // Copy each file if it exists
+      let filesCopied = 0;
+      
+      for (const [key, oldPath] of Object.entries(oldPaths)) {
+        if (fs.existsSync(oldPath)) {
+          const newPath = newPaths[key];
+          
+          // Read old file
+          const data = await fs.promises.readFile(oldPath, 'utf8');
+          
+          // Write to new location (append if file exists)
+          if (fs.existsSync(newPath)) {
+            // Append to existing file
+            await fs.promises.appendFile(newPath, '\n' + data);
+          } else {
+            // Create new file
+            await fs.promises.writeFile(newPath, data);
+          }
+          
+          filesCopied++;
+        }
+      }
+      
+      if (filesCopied > 0) {
+        this.application.consoleMessage({
+          type: 'success',
+          message: `Migrated ${filesCopied} data files from aj-classic to strawberry-jam.`
+        });
+      }
+      
+      // Mark migration as completed
+      this.config.migrationCompleted = true;
+      this.saveConfig();
+      
+    } catch (error) {
+      this.application.consoleMessage({
+        type: 'error',
+        message: `Error migrating data: ${error.message}`
+      });
+    }
+  }
 
   /**
    * Reads ignore list file synchronously and populates the ignoredUsernames set.
@@ -237,7 +321,7 @@ module.exports = class UsernameLogger {
         
         this.application.consoleMessage({
           type: 'logger',
-          message: `[Username Logger] Loaded ${loadedCount} usernames from processed list.`
+          message: `${loadedCount} ignored usernames loaded into Username Logger.`
         });
       } else {
         // Create the file if it doesn't exist
@@ -1374,6 +1458,10 @@ module.exports = class UsernameLogger {
   // Initialization logic that was previously at the bottom
   async initialize() {
     await this.loadConfig();
+    
+    // Migrate data from old path if needed
+    await this.migrateFromOldPath();
+    
     this.loadIgnoreList();
     
     // Ensure the determined base directory exists
