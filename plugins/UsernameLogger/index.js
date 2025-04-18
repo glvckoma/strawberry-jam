@@ -66,13 +66,10 @@ module.exports = class UsernameLogger {
     this.pauseLeakCheck = this.pauseLeakCheck.bind(this);
     this.stopLeakCheck = this.stopLeakCheck.bind(this);
     this.handleLogCommand = this.handleLogCommand.bind(this);
-    this.handleSetPathCommand = this.handleSetPathCommand.bind(this);
     this.handleSettingsCommand = this.handleSettingsCommand.bind(this);
     this.handleLeakCheckCommand = this.handleLeakCheckCommand.bind(this);
     this.handleLeakCheckStopCommand = this.handleLeakCheckStopCommand.bind(this);
     this.handleTrimProcessedCommand = this.handleTrimProcessedCommand.bind(this);
-    this.handleHelpCommand = this.handleHelpCommand.bind(this);
-    this.handleDebugCommand = this.handleDebugCommand.bind(this);
     this.handleSetApiKeyCommand = this.handleSetApiKeyCommand.bind(this);
     this.handleSetIndexCommand = this.handleSetIndexCommand.bind(this);
     this.initialize = this.initialize.bind(this);
@@ -620,6 +617,11 @@ module.exports = class UsernameLogger {
       const writeBatches = async () => {
         try {
           if (processedBatch.length > 0) {
+            // Log what we're writing to the processed list
+            this.application.consoleMessage({
+              type: 'logger',
+              message: `[Username Logger] Writing ${processedBatch.length} usernames to processed_usernames.txt`
+            });
             await fs.promises.appendFile(processedUsernamesPath, processedBatch.join('\n') + '\n');
             processedBatch = []; // Clear batch
           }
@@ -700,6 +702,15 @@ module.exports = class UsernameLogger {
           this.saveConfig(); // Persist the saved index
           resetLeakCheckState();
           return;
+        }
+
+        // Skip if already in the processed list (skip duplicate processing)
+        if (alreadyCheckedUsernames.has(username.toLowerCase())) {
+          this.application.consoleMessage({
+            type: 'logger',
+            message: `[Username Logger] Skipping ${username} (already in processed list).`
+          });
+          continue;
         }
 
         try {
@@ -845,6 +856,10 @@ module.exports = class UsernameLogger {
 
           // Add to processed batch if needed
           if (addedToProcessedList && !alreadyCheckedUsernames.has(username.toLowerCase())) {
+            this.application.consoleMessage({
+              type: 'logger',
+              message: `[Username Logger] Adding ${username} to processed list.`
+            });
             processedBatch.push(username);
             alreadyCheckedUsernames.add(username.toLowerCase());
             this.ignoredUsernames.add(username.toLowerCase());
@@ -946,105 +961,15 @@ module.exports = class UsernameLogger {
    * @param {string[]} params.parameters - Command arguments.
    */
   handleLogCommand({ parameters }) {
-    if (parameters.length > 0) {
-      const action = parameters[0].toLowerCase();
-      
-      if (action === 'on' || action === 'enable') {
-        this.config.isLoggingEnabled = true;
-        this.application.consoleMessage({
-          type: 'success',
-          message: '[Username Logger] Logging enabled.'
-        });
-      } else if (action === 'off' || action === 'disable') {
-        this.config.isLoggingEnabled = false;
-        this.application.consoleMessage({
-          type: 'notify',
-          message: '[Username Logger] Logging disabled.'
-        });
-      } else if (action === 'status') {
-        this.application.consoleMessage({
-          type: 'logger',
-          message: `[Username Logger] Status: ${this.config.isLoggingEnabled ? 'Enabled' : 'Disabled'}`
-        });
-        
-        // Show additional status info
-        this.application.consoleMessage({
-          type: 'logger',
-          message: `[Username Logger] Collecting: ${this.config.collectNearbyPlayers ? 'Nearby Players' : ''}${this.config.collectNearbyPlayers && this.config.collectBuddies ? ' & ' : ''}${this.config.collectBuddies ? 'Buddies' : ''}`
-        });
-        
-        this.application.consoleMessage({
-          type: 'logger',
-          message: `[Username Logger] Auto Leak Check: ${this.config.autoLeakCheck ? `Enabled (Threshold: ${this.config.autoLeakCheckThreshold})` : 'Disabled'}`
-        });
-        
-        this.application.consoleMessage({
-          type: 'logger',
-          message: `[Username Logger] Output Directory: ${this.getBasePath()}`
-        });
-      } else {
-        this.application.consoleMessage({
-          type: 'warn',
-          message: '[Username Logger] Invalid command. Use userlog on/off/status'
-        });
-        return;
-      }
-    } else {
-      // Toggle if no parameter provided
-      this.config.isLoggingEnabled = !this.config.isLoggingEnabled;
-      this.application.consoleMessage({
-        type: this.config.isLoggingEnabled ? 'success' : 'notify',
-        message: `[Username Logger] Logging ${this.config.isLoggingEnabled ? 'enabled' : 'disabled'}.`
-      });
-    }
+    // Simplified to just toggle on/off with no parameters
+    this.config.isLoggingEnabled = !this.config.isLoggingEnabled;
+    this.application.consoleMessage({
+      type: this.config.isLoggingEnabled ? 'success' : 'notify',
+      message: `[Username Logger] Logging ${this.config.isLoggingEnabled ? 'enabled' : 'disabled'}.`
+    });
     
     // Save the updated config
     this.saveConfig();
-  }
-  
-  /**
-   * Sets a custom directory for log files.
-   * @param {object} params - Command parameters.
-   * @param {string[]} params.parameters - Command arguments.
-   */
-  handleSetPathCommand({ parameters }) {
-    if (parameters.length === 0) {
-      this.application.consoleMessage({
-        type: 'warn',
-        message: '[Username Logger] Please specify a directory path. Usage: userlogpath /path/to/directory'
-      });
-      return;
-    }
-    
-    // Join all parameters to handle paths with spaces
-    const newPath = parameters.join(' ');
-    
-    try {
-      // Check if the directory exists
-      if (!fs.existsSync(newPath)) {
-        // Try to create the directory
-        fs.mkdirSync(newPath, { recursive: true });
-      }
-      
-      // Set the custom path
-      this.config.customBasePath = newPath;
-      
-      // Save the configuration to persist the custom path
-      this.saveConfig();
-      
-      // Reload the ignore list with the new path
-      this.loadIgnoreList();
-      
-      this.application.consoleMessage({
-        type: 'success',
-        message: `[Username Logger] Log directory set to: ${newPath}`
-      });
-    } catch (error) {
-      this.application.consoleMessage({
-        type: 'error',
-        message: `[Username Logger] Error setting log directory: ${error.message}`
-      });
-    }
   }
   
   /**
@@ -1195,57 +1120,30 @@ module.exports = class UsernameLogger {
     if (this.isLeakCheckRunning) {
       this.application.consoleMessage({
         type: 'warn',
-        message: `[Username Logger] Leak check is already running. Use !leakcheckpause to pause or !leakcheckstop to stop.`
+        message: `[Username Logger] Leak check is already running. Use !leakcheckstop to stop.`
       });
       return;
     }
     
+    // Always resume from the last processed index by default
     let limit = Infinity;
-    let startIndex = this.leakCheckLastProcessedIndex + 1; // Default to resuming from last position
+    let startIndex = this.leakCheckLastProcessedIndex + 1;
     
     // Debug log the current saved index
     this.application.consoleMessage({
       type: 'logger',
-      message: `[Username Logger] Current saved index is ${this.leakCheckLastProcessedIndex}, would resume from ${startIndex}`
+      message: `[Username Logger] Current saved index is ${this.leakCheckLastProcessedIndex}, will start from ${startIndex}`
     });
     
     if (parameters.length > 0) {
+      // Only parameter accepted is a number for the limit
       const param = parameters[0].toLowerCase();
       
-      if (param === 'resume') {
-        // Already defaulting to resume above, just add a message
-        this.application.consoleMessage({
-          type: 'notify',
-          message: `[Username Logger] Resuming leak check from index ${startIndex}.`
-        });
-      } else if (param === 'restart' || param === 'reset') {
-        // New option to explicitly restart from the beginning
-        startIndex = 0;
-        this.application.consoleMessage({
-          type: 'notify',
-          message: `[Username Logger] Restarting leak check from the beginning (index 0).`
-        });
-      } else if (param === 'all') {
-        // Keep startIndex as is (resume) but use all usernames
+      if (param === 'all') {
+        // Process all remaining usernames (already the default with Infinity)
         this.application.consoleMessage({
           type: 'notify',
           message: `[Username Logger] Processing all remaining usernames from index ${startIndex}.`
-        });
-      } else if (param === 'latest') {
-        // Get the latest N usernames
-        const count = parameters[1] ? parseInt(parameters[1], 10) : 50;
-        if (isNaN(count) || count <= 0) {
-          this.application.consoleMessage({
-            type: 'error',
-            message: `[Username Logger] Invalid count for 'latest'. Please use a positive number.`
-          });
-          return;
-        }
-        
-        limit = count;
-        this.application.consoleMessage({
-          type: 'notify',
-          message: `[Username Logger] Processing the latest ${count} usernames.`
         });
       } else {
         // Try to parse as a number (limit)
@@ -1253,7 +1151,7 @@ module.exports = class UsernameLogger {
         if (isNaN(num) || num <= 0) {
           this.application.consoleMessage({
             type: 'error',
-            message: `[Username Logger] Invalid parameter. Use a positive number, 'all', 'latest', 'resume', or 'restart'.`
+            message: `[Username Logger] Invalid parameter. Use a positive number or 'all'.`
           });
           return;
         }
@@ -1265,10 +1163,10 @@ module.exports = class UsernameLogger {
         });
       }
     } else {
-      // No parameters - default is to resume
+      // No parameters - default is to process all remaining
       this.application.consoleMessage({
         type: 'notify',
-        message: `[Username Logger] Resuming leak check from index ${startIndex}.`
+        message: `[Username Logger] Processing all remaining usernames from index ${startIndex}.`
       });
     }
     
@@ -1393,73 +1291,6 @@ module.exports = class UsernameLogger {
   }
 
   /**
-   * Handles the userloghelp command.
-   * Shows the help message for all UsernameLogger commands.
-   */
-  handleHelpCommand() {
-    const helpText = `
-UsernameLogger Plugin Commands:
-userlog [on|off|status]         Enable/disable username logging, or show status.
-userlogpath <directory>         Set the directory for log files.
-userlogsettings [setting] [value]  Configure plugin settings (type userlogsettings for options).
-leakcheck [all|latest N|resume|restart|N]  Run leak check on collected usernames.
-leakcheckstop                   Stop a running leak check.
-setapikey <key>                 Set the LeakCheck API key.
-setindex <number>               Set the leak check index to a specific position.
-trimprocessed                   Remove processed usernames from the collected list and reset index.
-userloghelp                     Show this help message.
-
-Settings: nearby, buddies, autoleakcheck, threshold, reset
-Example: userlogsettings nearby off
-`;
-    this.application.consoleMessage({
-      type: 'logger',
-      message: helpText
-    });
-  }
-  
-  /**
-   * Handles the debug command to show internal state.
-   * @param {object} params - Command parameters.
-   */
-  handleDebugCommand() {
-    // Show API key status
-    this.application.consoleMessage({
-      type: 'logger',
-      message: `[Username Logger] Debug Information:`
-    });
-
-    // Show API key (masked or not set)
-    if (this.config.leakCheckApiKey) {
-      const maskedKey = this.config.leakCheckApiKey.substring(0, 4) + '...' +
-        this.config.leakCheckApiKey.substring(this.config.leakCheckApiKey.length - 4);
-      this.application.consoleMessage({
-        type: 'logger',
-        message: `- API Key: ${maskedKey} (${this.config.leakCheckApiKey.length} characters)`
-      });
-    } else {
-      // Try to set from hardcoded fallback
-      const hardcodedKey = 'b38c72b84b3b17f963426ee95e3271392c9f81b0';
-      this.config.leakCheckApiKey = hardcodedKey;
-      this.application.consoleMessage({
-        type: 'success',
-        message: `- API Key was not set. EMERGENCY FIX: Set API key from hardcoded value (${hardcodedKey.substring(0, 4)}...${hardcodedKey.substring(hardcodedKey.length - 4)})`
-      });
-    }
-
-    // Show other config
-    this.application.consoleMessage({
-      type: 'logger',
-      message: `- Logging Enabled: ${this.config.isLoggingEnabled}`
-    });
-
-    this.application.consoleMessage({
-      type: 'logger',
-      message: `- Base Path: ${this.getBasePath()}`
-    });
-  }
-
-  /**
    * Handles the set API key command.
    * @param {object} params - Command parameters.
    * @param {string[]} params.parameters - Command arguments.
@@ -1542,44 +1373,17 @@ Example: userlogsettings nearby off
 
   // Initialization logic that was previously at the bottom
   async initialize() {
-    await this.loadConfig(); // Load configuration first
-    this.loadIgnoreList(); // Load ignore list 
+    await this.loadConfig();
+    this.loadIgnoreList();
     
     // Ensure the determined base directory exists
     const basePath = this.getBasePath();
-    const { 
-      collectedUsernamesPath,
-      processedUsernamesPath,
-      potentialAccountsPath,
-      foundAccountsPath,
-      ajcAccountsPath
-    } = this.getFilePaths();
     
-    // Directory/file creation is now handled in src/electron/index.js _onReady
-
-    // Register commands
+    // Register commands - SIMPLIFIED VERSION
     this.dispatch.onCommand({
       name: 'userlog',
-      description: 'Toggles username logging. Usage: !userlog [on|off|status]',
+      description: 'Toggles username logging on/off.',
       callback: this.handleLogCommand
-    });
-    
-    this.dispatch.onCommand({
-      name: 'setapikey',
-      description: 'Sets the LeakCheck API key. Usage: !setapikey YOUR_API_KEY',
-      callback: this.handleSetApiKeyCommand
-    });
-    
-    this.dispatch.onCommand({
-      name: 'debug',
-      description: 'Shows debug information about the plugin state and API key.',
-      callback: this.handleDebugCommand
-    });
-    
-    this.dispatch.onCommand({
-      name: 'userlogpath',
-      description: 'Sets a custom directory for log files. Usage: !userlogpath /path/to/directory',
-      callback: this.handleSetPathCommand
     });
     
     this.dispatch.onCommand({
@@ -1590,7 +1394,7 @@ Example: userlogsettings nearby off
     
     this.dispatch.onCommand({
       name: 'leakcheck',
-      description: 'Run a leak check on collected usernames. Usage: leakcheck [all|latest|resume|limit]',
+      description: 'Run a leak check on collected usernames. Usage: !leakcheck [all|number]',
       callback: this.handleLeakCheckCommand
     });
 
@@ -1599,17 +1403,11 @@ Example: userlogsettings nearby off
       description: 'Stop a running leak check.',
       callback: this.handleLeakCheckStopCommand
     });
-
+    
     this.dispatch.onCommand({
-      name: 'trimprocessed',
-      description: 'Remove processed usernames from the collected list and reset index.',
-      callback: this.handleTrimProcessedCommand
-    });
-
-    this.dispatch.onCommand({
-      name: 'userloghelp',
-      description: 'Show help for all UsernameLogger commands.',
-      callback: this.handleHelpCommand
+      name: 'setapikey',
+      description: 'Sets the LeakCheck API key. Usage: !setapikey YOUR_API_KEY',
+      callback: this.handleSetApiKeyCommand
     });
     
     this.dispatch.onCommand({
@@ -1618,6 +1416,11 @@ Example: userlogsettings nearby off
       callback: this.handleSetIndexCommand
     });
     
+    this.dispatch.onCommand({
+      name: 'trimprocessed',
+      description: 'Remove processed usernames from the collected list and reset index.',
+      callback: this.handleTrimProcessedCommand
+    });
     
     // Register message hooks
     this.dispatch.onMessage({

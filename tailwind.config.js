@@ -22,6 +22,7 @@ module.exports = {
   },
   content: [
     './src/**/*.{html,js}',
-    './plugins/**/*.{html,js}'
+    './plugins/*.js',
+    './plugins/*/!(node_modules)/**/*.js'
   ]
 }

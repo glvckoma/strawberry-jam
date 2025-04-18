@@ -19,41 +19,44 @@ This plugin provides a unified system for collecting and analyzing usernames in 
   - Find leaked credentials
   - Separate Animal Jam specific leaks
   - Resume interrupted checks
-  - Pause/stop running checks
+  - Consistent index tracking between sessions
+  - Ability to trim processed usernames
 
 - **Flexible Output Management**:
   - Custom output directory support
   - Automatic file creation
-  - Desktop fallback if data directory is unavailable
+  - Persistent state between sessions
 
 - **Persistent Configuration**:
   - Settings saved between sessions
   - API key loaded from Jam settings
+  - Leak check position remembered between runs
 
 ## Commands
 
 ### Logging Control
 
-- `userlog [on|off|status]` - Toggle username logging or check status
-- `userlogpath [directory]` - Set custom directory for log files
+- `userlog` - Toggle username logging on/off (simplified toggle with no parameters)
 - `userlogsettings [setting] [value]` - Configure logging settings
   - `userlogsettings nearby [on|off]` - Toggle nearby player collection
   - `userlogsettings buddies [on|off]` - Toggle buddy collection
   - `userlogsettings autoleakcheck [on|off]` - Toggle automatic leak checking
   - `userlogsettings threshold [number]` - Set auto leak check threshold
   - `userlogsettings reset` - Reset settings to defaults
-- `clearleaklogs` - Clear only leak check result files
 
+### Leak Check Control
+
+- `leakcheck [all|number]` - Run a leak check on collected usernames
+  - Always resumes from where the last check left off
+  - `all` - Process all remaining usernames (default)
+  - `number` - Process only that many usernames
+- `leakcheckstop` - Stop a running leak check
+- `setindex [number]` - Manually set the leak check position to a specific index
+- `trimprocessed` - Remove already processed usernames from the collected list and reset the index
 
 ### API Configuration
 
 - `setapikey [api_key]` - Set the LeakCheck API key directly in the plugin
-- `debug` - Show debug information about the plugin state and API key
-
-### Legacy Commands (Backward Compatibility)
-
-- `!buddylog` - Alias for `!userlog`
-- `!buddylogpath` - Alias for `!userlogpath`
 
 ## Output Files
 
@@ -68,10 +71,9 @@ The plugin creates and manages the following files in the configured output dire
 ## Setup
 
 1. Ensure the plugin is installed in the `plugins/UsernameLogger` directory.
-2. Set your LeakCheck API key using one of these methods:
-   - In Jam settings (`leakCheckApiKey` property - may be unreliable).
-   - **Recommended:** Directly in the plugin console with `setapikey YOUR_API_KEY`.
-3. Enable logging with `userlog on`.
+2. Set your LeakCheck API key using the command:
+   - `setapikey YOUR_API_KEY`
+3. Enable logging with `userlog` (toggles on/off).
 4. Configure settings as needed with `userlogsettings`.
 
 ## Auto Leak Check
@@ -83,9 +85,20 @@ userlogsettings autoleakcheck on
 userlogsettings threshold 100
 ```
 
+## Leak Check Process
+
+The leak checker now maintains a persistent index of where it left off, allowing you to:
+
+1. Stop a check at any time with `leakcheckstop`
+2. Continue exactly where you left off with `leakcheck`
+3. Fast-forward or rewind to a specific position with `setindex <number>`
+4. Remove already processed usernames with `trimprocessed` to free up space
+
+The plugin carefully tracks which usernames have been processed to avoid duplicates and maintain efficiency.
+
 ## Notes
 
-- The plugin requires the LeakCheck API key for leak checking functionality. Using the `!setapikey` command is the most reliable way to provide it.
-- Usernames collected are deduplicated within the current session before being logged.
+- The plugin requires the LeakCheck API key for leak checking functionality.
+- All state, including the current processing position, is saved between sessions.
 - The `processed_usernames.txt` file acts as an ignore list to prevent re-processing usernames in subsequent leak checks.
-- All log files are created in the specified output directory (defaults to `./data/`).
+- All log files are created in the data directory.
