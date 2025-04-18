@@ -18,6 +18,7 @@ const Patcher = require('./patcher')
 const Dispatch = require('./dispatch')
 const HttpClient = require('../../../services/HttpClient')
 const ModalSystem = require('./modals')
+const registerCoreCommands = require('./core-commands')
 
 /**
  * Message status icons (using FontAwesome).
@@ -1582,6 +1583,10 @@ module.exports = class Application extends EventEmitter {
     // Initialize Dispatch with the data path
     this.dispatch = new Dispatch(this, this.dataPath);
     devLog('[Renderer] Dispatch initialized with data path');
+    
+    // Register core commands
+    registerCoreCommands(this.dispatch, this);
+    devLog('[Renderer] Core commands registered');
     
     // Load settings (log only in dev mode)
     await this.settings.load();

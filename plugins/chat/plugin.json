@@ -1,11 +1,5 @@
 {
   "name": "In-game chat commands.",
   "description": "Handles in-game chat commands.",
-  "game": "animal-jam-classic",
-  "commands": [
-    {
-      "name": "clear",
-      "description": "Clears all console logs."
-    }
-  ]
+  "game": "animal-jam-classic"
 }
