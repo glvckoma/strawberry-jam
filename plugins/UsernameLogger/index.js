@@ -30,11 +30,11 @@ module.exports = class UsernameLogger {
     // Plugin state
     this.config = {
       isLoggingEnabled: false, // Disabled by default
-    customBasePath: null, // For user-defined log directory
-    collectNearbyPlayers: true, // Collect nearby players by default
-    collectBuddies: true, // Collect buddies by default
-    autoLeakCheck: false, // Don't auto-run leak check by default
-    autoLeakCheckThreshold: 50, // Run leak check after collecting this many usernames
+      customBasePath: null, // For user-defined log directory
+      collectNearbyPlayers: true, // Collect nearby players by default
+      collectBuddies: true, // Collect buddies by default
+      autoLeakCheck: false, // Don't auto-run leak check by default
+      autoLeakCheckThreshold: 50, // Run leak check after collecting this many usernames
       leakCheckApiKey: null, // Will be fetched on demand
     };
     
@@ -70,6 +70,8 @@ module.exports = class UsernameLogger {
     this.handleSettingsCommand = this.handleSettingsCommand.bind(this);
     this.handleLeakCheckCommand = this.handleLeakCheckCommand.bind(this);
     this.handleLeakCheckStopCommand = this.handleLeakCheckStopCommand.bind(this);
+    this.handleTrimProcessedCommand = this.handleTrimProcessedCommand.bind(this);
+    this.handleHelpCommand = this.handleHelpCommand.bind(this);
     this.handleDebugCommand = this.handleDebugCommand.bind(this);
     this.handleSetApiKeyCommand = this.handleSetApiKeyCommand.bind(this);
     this.handleSetIndexCommand = this.handleSetIndexCommand.bind(this);
@@ -1282,35 +1284,110 @@ module.exports = class UsernameLogger {
   }
 
   /**
-   * Handles the clearleaklogs command.
-   * Only clears leak check result files (not username collection logs).
+   * Trims already processed usernames from the collected_usernames.txt file
+   * and resets the index to -1 (next check will start at 0).
+   * @param {object} params - Command parameters.
    */
-  async handleClearLeakLogsCommand() {
-    const { foundAccountsPath, ajcAccountsPath } = this.getFilePaths();
-    let cleared = [];
-    let errors = [];
-
-    for (const filePath of [foundAccountsPath, ajcAccountsPath]) {
-      try {
-        await fs.promises.writeFile(filePath, '', 'utf8');
-        cleared.push(filePath);
-      } catch (error) {
-        errors.push({ file: filePath, error: error.message });
-      }
+  async handleTrimProcessedCommand() {
+    if (this.isLeakCheckRunning) {
+      this.application.consoleMessage({
+        type: 'warn',
+        message: `[Username Logger] Cannot trim usernames while leak check is running. Stop the check first.`
+      });
+      return;
     }
 
-    if (cleared.length > 0) {
+    const { collectedUsernamesPath } = this.getFilePaths();
+    
+    try {
+      // Read the file
+      if (!fs.existsSync(collectedUsernamesPath)) {
+        this.application.consoleMessage({
+          type: 'warn',
+          message: `[Username Logger] Collected usernames file not found.`
+        });
+        return;
+      }
+
+      const collectedData = await fs.promises.readFile(collectedUsernamesPath, 'utf8');
+      const allLines = collectedData.split(/\r?\n/);
+      
+      // Parse all usernames from the file
+      const usernameEntries = [];
+      
+      allLines.forEach(line => {
+        let match = line.match(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z - (.+)$/);
+        if (match && match[1]) {
+          usernameEntries.push({
+            line: line,
+            username: match[1].trim()
+          });
+        } else if (line.trim() && !line.trim().startsWith('---')) {
+          usernameEntries.push({
+            line: line,
+            username: line.trim()
+          });
+        }
+      });
+
+      // If no usernames found, nothing to do
+      if (usernameEntries.length === 0) {
+        this.application.consoleMessage({
+          type: 'warn',
+          message: `[Username Logger] No usernames found in collected file.`
+        });
+        return;
+      }
+
+      // Get the current processed index
+      const processedIndex = this.leakCheckLastProcessedIndex;
+      
+      if (processedIndex < 0) {
+        this.application.consoleMessage({
+          type: 'warn',
+          message: `[Username Logger] No usernames have been processed yet (index = ${processedIndex}).`
+        });
+        return;
+      }
+
+      // Calculate how many usernames to keep
+      if (processedIndex >= usernameEntries.length) {
+        this.application.consoleMessage({
+          type: 'notify',
+          message: `[Username Logger] All usernames have been processed. Clearing file.`
+        });
+        
+        // Clear the file completely
+        await fs.promises.writeFile(collectedUsernamesPath, '');
+      } else {
+        // Keep only the non-processed usernames
+        const keepEntries = usernameEntries.slice(processedIndex + 1);
+        const keepLinesCount = keepEntries.length;
+        const removedLinesCount = usernameEntries.length - keepLinesCount;
+        
+        // Write the remaining entries back to the file
+        await fs.promises.writeFile(collectedUsernamesPath, keepEntries.map(entry => entry.line).join('\n'));
+        
+        this.application.consoleMessage({
+          type: 'success',
+          message: `[Username Logger] Removed ${removedLinesCount} processed usernames, kept ${keepLinesCount} unprocessed usernames.`
+        });
+      }
+      
+      // Reset the index
+      this.leakCheckLastProcessedIndex = -1;
+      
+      // Save the config to persist the index change
+      this.saveConfig();
+      
       this.application.consoleMessage({
         type: 'success',
-        message: `[Username Logger] Leak check result files cleared: ${cleared.map(f => path.basename(f)).join(', ')}`
+        message: `[Username Logger] Index reset to -1. Next leak check will start from index 0.`
       });
-    }
-    if (errors.length > 0) {
-      errors.forEach(e => {
-        this.application.consoleMessage({
-          type: 'error',
-          message: `[Username Logger] Error clearing ${path.basename(e.file)}: ${e.error}`
-        });
+    } catch (error) {
+      this.application.consoleMessage({
+        type: 'error',
+        message: `[Username Logger] Error trimming processed usernames: ${error.message}`
       });
     }
   }
@@ -1325,10 +1402,11 @@ UsernameLogger Plugin Commands:
 userlog [on|off|status]         Enable/disable username logging, or show status.
 userlogpath <directory>         Set the directory for log files.
 userlogsettings [setting] [value]  Configure plugin settings (type userlogsettings for options).
-leakcheck [all|latest N|resume|N]  Run leak check on collected usernames.
+leakcheck [all|latest N|resume|restart|N]  Run leak check on collected usernames.
 leakcheckstop                   Stop a running leak check.
 setapikey <key>                 Set the LeakCheck API key.
-clearleaklogs                   Clear only leak check result files (not username logs).
+setindex <number>               Set the leak check index to a specific position.
+trimprocessed                   Remove processed usernames from the collected list and reset index.
 userloghelp                     Show this help message.
 
 Settings: nearby, buddies, autoleakcheck, threshold, reset
@@ -1465,7 +1543,6 @@ Example: userlogsettings nearby off
   // Initialization logic that was previously at the bottom
   async initialize() {
     await this.loadConfig(); // Load configuration first
-    // Removed call to migrateData()
     this.loadIgnoreList(); // Load ignore list 
     
     // Ensure the determined base directory exists
@@ -1524,9 +1601,9 @@ Example: userlogsettings nearby off
     });
 
     this.dispatch.onCommand({
-      name: 'clearleaklogs',
-      description: 'Clear only leak check result files (not username logs).',
-      callback: this.handleClearLeakLogsCommand
+      name: 'trimprocessed',
+      description: 'Remove processed usernames from the collected list and reset index.',
+      callback: this.handleTrimProcessedCommand
     });
 
     this.dispatch.onCommand({
