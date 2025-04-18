@@ -7,6 +7,9 @@ const { spawn } = require('child_process')
 const { promisify } = require('util')
 // Removed execFileAsync as we'll use spawn and handle exit differently
 
+// Define isDevelopment for environment checks
+const isDevelopment = process.env.NODE_ENV === 'development';
+
 /**
  * Original Animal Jam Classic base path.
  * @constant
@@ -96,10 +99,13 @@ module.exports = class Patcher {
           : undefined
 
       if (this._application) {
+      // Only log in development mode
+      if (isDevelopment) {
         this._application.consoleMessage({
-          message: 'Starting Strawberry Jam Classic...',
-          type: 'success'
+          message: 'Patching Strawberry Jam Classic with custom ASAR...',
+          type: 'notify'
         })
+      }
       } else {
         console.log('Starting Strawberry Jam Classic...')
       }

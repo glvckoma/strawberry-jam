@@ -550,17 +550,19 @@ module.exports = class UsernameLogger {
       startIndex = this.leakCheckLastProcessedIndex + 1
     } = options;
 
-    // Debug log at the start of function
-    this.application.consoleMessage({
-      type: 'logger',
-      message: `[Username Logger] runLeakCheck called with options: limit=${limit}, startIndex=${startIndex}, current lastProcessedIndex=${this.leakCheckLastProcessedIndex}`
-    });
+    // Debug log at the start of function - only in development mode
+    if (process.env.NODE_ENV === 'development') {
+      this.application.consoleMessage({
+        type: 'logger',
+        message: `[Username Logger] runLeakCheck called with options: limit=${limit}, startIndex=${startIndex}, current lastProcessedIndex=${this.leakCheckLastProcessedIndex}`
+      });
+    }
 
     // Prevent multiple instances from running
     if (this.isLeakCheckRunning) {
       this.application.consoleMessage({
         type: 'warn',
-        message: `[Username Logger] Leak check is already running. Use !leakcheckpause to pause or !leakcheckstop to stop.`
+        message: `Username check is already running. Use !leakcheckstop to stop.`
       });
       return;
     }
@@ -602,12 +604,22 @@ module.exports = class UsernameLogger {
         if (!apiKey) {
           throw new Error('API Key is empty or not found in settings.');
         }
-        this.application.consoleMessage({ type: 'logger', message: '[Username Logger] Successfully fetched API Key via IPC for leak check.' });
+        if (process.env.NODE_ENV === 'development') {
+          this.application.consoleMessage({ type: 'logger', message: '[Username Logger] Successfully fetched API Key via IPC for leak check.' });
+        }
       } catch (error) {
-        this.application.consoleMessage({
-          type: 'error',
-          message: `[Username Logger] Failed to get LeakCheck API Key via IPC: ${error.message}`
-        });
+        // Use a more user-friendly error message in production
+        if (process.env.NODE_ENV === 'development') {
+          this.application.consoleMessage({
+            type: 'error',
+            message: `[Username Logger] Failed to get LeakCheck API Key via IPC: ${error.message}`
+          });
+        } else {
+          this.application.consoleMessage({
+            type: 'error',
+            message: `Account checking needs setup. Please contact support.`
+          });
+        }
         resetLeakCheckState();
         return;
       }
@@ -1537,7 +1549,7 @@ module.exports = class UsernameLogger {
     
     this.application.consoleMessage({
       type: 'success',
-      message: `[Username Logger] Plugin loaded. Logging to: ${basePath}. Logging is ${this.config.isLoggingEnabled ? 'enabled' : 'disabled'}. Use userlog to toggle logging.`
+      message: `Username Logger plugin loaded. Use userlog to toggle logging.`
     });
   }
 };

@@ -811,12 +811,11 @@ module.exports = class Application extends EventEmitter {
     this.$playButton.onclick = () => false; // Prevent further clicks via onclick
 
     try {
-      this.consoleMessage({ message: 'Patching and launching Animal Jam Classic...', type: 'wait' });
+      this.consoleMessage({ message: 'Starting Strawberry Jam Classic...', type: 'wait' });
       await this.patcher.killProcessAndPatch(); // Await the patching process
-      this.consoleMessage({ message: 'Animal Jam Classic launched.', type: 'success' });
     } catch (error) {
       this.consoleMessage({
-        message: `Error patching/launching Animal Jam Classic: ${error.message}`,
+        message: `Error launching Strawberry Jam Classic: ${error.message}`,
         type: 'error'
       });
     } finally {

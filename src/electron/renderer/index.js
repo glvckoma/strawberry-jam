@@ -53,6 +53,12 @@ const initializeApp = async () => {
     
     // Setup connection status monitoring
     setupConnectionMonitoring()
+    
+    // Add welcome message
+    application.consoleMessage({
+      message: 'Thank you for choosing my flavor of jam! Commands can be typed here to utilize plugins.',
+      type: 'notify'
+    })
   } catch (error) {
     application.consoleMessage({
       message: `Error during initialization: ${error.message}`,
