@@ -110,8 +110,39 @@ module.exports = class Patcher {
         console.log('Starting Strawberry Jam Classic...')
       }
 
-      // Launch the game process using spawn for robust process tracking
-      this._animalJamProcess = spawn(exePath, [], { detached: false, stdio: 'ignore' })
+      // Get the data path from the application instance
+      const dataPath = this._application.dataPath;
+      if (!dataPath) {
+        // Log the error and throw, as the path is crucial for the tester logic
+        const errorMsg = "Strawberry Jam data path is not available. Cannot launch game.";
+        if (this._application) {
+          this._application.consoleMessage({ message: errorMsg, type: 'error' });
+        } else {
+          console.error(errorMsg);
+        }
+        throw new Error(errorMsg);
+      }
+
+      // Prepare environment variables for the spawned process
+      const spawnEnv = {
+        ...process.env, // Inherit current environment variables
+        STRAWBERRY_JAM_DATA_PATH: dataPath // Add the data path
+      };
+
+      // Launch the game process using spawn with the custom environment
+      this._animalJamProcess = spawn(exePath, [], {
+        detached: false,
+        stdio: 'ignore',
+        env: spawnEnv // Pass the environment variables
+      });
+
+      // Log the environment variable being passed (only in development)
+      if (isDevelopment) {
+        this._application.consoleMessage({
+          message: `Launching game with STRAWBERRY_JAM_DATA_PATH set.`, // Simplified log
+          type: 'logger'
+        });
+      }
 
       // No need for restoration on quit since we're using a separate installation
     } catch (error) {

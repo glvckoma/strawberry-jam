@@ -146,13 +146,13 @@
         class="tab-button active text-sidebar-text hover:bg-sidebar-hover py-2 text-sm font-medium transition-all relative overflow-hidden"
         data-tab="console">
         <i class="fas fa-terminal mr-2 text-xs"></i>Console
-        <span class="active-indicator absolute bottom-0 left-0 right-0 h-0.5 bg-highlight-green transform scale-x-0 transition-transform"></span>
+        <span class="active-indicator absolute bottom-0 left-0 right-0 h-0.5 transform transition-transform"></span> <!-- Removed scale-x-0 -->
       </button>
       <button id="packetLoggingTab"
         class="tab-button text-sidebar-text hover:bg-sidebar-hover py-2 text-sm font-medium transition-all relative overflow-hidden"
         data-tab="packet-logging">
         <i class="fas fa-network-wired mr-2 text-xs"></i>Network
-        <span class="active-indicator absolute bottom-0 left-0 right-0 h-0.5 bg-highlight-yellow transform scale-x-0 transition-transform"></span>
+        <span class="active-indicator absolute bottom-0 left-0 right-0 h-0.5 transform transition-transform"></span> <!-- Removed scale-x-0 -->
       </button>
     </div>
 
@@ -465,9 +465,35 @@
           "app://assets/strawberry.png"
         ];
         
+        // Define fruit themes here for easy access
+        const fruitThemes = {
+          'banana.png': { primary: '#FFDA03' },
+          'blueberries.png': { primary: '#4682B4' },
+          'cantaloupe.png': { primary: '#FFA07A' },
+          'coconut.png': { primary: '#A0522D' },
+          'pineapple.png': { primary: '#FFEC8B' },
+          'strawberry.png': { primary: '#e83d52' }
+        };
+        
         // Find current index or default to last (strawberry)
         let currentFruitIndex = fruitImages.findIndex(src => $fruitIcon.attr('src').endsWith(src));
         if (currentFruitIndex === -1) currentFruitIndex = fruitImages.length - 1;
+        
+        // Function to apply theme globally
+        const applyGlobalTheme = (fruitSrc) => {
+          const fruitKey = fruitSrc.split('/').pop(); // Get 'strawberry.png' etc.
+          const theme = fruitThemes[fruitKey];
+          if (theme && theme.primary) {
+            $('body').css('--theme-primary', theme.primary);
+            console.log(`Applied global theme: ${fruitKey}, primary: ${theme.primary}`);
+          } else {
+             $('body').css('--theme-primary', '#e83d52'); // Default fallback
+             console.log(`Applied default global theme (strawberry)`);
+          }
+        };
+        
+        // Apply initial theme on load
+        applyGlobalTheme($fruitIcon.attr('src'));
         
         // Force pointer cursor with inline style as a backup
         $fruitIcon.css('cursor', 'pointer');
@@ -475,7 +501,12 @@
         // Attach click handler with jQuery
         $fruitIcon.on('click', function() {
           currentFruitIndex = (currentFruitIndex + 1) % fruitImages.length;
-          $fruitIcon.attr('src', fruitImages[currentFruitIndex]);
+          const nextFruitSrc = fruitImages[currentFruitIndex];
+          $fruitIcon.attr('src', nextFruitSrc);
+          
+          // Apply the global theme variable
+          applyGlobalTheme(nextFruitSrc);
+          
           $fruitIcon.removeClass("fruit-animate");
           void $fruitIcon[0].offsetWidth; // Force reflow
           $fruitIcon.addClass("fruit-animate");

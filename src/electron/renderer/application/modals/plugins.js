@@ -20,8 +20,8 @@ exports.render = function (app) {
       repo: 'strawberry-jam'
     },
     {
-      url: 'https://api.github.com/repos/Sxip/jam/contents/plugins',
-      repo: 'original-jam'
+      url: 'https://api.github.com/repos/Sxip/plugins/contents/', // Updated URL for Sxip's plugins repo
+      repo: 'original-jam' // Keep internal repo name for logic consistency
     }
   ];
   const LOCAL_PLUGINS_DIR = path.resolve('plugins/')
@@ -145,7 +145,8 @@ exports.render = function (app) {
       if (plugin.sourceRepo === 'strawberry-jam') {
         pluginJsonUrl = `https://api.github.com/repos/glvckoma/strawberry-jam/contents/plugins/${plugin.name}/plugin.json`;
       } else {
-        pluginJsonUrl = `https://api.github.com/repos/Sxip/jam/contents/plugins/${plugin.name}/plugin.json`;
+        // Use the updated base URL for Sxip's plugins
+        pluginJsonUrl = `https://api.github.com/repos/Sxip/plugins/contents/${plugin.name}/plugin.json`;
       }
       const response = await fetch(pluginJsonUrl)
 

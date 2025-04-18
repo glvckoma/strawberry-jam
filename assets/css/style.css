@@ -1215,11 +1215,6 @@ video {
   background-color: rgb(56 176 0 / 0.05);
 }
 
-.bg-highlight-yellow{
-  --tw-bg-opacity: 1;
-  background-color: rgb(240 180 41 / var(--tw-bg-opacity, 1));
-}
-
 .bg-highlight-yellow\/10{
   background-color: rgb(240 180 41 / 0.1);
 }

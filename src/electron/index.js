@@ -180,21 +180,38 @@ class Electron {
     // --- End Settings IPC Handlers ---
 
 
-    // --- IPC Handler for saving working accounts ---
-    ipcMain.on('tester-save-works', async (event, accountLine) => {
-      const worksFilePath = path.join(getDataPath(app), 'working_accounts.txt'); // Pass app object
-      devLog(`[IPC tester-save-works] Appending to: ${worksFilePath}`);
-      try {
-        // Ensure directory exists (though _onReady should handle this for packaged)
-        await fs.mkdir(path.dirname(worksFilePath), { recursive: true });
-        // Append the line
-        await fs.appendFile(worksFilePath, accountLine + '\n', 'utf-8');
-        devLog(`[IPC tester-save-works] Successfully appended: ${accountLine}`);
-      } catch (error) {
-        console.error(`[IPC tester-save-works] Error appending to ${worksFilePath}:`, error);
-        // Optionally send an error back to the renderer?
-      }
-    });
+     // --- IPC Handler for saving working accounts ---
+     ipcMain.on('tester-save-works', async (event, accountLine) => {
+       // Enhanced Logging & Correct Path Usage
+       console.log(`[IPC tester-save-works] Received request to save: ${accountLine}`); // Log reception regardless of dev mode
+       const dataDir = getDataPath(app); // Get Strawberry Jam data path
+       if (!dataDir) {
+         console.error(`[IPC tester-save-works] CRITICAL ERROR: Could not determine Strawberry Jam data path via getDataPath(app). Cannot save.`);
+         return; // Stop if path is invalid
+       }
+       // Construct the correct path within the Strawberry Jam data directory
+       const correctWorksFilePath = path.join(dataDir, 'working_accounts.txt');
+       console.log(`[IPC tester-save-works] Attempting to append to CORRECT path: ${correctWorksFilePath}`); // Log CORRECT target path
+
+       try {
+         // Ensure directory exists
+         await fs.mkdir(path.dirname(correctWorksFilePath), { recursive: true });
+         // Append the line to the CORRECT path
+         await fs.appendFile(correctWorksFilePath, accountLine + '\n', 'utf-8');
+         console.log(`[IPC tester-save-works] Successfully appended: ${accountLine} to ${correctWorksFilePath}`); // Log success with CORRECT path
+       } catch (error) {
+         // Log detailed error regardless of dev mode
+         console.error(`[IPC tester-save-works] FAILED to append to ${correctWorksFilePath}. Account: ${accountLine}. Error:`, error);
+         // Optionally send an error back to the renderer? Could be useful.
+         if (event && event.sender && !event.sender.isDestroyed()) { // Check if sender exists and is not destroyed
+            try {
+              event.sender.send('tester-save-error', `Failed to save to working_accounts.txt: ${error.message}`);
+            } catch (sendError) {
+              console.error('[IPC tester-save-works] Failed to send error back to renderer:', sendError);
+            }
+         }
+       }
+     });
     // --- End IPC Handler for saving working accounts ---
 
 
@@ -429,10 +446,10 @@ class Electron {
       });
     };
 
-    // Use base filenames now
-    createLoadFileHandler('tester-load-all-accounts', 'accounts.txt');
-    createLoadFileHandler('tester-load-confirmed-accounts', 'ajc_confirmed_accounts.txt');
-    createLoadFileHandler('tester-load-works-accounts', 'working_accounts.txt');
+    // Use base filenames now (Updated filenames)
+    createLoadFileHandler('tester-load-all-accounts', 'found_accounts.txt'); // Changed from accounts.txt
+    createLoadFileHandler('tester-load-confirmed-accounts', 'ajc_accounts.txt'); // Changed from ajc_confirmed_accounts.txt
+    createLoadFileHandler('tester-load-works-accounts', 'working_accounts.txt'); // Remains the same
     // --- End New Handlers ---
 
     // --- End Account Tester IPC Handlers ---
