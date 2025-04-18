@@ -1,9 +1,9 @@
 {
   "name": "Login Packet Manipulator",
-  "description": "UI plugin for viewing, intercepting, editing, blocking, and replaying login-related packets (in/out) during Animal Jam Classic login flow.",
-  "version": "1.0.0",
+  "description": "Allows viewing, intercepting, and modifying login response packets.",
+  "version": "2.0.0",
+  "author": "Glockoma",
   "type": "ui",
   "main": "index.html",
-  "author": "Glockoma",
-  "license": "MIT"
+  "tags": ["beta", "networking", "account"]
 }

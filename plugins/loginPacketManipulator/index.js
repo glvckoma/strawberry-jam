@@ -3,7 +3,7 @@
  * Author: Glockoma
  * For Strawberry Jam (fork of Jam by sxip)
  * 
- * Allows viewing, intercepting, editing, blocking, and replaying login-related packets.
+ * Allows viewing, intercepting, editing, and modifying login response packets.
  * 
  * WARNING: Manipulating login packets can result in account bans, instability, or data loss.
  * Use at your own risk.
@@ -14,79 +14,162 @@ console.log("[LoginPacketManipulator] index.js loaded at " + new Date().toISOStr
   // Function to initialize the plugin logic
   function initializePlugin() {
     if (!window.jam || !window.jam.dispatch || !window.jam.application || typeof window.jam.onPacket !== 'function') {
-      console.error("[UI Plugin] Core not fully detected after jam-ready, window.jam:", window.jam);
+      console.error("[LoginPacketManipulator] Core not fully detected after jam-ready, window.jam:", window.jam);
       alert("Strawberry Jam core not fully initialized. This plugin must be run as a UI plugin. Please restart.");
-      const errorDiv = document.getElementById('errorDisplay'); // Assuming an error display div exists
-      if (errorDiv) {
-        errorDiv.textContent = "Error: Could not connect to Jam core. Please restart the application.";
-        errorDiv.classList.remove('hidden');
-      }
       return;
     }
 
     // --- State ---
     let originalLoginPacket = null; // Store the full original packet
-    let interceptEnabled = true; // Simple flag to enable/disable interception
+    let interceptEnabled = true; // Flag to enable/disable interception
     let unsubscribePacketListener = null; // To store the unsubscribe function
+    let isActive = false; // Track if we're actively intercepting
 
     // --- DOM Elements ---
     const editorContainer = document.getElementById("login-packet-editor");
     const sendButton = document.getElementById("send-modified-login");
     const interceptInCheckbox = document.getElementById("intercept-in");
-    const executeOnLoginCheckbox = document.getElementById("executeOnLogin"); // New checkbox
-    const xmlUsernameInput = document.getElementById("xmlUsername"); // New input
-    const xmlPasswordInput = document.getElementById("xmlPassword"); // New input
-    const statusPanel = document.getElementById("status-panel");
+    const statusIndicator = document.getElementById("status-indicator");
+    const saveConfigBtn = document.getElementById("save-config-btn");
+    const loadConfigBtn = document.getElementById("load-config-btn");
+    const fileInput = document.getElementById("file-input");
+    const toastContainer = document.getElementById("toast-container");
+    const paramsSection = document.getElementById("params-section");
+    const paramsFields = document.getElementById("params-fields");
 
     // --- localStorage Keys ---
-    const STORAGE_KEY_EXECUTE_ON_LOGIN = 'loginManipulator_executeOnLogin';
-    const STORAGE_KEY_XML_USERNAME = 'loginManipulator_xmlUsername';
-    const STORAGE_KEY_XML_PASSWORD = 'loginManipulator_xmlPassword';
+    const STORAGE_KEY_CONFIG = 'loginPacketManipulator_config';
 
     // --- Utility Functions ---
     function nowTime() {
       return new Date().toLocaleTimeString();
     }
 
-    function logStatus(msg, type = "info") {
-      if (statusPanel) {
-        statusPanel.textContent = `[${nowTime()}] ${msg}`;
-        statusPanel.className = `fixed bottom-0 left-0 w-full px-4 py-2 text-xs ${
-          type === 'error' ? 'bg-red-700 text-white' : type === 'warn' ? 'bg-yellow-600 text-black' : 'bg-gray-800 text-gray-300'
-        }`;
-      }
-      // Also log to main console for audit
+    /**
+     * Displays a toast notification
+     * @param {string} message - The message to display
+     * @param {string} type - The notification type: 'success', 'error', 'warning', or 'info'
+     */
+    function showToast(message, type = 'success') {
+      if (!toastContainer) return;
+
+      const toastClasses = {
+        success: 'bg-highlight-green text-white',
+        error: 'bg-error-red text-white',
+        warning: 'bg-highlight-yellow text-black',
+        info: 'bg-blue-400 text-white'
+      };
+
+      const $toast = $('<div>')
+        .addClass(`px-4 py-2 rounded shadow-lg mb-2 flex items-center ${toastClasses[type] || toastClasses.info}`)
+        .html(`
+          <i class="fas fa-${
+            type === 'success' ? 'check-circle' :
+            type === 'error' ? 'times-circle' :
+            type === 'warning' ? 'exclamation-circle' :
+            'info-circle'
+          } mr-2"></i>
+          ${message}
+        `);
+
+      $(toastContainer).append($toast);
+
+      // Log to main console for audit
       try {
-        window.jam.application.consoleMessage(type, "[LoginPacketManipulator] " + msg);
+        window.jam.application.consoleMessage({
+          type: type === 'warning' ? 'warn' : type,
+          message: "[LoginPacketManipulator] " + message
+        });
       } catch (e) {
-        console.error("[UI Plugin] Error sending console message:", e);
+        console.error("[LoginPacketManipulator] Error sending console message:", e);
+      }
+
+      // Auto-remove toast after 3 seconds
+      setTimeout(() => {
+        $toast.css({
+          'opacity': '0',
+          'transition': 'opacity 0.5s'
+        });
+        setTimeout(() => $toast.remove(), 500);
+      }, 3000);
+    }
+
+    /**
+     * Updates the status indicator
+     * @param {boolean} active - Whether the interceptor is active
+     */
+    function updateStatusIndicator(active) {
+      if (!statusIndicator) return;
+      
+      isActive = active;
+      
+      if (active) {
+        statusIndicator.classList.remove('bg-error-red/20', 'text-error-red');
+        statusIndicator.classList.add('bg-highlight-green/20', 'text-highlight-green');
+        statusIndicator.innerHTML = '<i class="fas fa-circle mr-1"></i> Active';
+      } else {
+        statusIndicator.classList.remove('bg-highlight-green/20', 'text-highlight-green');
+        statusIndicator.classList.add('bg-error-red/20', 'text-error-red');
+        statusIndicator.innerHTML = '<i class="fas fa-circle mr-1"></i> Inactive';
       }
     }
 
-    // --- State Persistence (Outgoing XML) ---
-    function saveOutgoingState() {
+    /**
+     * Saves the current configuration to a JSON file
+     */
+    function saveConfig() {
+      if (!originalLoginPacket) {
+        showToast("No login packet data to save", "warning");
+        return;
+      }
+
       try {
-        localStorage.setItem(STORAGE_KEY_EXECUTE_ON_LOGIN, executeOnLoginCheckbox.checked);
-        localStorage.setItem(STORAGE_KEY_XML_USERNAME, xmlUsernameInput.value);
-        localStorage.setItem(STORAGE_KEY_XML_PASSWORD, xmlPasswordInput.value);
-        // logStatus("Outgoing injection settings saved.", "info"); // Optional: Can be noisy
-      } catch (e) {
-        logStatus("Error saving outgoing state: " + e.message, "error");
+        // Create a config object with the current packet data
+        const config = {
+          timestamp: new Date().toISOString(),
+          packet: originalLoginPacket
+        };
+
+        // Create a blob and download it
+        const blob = new Blob([JSON.stringify(config, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `login-packet-${new Date().toISOString().slice(0, 10)}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        showToast("Configuration saved successfully", "success");
+      } catch (error) {
+        console.error("[LoginPacketManipulator] Error saving config:", error);
+        showToast("Error saving configuration: " + error.message, "error");
       }
     }
 
-    function loadOutgoingState() {
+    /**
+     * Loads a configuration from a JSON file
+     * @param {File} file - The file to load
+     */
+    async function loadConfig(file) {
       try {
-        const execute = localStorage.getItem(STORAGE_KEY_EXECUTE_ON_LOGIN) === 'true';
-        const username = localStorage.getItem(STORAGE_KEY_XML_USERNAME) || '';
-        const password = localStorage.getItem(STORAGE_KEY_XML_PASSWORD) || '';
+        const text = await file.text();
+        const config = JSON.parse(text);
 
-        executeOnLoginCheckbox.checked = execute;
-        xmlUsernameInput.value = username;
-        xmlPasswordInput.value = password;
-        logStatus("Loaded saved outgoing injection settings.", "info");
-      } catch (e) {
-        logStatus("Error loading outgoing state: " + e.message, "error");
+        if (!config.packet || !config.packet.b || !config.packet.b.o) {
+          throw new Error("Invalid configuration file format");
+        }
+
+        // Display the loaded packet
+        displayLoginPacketEditor(config.packet);
+        originalLoginPacket = config.packet;
+
+        showToast("Configuration loaded successfully", "success");
+        updateStatusIndicator(true);
+      } catch (error) {
+        console.error("[LoginPacketManipulator] Error loading config:", error);
+        showToast("Error loading configuration: " + error.message, "error");
       }
     }
 
@@ -98,12 +181,13 @@ console.log("[LoginPacketManipulator] index.js loaded at " + new Date().toISOStr
       const dataObject = packetObj?.b?.o;
 
       if (!dataObject) {
-        logStatus("Received packet is not the expected login structure.", "warn");
+        showToast("Received packet is not the expected login structure", "warning");
         return;
       }
 
       editorContainer.innerHTML = ''; // Clear previous content
-      logStatus("Login packet received. Displaying editor.");
+      showToast("Login packet received and displayed", "success");
+      updateStatusIndicator(true);
 
       // Organize fields into sections
       const sections = {
@@ -140,14 +224,16 @@ console.log("[LoginPacketManipulator] index.js loaded at " + new Date().toISOStr
         sectionDiv.className = 'mb-6';
         
         const sectionTitle = document.createElement('h3');
-        sectionTitle.className = 'text-lg font-bold text-gray-300 mb-2 border-b border-gray-700 pb-1';
+        sectionTitle.className = 'text-base font-medium text-text-primary mb-2 border-b border-gray-700 pb-1';
         sectionTitle.textContent = sectionName;
         sectionDiv.appendChild(sectionTitle);
 
         // Add fields that exist in the packet
+        let fieldsAdded = 0;
         fields.forEach(key => {
           if (key === "params") return; // Skip rendering params in the main editor
           if (key in dataObject) {
+            fieldsAdded++;
             const value = dataObject[key];
             const valueType = typeof value;
             const isComplex = Array.isArray(value) || (value !== null && valueType === 'object');
@@ -173,10 +259,10 @@ console.log("[LoginPacketManipulator] index.js loaded at " + new Date().toISOStr
             if (isComplex) {
               inputElement = document.createElement('textarea');
               inputElement.rows = 3;
-              inputElement.className = 'w-full sm:w-3/4 p-1 bg-gray-700 text-gray-200 border border-gray-600 rounded font-mono text-xs';
+              inputElement.className = 'w-full sm:w-3/4 p-1 bg-tertiary-bg text-text-primary border border-gray-600 rounded font-mono text-xs';
             } else if (valueType === 'boolean') {
               inputElement = document.createElement('select');
-              inputElement.className = 'w-full sm:w-3/4 p-1 bg-gray-700 text-gray-200 border border-gray-600 rounded text-xs';
+              inputElement.className = 'w-full sm:w-3/4 p-1 bg-tertiary-bg text-text-primary border border-gray-600 rounded text-xs';
               const optionTrue = document.createElement('option'); optionTrue.value = 'true'; optionTrue.textContent = 'true';
               const optionFalse = document.createElement('option'); optionFalse.value = 'false'; optionFalse.textContent = 'false';
               inputElement.appendChild(optionTrue); inputElement.appendChild(optionFalse);
@@ -184,7 +270,7 @@ console.log("[LoginPacketManipulator] index.js loaded at " + new Date().toISOStr
             } else {
               inputElement = document.createElement('input');
               inputElement.type = valueType === 'number' ? 'number' : 'text';
-              inputElement.className = 'w-full sm:w-3/4 p-1 bg-gray-700 text-gray-200 border border-gray-600 rounded text-xs';
+              inputElement.className = 'w-full sm:w-3/4 p-1 bg-tertiary-bg text-text-primary border border-gray-600 rounded text-xs';
             }
 
             inputElement.id = `edit-${key}`;
@@ -200,14 +286,14 @@ console.log("[LoginPacketManipulator] index.js loaded at " + new Date().toISOStr
         });
 
         // Only add section if it has fields
-        if (sectionDiv.children.length > 1) {
+        if (fieldsAdded > 0) {
           editorContainer.appendChild(sectionDiv);
         }
       });
 
       // Add any remaining fields that weren't in predefined sections
       const remainingFields = Object.keys(dataObject).filter(key => 
-        !Object.values(sections).flat().includes(key)
+        !Object.values(sections).flat().includes(key) && key !== "params"
       );
 
       if (remainingFields.length > 0) {
@@ -215,12 +301,11 @@ console.log("[LoginPacketManipulator] index.js loaded at " + new Date().toISOStr
         otherSection.className = 'mb-6';
         
         const sectionTitle = document.createElement('h3');
-        sectionTitle.className = 'text-lg font-bold text-gray-300 mb-2 border-b border-gray-700 pb-1';
+        sectionTitle.className = 'text-base font-medium text-text-primary mb-2 border-b border-gray-700 pb-1';
         sectionTitle.textContent = 'Other Fields';
         otherSection.appendChild(sectionTitle);
 
         remainingFields.forEach(key => {
-          if (key === "params") return; // Skip rendering params in the "Other Fields" section too
           const value = dataObject[key];
           const valueType = typeof value;
           const isComplex = Array.isArray(value) || (value !== null && valueType === 'object');
@@ -238,10 +323,10 @@ console.log("[LoginPacketManipulator] index.js loaded at " + new Date().toISOStr
           if (isComplex) {
             inputElement = document.createElement('textarea');
             inputElement.rows = 3;
-            inputElement.className = 'w-full sm:w-3/4 p-1 bg-gray-700 text-gray-200 border border-gray-600 rounded font-mono text-xs';
+            inputElement.className = 'w-full sm:w-3/4 p-1 bg-tertiary-bg text-text-primary border border-gray-600 rounded font-mono text-xs';
           } else if (valueType === 'boolean') {
             inputElement = document.createElement('select');
-            inputElement.className = 'w-full sm:w-3/4 p-1 bg-gray-700 text-gray-200 border border-gray-600 rounded text-xs';
+            inputElement.className = 'w-full sm:w-3/4 p-1 bg-tertiary-bg text-text-primary border border-gray-600 rounded text-xs';
             const optionTrue = document.createElement('option'); optionTrue.value = 'true'; optionTrue.textContent = 'true';
             const optionFalse = document.createElement('option'); optionFalse.value = 'false'; optionFalse.textContent = 'false';
             inputElement.appendChild(optionTrue); inputElement.appendChild(optionFalse);
@@ -249,7 +334,7 @@ console.log("[LoginPacketManipulator] index.js loaded at " + new Date().toISOStr
           } else {
             inputElement = document.createElement('input');
             inputElement.type = valueType === 'number' ? 'number' : 'text';
-            inputElement.className = 'w-full sm:w-3/4 p-1 bg-gray-700 text-gray-200 border border-gray-600 rounded text-xs';
+            inputElement.className = 'w-full sm:w-3/4 p-1 bg-tertiary-bg text-text-primary border border-gray-600 rounded text-xs';
           }
 
           inputElement.id = `edit-${key}`;
@@ -269,9 +354,7 @@ console.log("[LoginPacketManipulator] index.js loaded at " + new Date().toISOStr
         }
       }
 
-      // Render params as a flat list in the params-section (moved here)
-      const paramsSection = document.getElementById("params-section");
-      const paramsFields = document.getElementById("params-fields");
+      // Render params as a flat list in the params-section
       if (dataObject.params && typeof dataObject.params === 'object' && paramsSection && paramsFields) {
         paramsSection.classList.remove("hidden");
         paramsFields.innerHTML = ""; // Clear previous params
@@ -292,10 +375,10 @@ console.log("[LoginPacketManipulator] index.js loaded at " + new Date().toISOStr
           if (isParamComplex) {
             paramInput = document.createElement('textarea');
             paramInput.rows = 3;
-            paramInput.className = 'w-full sm:w-2/3 p-1 bg-gray-700 text-gray-200 border border-gray-600 rounded font-mono text-xs';
+            paramInput.className = 'w-full sm:w-2/3 p-1 bg-tertiary-bg text-text-primary border border-gray-600 rounded font-mono text-xs';
           } else if (paramType === 'boolean') {
             paramInput = document.createElement('select');
-            paramInput.className = 'w-full sm:w-2/3 p-1 bg-gray-700 text-gray-200 border border-gray-600 rounded text-xs';
+            paramInput.className = 'w-full sm:w-2/3 p-1 bg-tertiary-bg text-text-primary border border-gray-600 rounded text-xs';
             const optionTrue = document.createElement('option'); optionTrue.value = 'true'; optionTrue.textContent = 'true';
             const optionFalse = document.createElement('option'); optionFalse.value = 'false'; optionFalse.textContent = 'false';
             paramInput.appendChild(optionTrue); paramInput.appendChild(optionFalse);
@@ -303,7 +386,7 @@ console.log("[LoginPacketManipulator] index.js loaded at " + new Date().toISOStr
           } else {
             paramInput = document.createElement('input');
             paramInput.type = paramType === 'number' ? 'number' : 'text';
-            paramInput.className = 'w-full sm:w-2/3 p-1 bg-gray-700 text-gray-200 border border-gray-600 rounded text-xs';
+            paramInput.className = 'w-full sm:w-2/3 p-1 bg-tertiary-bg text-text-primary border border-gray-600 rounded text-xs';
           }
 
           paramInput.id = `edit-${paramKey}`;
@@ -329,11 +412,11 @@ console.log("[LoginPacketManipulator] index.js loaded at " + new Date().toISOStr
     // --- Send Modified Packet ---
     function sendModifiedLoginPacket() {
       if (!originalLoginPacket || !editorContainer || !sendButton) {
-        logStatus("Cannot send: Original packet or editor not found.", "error");
+        showToast("Cannot send: Original packet or editor not found", "error");
         return;
       }
 
-      logStatus("Reconstructing and sending modified packet...");
+      showToast("Reconstructing and sending modified packet...", "info");
       sendButton.disabled = true; // Disable while processing
 
       try {
@@ -370,7 +453,7 @@ console.log("[LoginPacketManipulator] index.js loaded at " + new Date().toISOStr
             // Strings remain strings
             targetObject[key] = newValue;
           } catch (parseError) {
-             logStatus(`Error parsing value for '${key}': ${parseError.message}. Using original value.`, "warn");
+             showToast(`Error parsing value for '${key}': ${parseError.message}. Using original value.`, "warning");
              // Keep original value if parsing fails
              if (targetObject === modifiedParams) {
                 targetObject[key] = originalLoginPacket.b.o.params[key];
@@ -388,7 +471,6 @@ console.log("[LoginPacketManipulator] index.js loaded at " + new Date().toISOStr
            modifiedO.params = originalLoginPacket.b.o.params;
         }
 
-
         // Create the new full packet structure
         const modifiedPacket = {
           ...originalLoginPacket, // Copy top-level keys like 't'
@@ -402,11 +484,11 @@ console.log("[LoginPacketManipulator] index.js loaded at " + new Date().toISOStr
 
         // Send to client
         window.jam.dispatch.sendConnectionMessage(modifiedJsonString);
-        logStatus("Sent modified login packet to client.", "success");
+        showToast("Modified login packet sent successfully!", "success");
 
       } catch (error) {
-        logStatus(`Error sending modified packet: ${error.message}`, "error");
-        console.error("[UI Plugin] Error sending modified packet:", error);
+        showToast(`Error sending modified packet: ${error.message}`, "error");
+        console.error("[LoginPacketManipulator] Error sending modified packet:", error);
       } finally {
          // Re-enable button after a short delay to prevent rapid clicks
          setTimeout(() => { if (sendButton) sendButton.disabled = false; }, 500);
@@ -431,61 +513,11 @@ console.log("[LoginPacketManipulator] index.js loaded at " + new Date().toISOStr
           // Ignore packets that are not valid JSON or don't match
         }
       });
-      logStatus("Subscribed to incoming packets for JSON login display.");
+      showToast("Subscribed to incoming login packets", "success");
     } catch (err) {
-      console.error("[UI Plugin] Error setting up incoming packet subscription:", err);
-      logStatus("Error setting up incoming packet listener: " + err.message, "error");
+      console.error("[LoginPacketManipulator] Error setting up incoming packet subscription:", err);
+      showToast("Error setting up incoming packet listener: " + err.message, "error");
     }
-
-    // --- Outgoing Packet Hooking ---
-    let unsubscribeOutgoingHook = null;
-    try {
-      unsubscribeOutgoingHook = window.jam.dispatch.hookPacket('outgoing', function(packetData) {
-        if (!packetData || !packetData.raw || typeof packetData.raw !== 'string') {
-          return packetData.raw; // Let non-string packets pass
-        }
-
-        const rawPacket = packetData.raw;
-        const isXmlLogin = rawPacket.startsWith("<msg t='sys'><body action='login'");
-
-        if (isXmlLogin) {
-          const execute = executeOnLoginCheckbox.checked; // Check current state
-          logStatus(`Outgoing XML login packet detected. Injection enabled: ${execute}`, "info");
-
-          if (execute) {
-            const username = xmlUsernameInput.value;
-            const password = xmlPasswordInput.value;
-
-            if (!username || !password) {
-              logStatus("Inject enabled, but username or password field is empty. Blocking original packet.", "warn");
-              return null; // Block original if fields are empty but injection is on
-            }
-
-            // Construct the new XML packet
-            // Basic escaping for CDATA end sequence, though unlikely in JWT/username format
-            const safeUsername = username.replace(']]>', ']]]]><![CDATA[>');
-            const safePassword = password.replace(']]>', ']]]]><![CDATA[>');
-            const newXmlString = `<msg t='sys'><body action='login' r='0'><login z='sbiLogin'><nick><![CDATA[${safeUsername}]]></nick><pword><![CDATA[${safePassword}]]></pword></login></body></msg>`;
-
-            logStatus("Injecting modified XML login packet to server.", "success");
-            window.jam.dispatch.sendRemoteMessage(newXmlString); // Send to server
-
-            return null; // Block the original packet
-          } else {
-            // Injection not enabled, let original packet pass
-            return rawPacket;
-          }
-        } else {
-          // Not the XML login packet, let it pass
-          return rawPacket;
-        }
-      });
-      logStatus("Hooked outgoing packets for XML login injection.");
-    } catch (err) {
-      console.error("[UI Plugin] Error setting up outgoing packet hook:", err);
-      logStatus("Error setting up outgoing packet hook: " + err.message, "error");
-    }
-
 
     // --- UI Event Handlers ---
     // Incoming Intercept Checkbox
@@ -493,59 +525,51 @@ console.log("[LoginPacketManipulator] index.js loaded at " + new Date().toISOStr
       interceptInCheckbox.checked = interceptEnabled;
       interceptInCheckbox.addEventListener("change", function () {
         interceptEnabled = this.checked;
-        logStatus("Incoming packet interception " + (interceptEnabled ? "enabled" : "disabled"));
+        showToast("Incoming packet interception " + (interceptEnabled ? "enabled" : "disabled"), interceptEnabled ? "success" : "warning");
+        
         if (!interceptEnabled) {
-           // Optionally clear editor and disable button if interception is turned off
+           // Clear editor and disable button if interception is turned off
            if (editorContainer) editorContainer.innerHTML = '<p class="text-gray-400 italic">Interception disabled. Enable to see login packet.</p>';
            if (sendButton) sendButton.disabled = true;
            originalLoginPacket = null;
+           updateStatusIndicator(false);
         }
       });
-    } else {
-        logStatus("Incoming intercept checkbox not found.", "warn");
     }
 
-    // Outgoing Inject Checkbox
-    if (executeOnLoginCheckbox) {
-      executeOnLoginCheckbox.addEventListener("change", saveOutgoingState);
-    } else {
-      logStatus("Outgoing inject checkbox not found.", "warn");
+    // Save Config Button
+    if (saveConfigBtn) {
+      saveConfigBtn.addEventListener("click", saveConfig);
     }
 
-    // Outgoing XML Inputs
-    if (xmlUsernameInput) {
-      xmlUsernameInput.addEventListener("input", saveOutgoingState);
-    } else {
-      logStatus("XML Username input not found.", "warn");
-    }
-    if (xmlPasswordInput) {
-      xmlPasswordInput.addEventListener("input", saveOutgoingState);
-    } else {
-      logStatus("XML Password input not found.", "warn");
+    // Load Config Button
+    if (loadConfigBtn) {
+      loadConfigBtn.addEventListener("click", function() {
+        if (fileInput) fileInput.click();
+      });
     }
 
+    // File Input Change
+    if (fileInput) {
+      fileInput.addEventListener("change", function(event) {
+        const file = event.target.files[0];
+        if (file) {
+          loadConfig(file);
+        }
+        // Reset the input so the same file can be selected again
+        fileInput.value = '';
+      });
+    }
 
     // Send Modified Incoming JSON Button
     if (sendButton) {
       sendButton.addEventListener("click", sendModifiedLoginPacket);
-    } else {
-        logStatus("Send button (for incoming JSON) not found.", "warn");
     }
 
-    // Remove listeners/hide old elements if they somehow still exist
-    const clearLogButton = document.getElementById("clear-log");
-    if (clearLogButton) clearLogButton.style.display = 'none'; // Hide old button
-    const packetFilterInput = document.getElementById("packet-filter");
-    if (packetFilterInput) packetFilterInput.style.display = 'none'; // Hide old input
-    const interceptOutCheckbox = document.getElementById("intercept-out");
-    if (interceptOutCheckbox) interceptOutCheckbox.parentElement.style.display = 'none'; // Hide old checkbox
-
-
-    // --- Initial Load ---
-    loadOutgoingState(); // Load saved outgoing settings on startup
-    logStatus("Login Packet Editor initialized and ready.");
-
-  } // End of initializePlugin function
+    // Initial state
+    updateStatusIndicator(false);
+    showToast("Login Packet Editor initialized and ready", "info");
+  }
 
   // Wait for the jam-ready event before initializing
   if (window.jam && window.jam.dispatch && window.jam.application && typeof window.jam.onPacket === 'function') {
@@ -565,15 +589,5 @@ console.log("[LoginPacketManipulator] index.js loaded at " + new Date().toISOStr
         console.error("[LoginPacketManipulator] Error unsubscribing from incoming packet listener:", e);
       }
     }
-    // Unsubscribe from outgoing hook
-    if (typeof unsubscribeOutgoingHook === 'function') {
-      try {
-        unsubscribeOutgoingHook();
-        console.log("[LoginPacketManipulator] Unsubscribed from outgoing packet hook.");
-      } catch (e) {
-        console.error("[LoginPacketManipulator] Error unsubscribing from packet listener:", e);
-      }
-    }
   });
-
 })();

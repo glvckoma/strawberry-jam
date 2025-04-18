@@ -5,6 +5,6 @@
   "collectBuddies": true,
   "autoLeakCheck": false,
   "autoLeakCheckThreshold": 50,
-  "leakCheckLastProcessedIndex": 20,
+  "leakCheckLastProcessedIndex": 38,
   "migrationCompleted": true
 }
