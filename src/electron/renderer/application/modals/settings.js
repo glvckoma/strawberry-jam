@@ -52,26 +52,6 @@ exports.render = function (app, data = {}) {
               </label>
             </div>
 
-            <!-- UUID Spoofing Section -->
-            <div class="mt-6 pt-4 border-t border-sidebar-border space-y-4">
-              <h4 class="text-md font-semibold text-warning-yellow mb-3">
-                <i class="fas fa-fingerprint mr-2"></i>Security &amp; Privacy
-              </h4>
-              
-              <div class="flex items-center bg-tertiary-bg/30 p-3 rounded">
-                <input id="uuidSpoofing" type="checkbox"
-                  class="w-4 h-4 bg-tertiary-bg rounded focus:ring-custom-pink">
-                <label for="uuidSpoofing" class="ml-2 text-sm text-text-primary">
-                  Enable UUID spoofing (device ID randomization)
-                </label>
-              </div>
-              <p class="text-xs text-gray-400 italic">
-                Warning: Changing your device UUID may affect game access and account status. 
-                Use with caution.
-              </p>
-            </div>
-            <!-- End UUID Spoofing Section -->
-
             <!-- LeakCheck Settings Section -->
             <div class="mt-6 pt-4 border-t border-sidebar-border space-y-4">
                <h4 class="text-md font-semibold text-text-primary mb-3">LeakCheck Settings</h4>
@@ -277,36 +257,6 @@ function setupEventHandlers ($modal, app) {
 
   // --- REMOVED Call Initial State Load ---
 
-  // --- UUID Spoofing Toggle Handler ---
-  const $uuidSpoofingCheckbox = $modal.find('#uuidSpoofing');
-  
-  $uuidSpoofingCheckbox.on('change', async function() {
-    const enableUuidSpoofing = $(this).prop('checked');
-    
-    try {
-      // Call the main process IPC handler
-      const result = await ipcRenderer.invoke('toggle-uuid-spoofing', enableUuidSpoofing);
-      
-      if (result.success) {
-        showToast(result.message, 'success');
-        
-        // Make sure checkbox state matches the actual result
-        $(this).prop('checked', result.enabled);
-      } else {
-        showToast(result.message, 'error');
-        
-        // Reset the checkbox since the operation failed
-        $(this).prop('checked', !enableUuidSpoofing);
-      }
-    } catch (error) {
-      console.error('Error toggling UUID spoofing:', error);
-      showToast(`UUID spoofing toggle failed: ${error.message}`, 'error');
-      
-      // Reset the checkbox
-      $(this).prop('checked', !enableUuidSpoofing);
-    }
-  });
-  // --- End UUID Spoofing Toggle Handler ---
 }
 
 
@@ -323,9 +273,6 @@ async function loadSettings ($modal, app) { // Made async
       const secureConnection = await ipcRenderer.invoke('get-setting', 'secureConnection'); // Use direct ipcRenderer
       const leakCheckApiKey = await ipcRenderer.invoke('get-setting', 'leakCheckApiKey'); // Use direct ipcRenderer
       const leakCheckOutputDir = await ipcRenderer.invoke('get-setting', 'leakCheckOutputDir'); // Use direct ipcRenderer
-      const uuidSpoofingEnabled = await ipcRenderer.invoke('get-setting', 'uuid_spoofer_enabled'); // NEW: Get UUID spoofing setting
-
-      // REMOVED autoClearCache setting
 
       // Populate inputs with current values, defaulting to empty string for server
       if (smartfoxServer && smartfoxServer.value) {
@@ -342,11 +289,6 @@ async function loadSettings ($modal, app) { // Made async
 
       if (leakCheckOutputDir && leakCheckOutputDir.value) {
         $modal.find('#leakCheckOutputDir').val(leakCheckOutputDir.value);
-      }
-
-      // Set UUID spoofing checkbox state
-      if (uuidSpoofingEnabled && uuidSpoofingEnabled.value !== undefined) {
-        $modal.find('#uuidSpoofing').prop('checked', uuidSpoofingEnabled.value);
       }
 
       // REMOVED autoClearCache checkbox setup

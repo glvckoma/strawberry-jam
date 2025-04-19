@@ -4,7 +4,7 @@
 
 ## 🍓 For Everyone (Kids/Easy-to-Read)
 
-**Strawberry Jam** is a special, improved version of the original Jam project for Animal Jam Classic. Here’s what makes it different and better:
+**Strawberry Jam** is a special, improved version of the original Jam project for Animal Jam Classic. Here's what makes it different and better:
 
 - **New Tools!**
   - **Login Packet Manipulator:** Lets you change how you log in (not possible in the original Jam).
@@ -12,8 +12,7 @@
   - **Username Logger:** Collects and checks usernames for you.
 
 - **Safety & Privacy**
-  - **UUID Rotation:** Changes your computer’s ID to help you stay safe (but you’ll need to use OTP every time).
-  - **LeakCheck Integration:** Checks usernames with a special database (you’ll need your own API key).
+  - **LeakCheck Integration:** Checks usernames with a special database (you'll need your own API key).
 
 - **Cleaner & Faster**
   - **Auto-Clearing Logs:** Console and network logs clear themselves after 600 messages, so things never get too messy or slow.
@@ -27,7 +26,7 @@
 
 ### **Why Fork?**
 
-Implementing advanced features like the login packet manipulator, semi-automatic account tester, and robust username logger required significant changes to Jam’s core. These features are not compatible with the original Jam and are unique to Strawberry Jam.
+Implementing advanced features like the login packet manipulator, semi-automatic account tester, and robust username logger required significant changes to Jam's core. These features are not compatible with the original Jam and are unique to Strawberry Jam.
 
 ### **Major Features & Differences**
 
@@ -36,7 +35,6 @@ Implementing advanced features like the login packet manipulator, semi-automatic
 | **Login Packet Manipulator**          | ✅             | ❌           | Core changes required for plugin support |
 | **Account Tester (semi-auto)**        | ✅             | ❌           | Major refactor, still being tested for release |
 | **Username Logger (improved)**        | ✅             | Partial      | Refactored, more robust, batch file writing, stateful |
-| **UUID Rotation (HWID spoofing)**     | ✅             | ❌           | Optional, togglable, helps avoid detection (requires OTP) |
 | **LeakCheck API Integration**         | ✅             | ❌           | For automatic username checking (API key required) |
 | **Auto-Clearing Console/Network Logs**| ✅             | ❌           | Prevents UI lag, keeps logs manageable |
 | **Plugin System Improvements**        | ✅             | Partial      | More robust plugin loading, error handling, UI plugins |
