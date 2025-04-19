@@ -330,7 +330,7 @@ module.exports = class UsernameLogger {
         
         this.application.consoleMessage({
           type: 'logger',
-          message: `${loadedCount} ignored usernames loaded into Username Logger.`
+          message: `${loadedCount} ignored usernames loaded.`
         });
       } else {
         // Create the file if it doesn't exist
@@ -1613,9 +1613,10 @@ module.exports = class UsernameLogger {
       callback: this.handleBuddyOnline
     });
     
+    // Only show the status message, removed the plugin loaded message
     this.application.consoleMessage({
       type: 'success',
-      message: `Username Logger plugin loaded. Use userlog to toggle logging.`
+      message: `Username logging is ${this.config.isLoggingEnabled ? 'enabled' : 'disabled'}`
     });
   }
 

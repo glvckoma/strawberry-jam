@@ -544,7 +544,7 @@ module.exports = class Application extends EventEmitter {
    * @param message
    * @public
    */
-  consoleMessage ({ message, type = 'success', withStatus = true, time = true, isPacket = false, isIncoming = false, details = null } = {}) {
+  consoleMessage ({ message, type = 'success', withStatus = true, time = true, isPacket = false, isIncoming = false, details = null, style = '' } = {}) {
     const baseTypeClasses = {
       success: 'bg-highlight-green/10 border-l-4 border-highlight-green text-highlight-green',
       error: 'bg-error-red/10 border-l-4 border-error-red text-error-red',
@@ -621,6 +621,11 @@ module.exports = class Application extends EventEmitter {
       if (isPacket) {
         $messageContainer.addClass('font-mono')
       }
+    }
+
+    // Apply custom styling if provided
+    if (style) {
+      $messageContainer.attr('style', style);
     }
 
     $messageContainer.css({
@@ -1658,11 +1663,8 @@ module.exports = class Application extends EventEmitter {
       type: 'success'
     });
 
-    // Wait a moment for the user to see the loading complete message
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // Clear the startup messages and show a friendly welcome message
-    this._clearConsoleMessages();
+    // Wait longer for the user to see messages (3 seconds instead of 1)
+    await new Promise(resolve => setTimeout(resolve, 3000));
     
     // Host change check - only log in development mode
     const secureConnection = this.settings.get('secureConnection')
@@ -1676,15 +1678,22 @@ module.exports = class Application extends EventEmitter {
     // Start the server
     await this.server.serve();
     
+    // Clear all console messages only once, right before showing our final messages
+    this._clearConsoleMessages();
+    
+    // Wait a moment to ensure clearing is complete
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
     // Show final welcome message
     this.consoleMessage({
-      message: 'Server started on 127.0.0.1:443.',
+      message: 'Server started!',
       type: 'success'
     });
     
     this.consoleMessage({
-      message: 'Welcome to Strawberry Jam! Type commands here to use plugins.',
-      type: 'celebrate'
+      message: 'Thank you for choosing my flavor of jam! Commands can be typed here to utilize plugins.',
+      type: 'notify', // Changed from 'celebrate' to 'notify' to avoid purple background
+      style: 'color: #FF69B4;' // Pink color for the welcome message
     });
     
     // this._setupPluginIPC(); // Call moved to constructor
