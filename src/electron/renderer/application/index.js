@@ -362,6 +362,15 @@ module.exports = class Application extends EventEmitter {
             // Ignore if not available
           }
         }
+        
+        // Detect login success (%xt%l%-1%) and show friendly message
+        if (type === 'aj' && message.toMessage().includes('%xt%l%-1%')) {
+          this.consoleMessage({
+            type: 'success',
+            message: 'Successfully logged in!'
+          });
+        }
+        
         this.consoleMessage({
           type: 'speech',
           isPacket: true,
@@ -794,6 +803,16 @@ module.exports = class Application extends EventEmitter {
     devLog(`Cleaned ${numberToRemove} old log entries from ${isPacketLog ? 'packet log' : 'app messages'}. New count: ${newCount}`);
   }
 
+  /**
+   * Clears all console log messages for a fresh start.
+   * Used primarily after initial startup messages are shown.
+   * @private
+   */
+  _clearConsoleMessages() {
+    const $messages = $('#messages');
+    $messages.empty();
+    this._appMessageCount = 0;
+  }
 
   /**
    * Opens Animal Jam Classic, disabling the button during patching.
@@ -812,11 +831,11 @@ module.exports = class Application extends EventEmitter {
     this.$playButton.onclick = () => false; // Prevent further clicks via onclick
 
     try {
-      this.consoleMessage({ message: 'Starting Strawberry Jam Classic...', type: 'wait' });
+      this.consoleMessage({ message: 'Starting Animal Jam Classic...', type: 'wait' });
       await this.patcher.killProcessAndPatch(); // Await the patching process
     } catch (error) {
       this.consoleMessage({
-        message: `Error launching Strawberry Jam Classic: ${error.message}`,
+        message: `Error launching Animal Jam Classic: ${error.message}`,
         type: 'error'
       });
     } finally {
@@ -1610,6 +1629,12 @@ module.exports = class Application extends EventEmitter {
       type: 'success'
     });
 
+    // Wait a moment for the user to see the loading complete message
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    // Clear the startup messages and show a friendly welcome message
+    this._clearConsoleMessages();
+    
     // Host change check - only log in development mode
     const secureConnection = this.settings.get('secureConnection')
     if (secureConnection) {
@@ -1620,10 +1645,17 @@ module.exports = class Application extends EventEmitter {
     }
 
     // Start the server
-    await this.server.serve()
+    await this.server.serve();
+    
+    // Show final welcome message
     this.consoleMessage({
       message: 'Server started on 127.0.0.1:443.',
       type: 'success'
+    });
+    
+    this.consoleMessage({
+      message: 'Welcome to Strawberry Jam! Type commands here to use plugins.',
+      type: 'celebrate'
     });
     
     // this._setupPluginIPC(); // Call moved to constructor

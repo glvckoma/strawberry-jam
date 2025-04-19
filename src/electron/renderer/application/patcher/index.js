@@ -88,7 +88,7 @@ module.exports = class Patcher {
         await mkdir(STRAWBERRY_JAM_CLASSIC_CACHE_PATH, { recursive: true })
       }
       
-      // Patch the application
+      // Patch the application (no need to mention ASAR patching)
       await this.patchApplication()
 
       // Get the path to the executable in the copied installation
@@ -97,18 +97,6 @@ module.exports = class Patcher {
         : process.platform === 'darwin'
           ? path.join(STRAWBERRY_JAM_CLASSIC_BASE_PATH, 'MacOS', 'AJ Classic')
           : undefined
-
-      if (this._application) {
-      // Only log in development mode
-      if (isDevelopment) {
-        this._application.consoleMessage({
-          message: 'Patching Strawberry Jam Classic with custom ASAR...',
-          type: 'notify'
-        })
-      }
-      } else {
-        console.log('Starting Strawberry Jam Classic...')
-      }
 
       // Get the data path from the application instance
       const dataPath = this._application.dataPath;
@@ -136,17 +124,17 @@ module.exports = class Patcher {
         env: spawnEnv // Pass the environment variables
       });
 
-      // Log the environment variable being passed (only in development)
-      if (isDevelopment) {
+      // Log the success message
+      if (this._application) {
         this._application.consoleMessage({
-          message: `Launching game with STRAWBERRY_JAM_DATA_PATH set.`, // Simplified log
-          type: 'logger'
+          message: 'Successfully launched Animal Jam Classic!',
+          type: 'success'
         });
       }
 
       // No need for restoration on quit since we're using a separate installation
     } catch (error) {
-      const errorMsg = `Failed to start Strawberry Jam Classic: ${error.message}`
+      const errorMsg = `Failed to start Animal Jam Classic: ${error.message}`
       if (this._application) {
         this._application.consoleMessage({
           message: errorMsg,
@@ -350,26 +338,25 @@ module.exports = class Patcher {
   }
 
   /**
-   * Patches Animal Jam Classic application.
-   * This method is now simplified to just copy the custom ASAR to the standalone installation.
-   * No backup/restore logic is needed since we're not modifying the original installation.
+   * Patches Animal Jam Classic with custom application files.
    * @returns {Promise<void>}
    */
   async patchApplication () {
-    // Use the standalone installation paths
-    const resourcesDir = path.join(STRAWBERRY_JAM_CLASSIC_BASE_PATH, 'resources')
-    const asarPath = path.join(resourcesDir, 'app.asar')
-    const asarUnpackedPath = path.join(resourcesDir, 'app.asar.unpacked')
-    
-    // Get the path to the custom ASAR
-    const customAsarPath = process.platform === 'win32'
-      ? path.resolve('assets', 'winapp.asar')
-      : process.platform === 'darwin'
-        ? path.resolve('assets', 'osxapp.asar')
-        : undefined
+    // Note: We no longer need to log ASAR patching messages, as this is already done in a standalone version.
+    // This method is kept for compatibility, but we minimize its output to be more user-friendly.
 
     try {
       process.noAsar = true
+
+      // Silently handle the patching operation
+      const customAsarPath = process.platform === 'win32'
+        ? path.resolve('assets', 'winapp.asar')
+        : process.platform === 'darwin'
+          ? path.resolve('assets', 'osxapp.asar')
+          : undefined
+      const resourcesDir = path.join(STRAWBERRY_JAM_CLASSIC_BASE_PATH, 'resources')
+      const asarPath = path.join(resourcesDir, 'app.asar')
+      const asarUnpackedPath = `${asarPath}.unpacked`
 
       // Create resources directory if it doesn't exist
       if (!existsSync(resourcesDir)) {
@@ -389,39 +376,22 @@ module.exports = class Patcher {
         await rm(asarUnpackedPath, { recursive: true }).catch(err => console.error(`Error removing existing ASAR.unpacked: ${err.message}`))
       }
 
-      // Log the patching operation
-      const message = `Patching Strawberry Jam Classic with custom ASAR...`
-      if (this._application) {
-        this._application.consoleMessage({
-          message,
-          type: 'notify'
-        })
-      } else {
-        console.log(message)
-      }
-
       // Copy the custom ASAR to the target location
       await copyFile(customAsarPath, asarPath)
 
-      // Log success
-      const successMessage = 'Strawberry Jam Classic successfully patched.'
-      if (this._application) {
-        this._application.consoleMessage({
-          message: successMessage,
-          type: 'success'
-        })
-      } else {
-        console.log(successMessage)
-      }
+      // We no longer log success messages for patching here to keep the UI clean
+
     } catch (error) {
-      const errorMsg = `Failed to patch Strawberry Jam Classic: ${error.message}`
-      if (this._application) {
-        this._application.consoleMessage({
-          message: errorMsg,
-          type: 'error'
-        })
-      } else {
-        console.error(errorMsg)
+      if (isDevelopment) {
+        const errorMsg = `Failed to prepare Animal Jam Classic: ${error.message}`
+        if (this._application) {
+          this._application.consoleMessage({
+            message: errorMsg,
+            type: 'error'
+          })
+        } else {
+          console.error(errorMsg)
+        }
       }
       throw error
     } finally {

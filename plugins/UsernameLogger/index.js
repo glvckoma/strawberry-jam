@@ -27,28 +27,37 @@ module.exports = class UsernameLogger {
     this.application = application;
     this.dispatch = dispatch;
 
-    // Plugin state
+    // Store settings
     this.config = {
-      isLoggingEnabled: false, // Disabled by default
-      customBasePath: null, // For user-defined log directory
-      collectNearbyPlayers: true, // Collect nearby players by default
-      collectBuddies: true, // Collect buddies by default
-      autoLeakCheck: false, // Don't auto-run leak check by default
-      autoLeakCheckThreshold: 50, // Run leak check after collecting this many usernames
-      leakCheckApiKey: null, // Will be fetched on demand
+      isLoggingEnabled: true,        // Whether to log usernames
+      collectNearbyPlayers: true,    // Whether to collect usernames from nearby players
+      collectBuddies: true,          // Whether to collect usernames from buddies
+      autoLeakCheck: false,          // Whether to auto-run leak check
+      autoLeakCheckThreshold: 50     // Number of usernames to collect before auto-running leak check
     };
     
-    // Runtime state
-    this.loggedUsernamesThisSession = new Set(); // Track usernames logged in this session
-    this.ignoredUsernames = new Set(); // Usernames to ignore
-    this.isLeakCheckRunning = false; // Track if leak check is currently running
-    this.isLeakCheckPaused = false; // Track if leak check is paused
-    this.isLeakCheckStopped = false; // Track if leak check should stop
-    this.leakCheckLastProcessedIndex = -1; // Last processed index for resuming
-    this.leakCheckTotalProcessed = 0; // Total usernames processed in current leak check
-    
-    // Configuration file path (relative to the current working directory)
+    // Paths
     this.configFilePath = path.resolve(process.cwd(), 'plugins', 'UsernameLogger', 'config.json');
+    
+    // Leak Check State
+    this.isLeakCheckRunning = false; // Whether a leak check is currently running
+    this.isLeakCheckPaused = false;  // Whether the leak check is paused
+    this.isLeakCheckStopped = false; // Whether the leak check should stop
+    this.leakCheckTotalProcessed = 0; // Number of usernames processed in current run
+    this.leakCheckLastProcessedIndex = -1; // Last processed index
+    
+    // Storage
+    this.ignoredUsernames = new Set();  // Usernames to ignore
+    this.loggedUsernamesThisSession = new Set(); // All usernames logged in this session
+    
+    // Batching for log messages
+    this._pendingBuddyLog = [];
+    this._pendingNearbyLog = [];
+    this._logBatchTimerId = null;
+    this._logBatchInterval = 5000; // How often to display batched logs (5 seconds)
+    
+    // Cached axios instance
+    this._cachedAxios = null;
 
     // Bind methods to ensure 'this' context is correct
     this.loadConfig = this.loadConfig.bind(this);
@@ -392,11 +401,17 @@ module.exports = class UsernameLogger {
     // Add to session log to prevent duplicates
     this.loggedUsernamesThisSession.add(usernameLower);
     
-    // Log to console
-    this.application.consoleMessage({
-      type: 'success',
-      message: `[Username Logger] Logged ${source}: ${username}`
-    });
+    // Add to pending batch for the appropriate source
+    if (source === 'buddy') {
+      this._pendingBuddyLog.push(username);
+    } else if (source === 'nearby') {
+      this._pendingNearbyLog.push(username);
+    }
+    
+    // Set up batch timer if not already running
+    if (!this._logBatchTimerId) {
+      this._logBatchTimerId = setTimeout(() => this._flushLogBatches(), this._logBatchInterval);
+    }
     
     // Get current file paths
     const { collectedUsernamesPath } = this.getFilePaths();
@@ -425,6 +440,57 @@ module.exports = class UsernameLogger {
       
       // Run leak check
       this.runLeakCheck();
+    }
+  }
+
+  /**
+   * Flushes batched log messages to the console
+   * @private
+   */
+  _flushLogBatches() {
+    // Clear the timer
+    this._logBatchTimerId = null;
+    
+    // Log buddy batches if any
+    if (this._pendingBuddyLog.length > 0) {
+      const buddyCount = this._pendingBuddyLog.length;
+      let message;
+      
+      // Show individual names only if there are 5 or fewer
+      if (buddyCount <= 5) {
+        message = `[Username Logger] Logged ${buddyCount} buddy${buddyCount > 1 ? 's' : ''}: ${this._pendingBuddyLog.join(', ')}`;
+      } else {
+        message = `[Username Logger] Logged ${buddyCount} buddies`;
+      }
+      
+      this.application.consoleMessage({
+        type: 'success',
+        message
+      });
+      
+      // Clear the batch
+      this._pendingBuddyLog = [];
+    }
+    
+    // Log nearby batches if any
+    if (this._pendingNearbyLog.length > 0) {
+      const nearbyCount = this._pendingNearbyLog.length;
+      let message;
+      
+      // Show individual names only if there are 5 or fewer
+      if (nearbyCount <= 5) {
+        message = `[Username Logger] Logged ${nearbyCount} nearby player${nearbyCount > 1 ? 's' : ''}: ${this._pendingNearbyLog.join(', ')}`;
+      } else {
+        message = `[Username Logger] Logged ${nearbyCount} nearby players`;
+      }
+      
+      this.application.consoleMessage({
+        type: 'success',
+        message
+      });
+      
+      // Clear the batch
+      this._pendingNearbyLog = [];
     }
   }
 
@@ -617,7 +683,7 @@ module.exports = class UsernameLogger {
         } else {
           this.application.consoleMessage({
             type: 'error',
-            message: `Account checking needs setup. Please contact support.`
+            message: `To check accounts, set your API key in Settings or use the command: !setapikey YOUR_API_KEY`
           });
         }
         resetLeakCheckState();
@@ -1551,5 +1617,13 @@ module.exports = class UsernameLogger {
       type: 'success',
       message: `Username Logger plugin loaded. Use userlog to toggle logging.`
     });
+  }
+
+  // Make sure to flush log batches on unload
+  unload() {
+    if (this._logBatchTimerId) {
+      clearTimeout(this._logBatchTimerId);
+      this._flushLogBatches();
+    }
   }
 };

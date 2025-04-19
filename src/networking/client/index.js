@@ -291,10 +291,10 @@ module.exports = class Client {
       this.connected = false
       this._server.clients.delete(this)
       
-      // Log the disconnection event
+      // Log a clearer disconnection message
       this._server.application.consoleMessage({
-        message: 'Disconnected from Animal Jam servers.',
-        type: 'warn'
+        message: 'Connection to Animal Jam servers closed.',
+        type: 'notify'
       })
     } else {
       this._server.clients.delete(this)
