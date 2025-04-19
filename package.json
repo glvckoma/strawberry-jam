@@ -13,7 +13,7 @@
     "build:win:dev": "npm run pack:asar:dev && npx electron-builder build -w",
     "build:win:public": "npm run pack:asar:public && npx electron-builder build -w",
     "build:mac-docker:dev": "npx electron-builder build --mac -c.mac.target=zip --x64 --arm64 -p never --config.asar=true --config.npmRebuild=true -c.mac.identity=null --config.electronDownload.mirror=https://npmmirror.com/mirrors/electron/",
-    "build:mac-docker:public": "npm run clean:public && npx electron-builder build --mac -c.mac.target=zip --x64 --arm64 -p never --config.asar=true --config.npmRebuild=true -c.mac.identity=null --config.electronDownload.mirror=https://npmmirror.com/mirrors/electron/",
+    "build:mac-docker:public": "npm run clean:public && docker run --rm -v \"%cd%\":/project -v \"%cd%/build\":/project/build electronuserland/builder:wine /bin/bash -c \"npm run pack:asar:public && npx electron-builder build --mac -c.mac.target=zip --x64 --arm64 -p never --config.asar=true --config.npmRebuild=true -c.mac.identity=null --config.electronDownload.mirror=https://npmmirror.com/mirrors/electron/\"",
     "version:patch": "npm version patch",
     "version:minor": "npm version minor",
     "version:major": "npm version major",
@@ -21,7 +21,7 @@
     "plugin:tag": "node src/utils/manage-plugin-tags.js",
     "plugin:tag:list": "node src/utils/manage-plugin-tags.js list",
     "publish:win": "npm run version:patch && npm run build:win:public && npm run verify && npx electron-builder build -w -p always",
-    "publish:mac-docker": "docker run --rm -e GH_TOKEN -v \"%cd%\":/project -v \"%cd%/build\":/project/build electronuserland/builder:wine /bin/bash -c \"npm run pack:asar:public && npm run verify && npx electron-builder build --mac -c.mac.target=zip --x64 --arm64 -p always --config.asar=true --config.npmRebuild=true -c.mac.identity=null --config.electronDownload.mirror=https://npmmirror.com/mirrors/electron/\""
+    "publish:mac-docker": "docker run --rm -e GH_TOKEN -v \"%cd%\":/project -v \"%cd%/build\":/project/build electronuserland/builder:wine /bin/bash -c \"npm run pack:asar:public && npx electron-builder build --mac -c.mac.target=zip --x64 --arm64 -p always --config.asar=true --config.npmRebuild=true -c.mac.identity=null --config.electronDownload.mirror=https://npmmirror.com/mirrors/electron/\""
   },
   "repository": {
     "type": "git",

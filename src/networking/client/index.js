@@ -79,39 +79,68 @@ module.exports = class Client {
  * @public
  */
   async connect () {
-    if (this._aj.destroyed) throw new Error('The socket is destroyed.')
+    if (this._aj.destroyed) {
+      const secureConnection = this._server &&
+        this._server.application &&
+        this._server.application.settings &&
+        typeof this._server.application.settings.get === 'function'
+        ? this._server.application.settings.get('secureConnection')
+        : false
+
+      this._aj = secureConnection ? new TLSSocket() : new Socket()
+    }
 
     try {
-      await new Promise((resolve, reject) => {
+      // Ensure we have the correct server settings
+      let smartfoxServer = this._server?.application?.settings?.get('smartfoxServer');
+      
+      // If server is empty, null, or not a valid string, use default
+      if (!smartfoxServer || typeof smartfoxServer !== 'string' || !smartfoxServer.includes('animaljam')) {
+        smartfoxServer = "lb-iss04-classic-prod.animaljam.com";
+      }
+
+      // Create a timeout promise to avoid hanging
+      const connectionPromise = new Promise((resolve, reject) => {
         const onError = (err) => {
-          cleanupListeners()
-          reject(err)
+          cleanupListeners();
+          reject(err);
         }
 
         const onConnected = () => {
-          cleanupListeners()
-          this.connected = true
-          resolve()
+          cleanupListeners();
+          this.connected = true;
+          resolve();
         }
 
         const cleanupListeners = () => {
-          this._aj.off('error', onError)
-          this._aj.off('connect', onConnected)
+          this._aj.off('error', onError);
+          this._aj.off('connect', onConnected);
         }
 
-        this._aj.once('error', onError)
-        this._aj.once('connect', onConnected)
+        this._aj.once('error', onError);
+        this._aj.once('connect', onConnected);
 
-        const smartfoxServer = this._server.application.settings.get('smartfoxServer')
+        // Add check for empty server value
+        if (!smartfoxServer) {
+          reject(new Error('Invalid server address. Unable to connect.'));
+          return;
+        }
+
         this._aj.connect({
           host: smartfoxServer,
           port: 443,
           rejectUnauthorized: false
-        })
-      })
+        });
+      });
+
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Connection timed out after 10 seconds')), 10000);
+      });
+
+      await Promise.race([connectionPromise, timeoutPromise]);
 
       // Set up the transforms
-      this._setupTransforms()
+      this._setupTransforms();
     } catch (error) {
       this._server.application.consoleMessage({
         message: `Connection error: ${error.message}`,
@@ -291,13 +320,74 @@ module.exports = class Client {
       this.connected = false
       this._server.clients.delete(this)
       
-      // Log a clearer disconnection message
-      this._server.application.consoleMessage({
-        message: 'Connection to Animal Jam servers closed.',
-        type: 'notify'
-      })
+      // Get the timestamps of recent console messages to avoid showing disconnect
+      // message right after a successful AJ launch
+      const recentLaunchSuccess = this._wasGameJustLaunched();
+      
+      // Only show disconnection message if we didn't just launch the game
+      if (!recentLaunchSuccess) {
+        this._server.application.consoleMessage({
+          message: 'Connection to Animal Jam servers closed.',
+          type: 'notify'
+        })
+      }
     } else {
       this._server.clients.delete(this)
+    }
+  }
+  
+  /**
+   * Checks if Animal Jam was just successfully launched.
+   * @returns {boolean} True if the game was launched within the last 5 seconds
+   * @private
+   */
+  _wasGameJustLaunched() {
+    try {
+      // Try to find the message log container
+      const messagesContainer = document.getElementById('messages');
+      if (!messagesContainer) return false;
+      
+      // Look through recent messages
+      const messages = messagesContainer.getElementsByClassName('message-animate-in');
+      if (!messages || messages.length === 0) return false;
+      
+      // Check the last few messages for launch success message
+      const messageCount = Math.min(messages.length, 10); // Check the last 10 messages
+      for (let i = messages.length - 1; i >= messages.length - messageCount; i--) {
+        const messageElement = messages[i];
+        if (!messageElement) continue;
+        
+        // Check if this is a success message with the launch text
+        const successText = messageElement.textContent || '';
+        if (successText.includes('Successfully launched Animal Jam Classic')) {
+          // Get the message timestamp
+          const timestampElement = messageElement.querySelector('.text-xs.text-gray-500');
+          if (!timestampElement) return true; // If no timestamp, assume it's recent
+          
+          const timestampText = timestampElement.textContent || '';
+          const currentTime = new Date();
+          const messageParts = timestampText.split(':');
+          
+          if (messageParts.length === 3) {
+            // Create a date with the same hour/minute/second
+            const messageTime = new Date();
+            messageTime.setHours(parseInt(messageParts[0], 10));
+            messageTime.setMinutes(parseInt(messageParts[1], 10));
+            messageTime.setSeconds(parseInt(messageParts[2], 10));
+            
+            // If the message is less than 5 seconds old, consider it "just launched"
+            const timeDiff = currentTime - messageTime;
+            return timeDiff < 5000; // 5 seconds
+          }
+          
+          return true; // If we can't parse the time, assume it's recent
+        }
+      }
+      
+      return false; // No launch success message found
+    } catch (e) {
+      // If any error occurs, default to showing the message
+      return false;
     }
   }
 }

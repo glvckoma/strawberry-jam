@@ -176,26 +176,74 @@ module.exports = class Application extends EventEmitter {
   /**
    * Checks if the Animal Jam server host has changed.
    * @returns {Promise<void>}
-   * @privte
+   * @private
    */
   async _checkForHostChanges () {
+    const DEFAULT_SERVER = 'lb-iss04-classic-prod.animaljam.com';
+    
     try {
-      const data = await HttpClient.fetchFlashvars()
-      let { smartfoxServer } = data
-
-      smartfoxServer = smartfoxServer.replace(/\.(stage|prod)\.animaljam\.internal$/, '-$1.animaljam.com')
-      smartfoxServer = `lb-${smartfoxServer}`
-
-      if (smartfoxServer !== this.settings.get('smartfoxServer')) {
-        this.settings.update('smartfoxServer', smartfoxServer)
-
-        this.consoleMessage({
-          message: 'Server host has changed. Changes are now being applied.',
-          type: 'notify'
-        })
+      // Get flashvars data from AJ
+      const data = await HttpClient.fetchFlashvars();
+      
+      // Handle missing data
+      if (!data || !data.smartfoxServer) {
+        // Ensure we have a server value
+        const currentServer = this.settings.get('smartfoxServer');
+        if (!currentServer || typeof currentServer !== 'string' || !currentServer.includes('animaljam')) {
+          this.settings.update('smartfoxServer', DEFAULT_SERVER);
+        }
+        return;
+      }
+      
+      let { smartfoxServer } = data;
+      
+      // Process the server address if it's valid
+      if (typeof smartfoxServer === 'string') {
+        smartfoxServer = smartfoxServer.replace(/\.(stage|prod)\.animaljam\.internal$/, '-$1.animaljam.com');
+        smartfoxServer = `lb-${smartfoxServer}`;
+        
+        // Only proceed if we got a valid server
+        if (smartfoxServer && smartfoxServer.includes('animaljam')) {
+          try {
+            const currentServer = this.settings.get('smartfoxServer');
+            
+            if (smartfoxServer !== currentServer) {
+              // Update the server setting
+              this.settings.update('smartfoxServer', smartfoxServer);
+              
+              // Notify the user
+              this.consoleMessage({
+                message: 'Server host has changed. Changes are now being applied.',
+                type: 'notify'
+              });
+            }
+          } catch (settingsError) {
+            // Silently handle settings error and set directly if needed
+            if (this.settings && this.settings.settings) {
+              this.settings.settings.smartfoxServer = smartfoxServer;
+            }
+          }
+        }
       }
     } catch (error) {
-      this.consoleMessage({ type: 'error', message: `Error loading settings: ${error.message}` })
+      // Only show error to user, don't log to console
+      this.consoleMessage({ 
+        type: 'warn', 
+        message: 'Could not check for server updates. Using saved server settings.'
+      });
+      
+      // Ensure we have a valid server value regardless of errors
+      try {
+        const currentServer = this.settings.get('smartfoxServer');
+        if (!currentServer || typeof currentServer !== 'string' || !currentServer.includes('animaljam')) {
+          this.settings.update('smartfoxServer', DEFAULT_SERVER);
+        }
+      } catch (err) {
+        // Last resort - try to set directly
+        if (this.settings && this.settings.settings) {
+          this.settings.settings.smartfoxServer = DEFAULT_SERVER;
+        }
+      }
     }
   }
 
@@ -1663,9 +1711,6 @@ module.exports = class Application extends EventEmitter {
       type: 'success'
     });
 
-    // Wait longer for the user to see messages (3 seconds instead of 1)
-    await new Promise(resolve => setTimeout(resolve, 3000));
-    
     // Host change check - only log in development mode
     const secureConnection = this.settings.get('secureConnection')
     if (secureConnection) {
@@ -1678,7 +1723,7 @@ module.exports = class Application extends EventEmitter {
     // Start the server
     await this.server.serve();
     
-    // Clear all console messages only once, right before showing our final messages
+    // Clear all console messages just once, right before showing our final messages
     this._clearConsoleMessages();
     
     // Wait a moment to ensure clearing is complete

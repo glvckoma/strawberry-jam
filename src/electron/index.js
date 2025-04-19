@@ -128,14 +128,14 @@ class Electron {
 
     // --- Settings IPC Handlers ---
     ipcMain.handle('get-setting', (event, key) => {
-      devLog(`[IPC] Handling 'get-setting' for key: ${key}`);
+      // Never log this method - it's called very frequently
       try {
         const value = this._store.get(key);
         // Always return in a consistent format {value: actualValue}
         const formattedValue = value && typeof value === 'object' && 'value' in value 
           ? value 
           : { value };
-        devLog(`[Store] Value retrieved for '${key}':`, formattedValue); // Log retrieved value
+        
         return formattedValue;
       } catch (error) {
         if (isDevelopment) console.error(`[Store] Error getting setting '${key}':`, error);
@@ -144,14 +144,14 @@ class Electron {
     });
 
     ipcMain.handle('set-setting', (event, key, value) => {
-      devLog(`[IPC] Handling 'set-setting' for key: ${key} with value:`, value); // Log value being set
+      // Never log this method
       try {
         // Store all settings in a consistent format {value: actualValue}
         const formattedValue = typeof value === 'object' && 'value' in value 
           ? value 
           : { value };
         this._store.set(key, formattedValue);
-        devLog(`[Store] Successfully set '${key}'.`); // Log success
+        
         return { success: true };
       } catch (error) {
         if (isDevelopment) console.error(`[Store] Error setting setting '${key}':`, error);

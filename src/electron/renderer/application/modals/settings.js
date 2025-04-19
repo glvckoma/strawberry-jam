@@ -269,8 +269,7 @@ async function loadSettings ($modal, app) { // Made async
   try {
     // Get settings with direct IPC
     if (typeof ipcRenderer !== 'undefined' && ipcRenderer) {
-      // Log the loading attempt
-      console.log('[Settings] Loading settings via IPC...');
+      // Removed log
       
       // Define all settings to load 
       const settingsToLoad = [
@@ -284,7 +283,7 @@ async function loadSettings ($modal, app) { // Made async
       for (const key of settingsToLoad) {
         try {
           const settingObj = await ipcRenderer.invoke('get-setting', key);
-          console.log(`[Settings] Loaded ${key}:`, settingObj);
+          // Removed log
           
           // Handle the setting based on its type
           if (settingObj && settingObj.value !== undefined) {

@@ -27,6 +27,52 @@ module.exports = class Server {
      * @public
      */
     this.clients = new Set()
+    
+    // Ensure proper default settings
+    this._ensureDefaultSettings()
+  }
+  
+  /**
+   * Ensure default settings for networking are present
+   * @private
+   */
+  _ensureDefaultSettings() {
+    // Skip if settings unavailable
+    if (!this.application || !this.application.settings) {
+      return;
+    }
+
+    try {
+      // Define default networking settings
+      const defaultSettings = {
+        smartfoxServer: 'lb-iss04-classic-prod.animaljam.com',
+        secureConnection: true,
+        autoReconnect: true
+      };
+
+      // Check and apply defaults for each setting
+      for (const [key, defaultValue] of Object.entries(defaultSettings)) {
+        try {
+          // Get current value
+          const currentValue = this.application.settings.get(key);
+          
+          // If value is missing or invalid, set default
+          if (key === 'smartfoxServer') {
+            if (!currentValue || typeof currentValue !== 'string' || !currentValue.includes('animaljam')) {
+              this.application.settings.update(key, defaultValue);
+            }
+          } else if (typeof defaultValue === 'boolean' && typeof currentValue !== 'boolean') {
+            // Handle boolean settings
+            this.application.settings.update(key, defaultValue);
+          }
+        } catch (settingError) {
+          // If getting setting fails, set the default
+          this.application.settings.update(key, defaultValue);
+        }
+      }
+    } catch (error) {
+      // Don't log - just fail silently
+    }
   }
 
   /**
