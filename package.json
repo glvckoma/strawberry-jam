@@ -2,7 +2,7 @@
   "name": "strawberry-jam",
   "description": "strawberry jam is my personal fork of the project jam created and developed by sxip.",
   "main": "src/index.js",
-  "version": "2.0.1",
+  "version": "2.0.0",
   "author": "glvckoma",
   "scripts": {
     "devtools": "electron dev/index.js",
@@ -14,7 +14,6 @@
     "build:win:public": "npm run pack:asar:public && npx electron-builder build -w",
     "build:mac-docker:dev": "npx electron-builder build --mac -c.mac.target=zip --x64 --arm64 -p never --config.asar=true --config.npmRebuild=true -c.mac.identity=null --config.electronDownload.mirror=https://npmmirror.com/mirrors/electron/",
     "build:mac-docker:public": "npm run clean:public && npx electron-builder build --mac -c.mac.target=zip --x64 --arm64 -p never --config.asar=true --config.npmRebuild=true -c.mac.identity=null --config.electronDownload.mirror=https://npmmirror.com/mirrors/electron/",
-    "build:mac-beta": "docker run --rm -v \"%cd%\":/project -v \"%cd%/build\":/project/build electronuserland/builder:wine /bin/bash -c \"npm run pack:asar:public && npx electron-builder build --mac -c.mac.target=zip --x64 --arm64 -p never --config.asar=true --config.npmRebuild=true -c.mac.identity=null --config.electronDownload.mirror=https://npmmirror.com/mirrors/electron/\"",
     "version:patch": "npm version patch",
     "version:minor": "npm version minor",
     "version:major": "npm version major",

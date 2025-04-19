@@ -3,6 +3,9 @@ const { ipcRenderer } = require('electron')
 
 const application = new Application()
 
+// Track session start time
+let sessionStartTime = null;
+
 /**
  * Updates the connection status indicator in the UI.
  * @param {boolean} connected - Whether the client is connected
@@ -40,6 +43,9 @@ document.addEventListener('DOMContentLoaded', () => {
 })
 
 const initializeApp = async () => {
+  // Start session timer
+  sessionStartTime = new Date();
+  
   // Simple startup message like the original Jam
   application.consoleMessage({
     message: 'Starting Strawberry Jam...',
@@ -98,16 +104,25 @@ const setupConnectionMonitoring = () => {
 }
 
 /**
- * Update the timestamp display in the footer.
+ * Update the timestamp display in the footer to show session time.
  */
 const updateTimestamp = () => {
   const timestampDisplay = document.getElementById('timestamp-display')
-  if (timestampDisplay) {
+  if (timestampDisplay && sessionStartTime) {
     const now = new Date()
-    const hours = String(now.getHours()).padStart(2, '0')
-    const minutes = String(now.getMinutes()).padStart(2, '0')
-    const seconds = String(now.getSeconds()).padStart(2, '0')
-    timestampDisplay.textContent = `${hours}:${minutes}:${seconds}`
+    const sessionDuration = now - sessionStartTime
+    
+    // Convert milliseconds to hours, minutes, seconds
+    const hours = Math.floor(sessionDuration / (1000 * 60 * 60))
+    const minutes = Math.floor((sessionDuration % (1000 * 60 * 60)) / (1000 * 60))
+    const seconds = Math.floor((sessionDuration % (1000 * 60)) / 1000)
+    
+    // Format the time with leading zeros
+    const formattedHours = String(hours).padStart(2, '0')
+    const formattedMinutes = String(minutes).padStart(2, '0')
+    const formattedSeconds = String(seconds).padStart(2, '0')
+    
+    timestampDisplay.textContent = `${formattedHours}:${formattedMinutes}:${formattedSeconds}`
   }
 }
 
