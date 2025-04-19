@@ -1136,7 +1136,7 @@ module.exports = class Application extends EventEmitter {
           <div class="space-y-3 mt-3">
             <div class="bg-secondary-bg/30 p-3 rounded-lg">
               <p class="text-text-primary text-sm font-medium mb-2 flex items-center">
-                <i class="fas fa-bolt mr-2"></i> What is a Packet Spammer?
+                <i class="fas fa-bolt mr-2"></i> What is Packet Spammer?
               </p>
               <p class="text-text-primary text-sm leading-relaxed">
                 Think of packets as little messages your game sends to and from Animal Jam's servers.
@@ -1452,6 +1452,62 @@ module.exports = class Application extends EventEmitter {
     $howToSection.append(howToUseHtml);
     $body.append($howToSection);
     
+    // Special handling for InvisibleToggle plugin
+    if (name === 'InvisibleToggle') {
+      // Add commands section for InvisibleToggle
+      const $invisibleCommandsSection = $('<div>', {
+        class: 'mb-5 bg-highlight-purple/10 p-4 rounded-lg border border-highlight-purple/30 transform transition-all duration-200 hover:border-highlight-purple/60 hover:bg-highlight-purple/15 hover:shadow-md'
+      });
+      
+      $invisibleCommandsSection.append(
+        $('<h4>', {
+          class: 'text-highlight-purple text-base font-bold mb-3 flex items-center',
+          html: '<i class="fas fa-terminal mr-2"></i> Commands you can use:'
+        })
+      );
+      
+      const $commandsList = $('<ul>', {
+        class: 'space-y-3'
+      });
+      
+      const $cmdItem = $('<li>', {
+        class: 'text-text-primary text-sm bg-secondary-bg/50 p-3 rounded-lg border border-sidebar-border/30 transform transition-all duration-200 hover:border-highlight-purple/30 hover:bg-secondary-bg'
+      });
+      
+      const $cmdName = $('<div>', {
+        class: 'font-mono bg-highlight-purple/20 px-2 py-1 rounded text-highlight-purple inline-block mb-1.5',
+        text: 'invis'
+      });
+      
+      const $cmdDesc = $('<div>', {
+        class: 'text-text-primary leading-relaxed',
+        text: 'Toggle invisibility ON/OFF. Use this command to hide your character from other players.'
+      });
+      
+      $cmdItem.append($cmdName, $cmdDesc);
+      $commandsList.append($cmdItem);
+      
+      // How to access advanced section
+      const $advancedSection = $('<div>', {
+        class: 'mt-3 bg-secondary-bg/30 p-3 rounded-lg'
+      });
+      
+      $advancedSection.append(
+        $('<p>', {
+          class: 'text-text-primary text-sm font-medium mb-2 flex items-center',
+          html: '<i class="fas fa-info-circle mr-2"></i> How to use this command:'
+        }),
+        $('<p>', {
+          class: 'text-text-primary text-sm leading-relaxed',
+          html: `Type <span class="font-mono bg-tertiary-bg px-1 rounded text-highlight-purple">!invis</span> in the command box at the bottom of Jam to toggle invisibility on or off.`
+        })
+      );
+      
+      $commandsList.append($advancedSection);
+      $invisibleCommandsSection.append($commandsList);
+      $body.append($invisibleCommandsSection);
+    }
+    
     // Display commands if available with interactive styling
     if (commands && commands.length > 0) {
       const $commandsSection = $('<div>', {
@@ -1491,33 +1547,6 @@ module.exports = class Application extends EventEmitter {
       $commandsSection.append($commandsList);
       $body.append($commandsSection);
     }
-    
-    // Tips and tricks section - updated to mention Discord
-    const $tipsSection = $('<div>', {
-      class: 'mb-5 bg-teal-500/10 p-4 rounded-lg border border-teal-500/30 transform transition-all duration-200 hover:border-teal-500/60 hover:bg-teal-500/15 hover:shadow-md'
-    });
-    
-    $tipsSection.append(
-      $('<h4>', {
-        class: 'text-teal-400 text-base font-bold mb-2 flex items-center',
-        html: '<i class="fas fa-star mr-2"></i> Tips & Tricks'
-      }),
-      $('<ul>', {
-        class: 'text-text-primary text-sm space-y-2 leading-relaxed list-disc pl-5'
-      }).append(
-        $('<li>', {
-          html: `<span class="text-teal-400 font-medium">Experiment!</span> Try different settings to see what works best for you.`
-        }),
-        $('<li>', {
-          html: `<span class="text-teal-400 font-medium">Need help?</span> Join our Discord server to ask questions and get assistance from other users!`
-        }),
-        $('<li>', {
-          html: `<span class="text-teal-400 font-medium">Have fun:</span> Remember that plugins are here to make your Animal Jam experience more fun!`
-        })
-      )
-    );
-    
-    $body.append($tipsSection);
     
     // Add a fun footer with bouncy button
     const $footer = $('<div>', {
