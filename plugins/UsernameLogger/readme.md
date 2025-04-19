@@ -1,104 +1,133 @@
 # Username Logger Plugin
 
-This plugin provides a unified system for collecting and analyzing usernames in Animal Jam Classic, integrating leak checking functionality.
+A helpful Animal Jam Classic plugin that safely collects and stores usernames of players you encounter in the game. It can also check if those usernames appear in any public data leaks using the LeakCheck.io service.
 
-## Features
+## What This Plugin Does
 
-- **Unified Username Collection**: Collects usernames from multiple sources:
-  - Nearby players (from 'ac' messages)
-  - Buddy list (from 'bl' messages)
-  - Newly added buddies (from 'ba' messages)
-  - Buddies coming online (from 'bon' messages)
+- **Collects Usernames**: Records the usernames of nearby players and buddies you meet while playing
+- **Keeps Lists**: Saves all collected usernames in organized text files
+- **Safety Checking**: Can check if usernames appear in public data leaks (requires LeakCheck.io API key)
+- **Finds Information**: Helps identify potentially compromised Animal Jam accounts
+- **Remembers Progress**: Keeps track of what it's already checked, even when you restart
+- **Easy Commands**: Simple commands to control all features
 
-- **Configurable Collection**: Choose which types of usernames to collect:
-  - Nearby players only
-  - Buddies only
-  - Both (default)
+## Modular Architecture
 
-- **Integrated Leak Checking**: Check collected usernames against the LeakCheck API:
-  - Find leaked credentials
-  - Separate Animal Jam specific leaks
-  - Resume interrupted checks
-  - Consistent index tracking between sessions
-  - Ability to trim processed usernames
+This plugin follows the "One File, One Function" architecture principle to improve maintainability, testability, and scalability.
 
-- **Flexible Output Management**:
-  - Custom output directory support
-  - Automatic file creation
-  - Persistent state between sessions
+### Directory Structure
 
-- **Persistent Configuration**:
-  - Settings saved between sessions
-  - API key loaded from Jam settings
-  - Leak check position remembered between runs
+```
+/UsernameLogger
+├── index.js                 # Entry point (thin orchestration layer)
+├── config.json              # Configuration file 
+├── plugin.json              # Plugin metadata
+├── readme.md                # Documentation
+├── /constants/              # Shared constants
+│   └── constants.js         # All hardcoded values 
+├── /models/                 # Data models
+│   ├── config-model.js      # Configuration management
+│   └── state-model.js       # Runtime state management
+├── /services/               # Core services
+│   ├── file-service.js      # File operations
+│   ├── api-service.js       # API communications
+│   ├── leak-check-service.js # Leak checking logic
+│   └── migration-service.js # Data migration
+├── /handlers/               # Event handlers
+│   ├── command-handlers.js  # Command processing
+│   └── message-handlers.js  # Game message processing 
+└── /utils/                  # Utility functions
+    ├── batch-logger.js      # Batched logging
+    ├── path-utils.js        # Path management
+    └── username-utils.js    # Username processing
+```
+
+### Component Responsibilities
+
+#### Models
+- **ConfigModel** - Manages loading, saving, and accessing configuration
+- **StateModel** - Manages runtime state (leak check status, username lists, etc.)
+
+#### Services
+- **FileService** - Handles all file I/O operations
+- **ApiService** - Manages communication with external APIs
+- **LeakCheckService** - Performs leak checking operations
+- **MigrationService** - Handles data migration between versions
+
+#### Handlers
+- **CommandHandlers** - Processes user commands
+- **MessageHandlers** - Processes game messages to extract usernames
+
+#### Utils
+- **BatchLogger** - Manages batched console message display
+- **PathUtils** - Handles file path resolution and management
+- **UsernameUtils** - Provides username processing and validation functions
 
 ## Commands
 
-### Logging Control
+- `!userlog` - Toggles username logging on/off
+- `!userlogsettings [setting] [value]` - Configure settings (nearby, buddies, autoleakcheck, threshold, reset)
+- `!leakcheck [all|number]` - Run a leak check on collected usernames
+- `!leakcheckstop` - Stop a running leak check
+- `!setapikey YOUR_API_KEY` - Set the LeakCheck API key
+- `!testapikey` - Test if the current API key is valid
+- `!setindex INDEX` - Set the leak check index manually
+- `!trimprocessed` - Remove processed usernames from the collected list and reset index
 
-- `userlog` - Toggle username logging on/off (simplified toggle with no parameters)
-- `userlogsettings [setting] [value]` - Configure logging settings
-  - `userlogsettings nearby [on|off]` - Toggle nearby player collection
-  - `userlogsettings buddies [on|off]` - Toggle buddy collection
-  - `userlogsettings autoleakcheck [on|off]` - Toggle automatic leak checking
-  - `userlogsettings threshold [number]` - Set auto leak check threshold
-  - `userlogsettings reset` - Reset settings to defaults
+## Configuration
 
-### Leak Check Control
+The plugin stores its configuration in `config.json` with the following settings:
 
-- `leakcheck [all|number]` - Run a leak check on collected usernames
-  - Always resumes from where the last check left off
-  - `all` - Process all remaining usernames (default)
-  - `number` - Process only that many usernames
-- `leakcheckstop` - Stop a running leak check
-- `setindex [number]` - Manually set the leak check position to a specific index
-- `trimprocessed` - Remove already processed usernames from the collected list and reset the index
+- `isLoggingEnabled` - Whether username logging is enabled
+- `collectNearbyPlayers` - Whether to collect usernames from nearby players
+- `collectBuddies` - Whether to collect usernames from buddies
+- `autoLeakCheck` - Whether to automatically run leak checks
+- `autoLeakCheckThreshold` - Number of usernames to collect before auto-running leak check
+- `leakCheckLastProcessedIndex` - Index tracking leak check progress
+- `migrationCompleted` - Whether data migration has been completed
 
-### API Configuration
+## Implementation Details
 
-- `setapikey [api_key]` - Set the LeakCheck API key directly in the plugin
+This plugin follows clean code principles:
 
-## Output Files
+1. **Single Responsibility Principle** - Each file has one clear purpose
+2. **Explicit Dependencies** - Dependencies are clearly declared and injected
+3. **Error Handling** - Robust error handling with appropriate feedback
+4. **State Management** - Clear state ownership and transitions
+5. **Asynchronous Operations** - Proper use of async/await for file and network operations
+6. **Batch Processing** - Efficient batch handling for both UI feedback and file I/O
 
-The plugin creates and manages the following files in the configured output directory (defaults to `./data/`):
+## LeakCheck.io API Requirements
 
-- `collected_usernames.txt`: All unique usernames collected during logging sessions (with timestamps).
-- `processed_usernames.txt`: Usernames that have been successfully processed by the leak checker (found or not found). This acts as the ignore list.
-- `potential_accounts.txt`: Usernames that failed the leak check due to invalid characters or other API issues.
-- `found_accounts.txt`: Found credentials (`username:password`) from any source during leak checks.
-- `ajc_accounts.txt`: Found credentials (`username:password`) specifically identified as coming from Animal Jam leaks.
+### What is LeakCheck.io?
+LeakCheck.io is an online service that maintains a database of usernames and passwords that have been made public in data breaches. This plugin uses LeakCheck.io to check if Animal Jam usernames appear in these databases.
 
-## Setup
+### Getting an API Key
+To use the leak checking features, you need a LeakCheck.io API key, which requires a paid subscription:
 
-1. Ensure the plugin is installed in the `plugins/UsernameLogger` directory.
-2. Set your LeakCheck API key using the command:
-   - `setapikey YOUR_API_KEY`
-3. Enable logging with `userlog` (toggles on/off).
-4. Configure settings as needed with `userlogsettings`.
+1. Visit [LeakCheck.io](https://leakcheck.io) and create an account
+2. Purchase a subscription plan (Pro plan or higher is required for API access)
+3. Go to your account settings to find your API key
+4. In the plugin, use the command `!setapikey YOUR_API_KEY` to set your key
 
-## Auto Leak Check
+### Using Your API Key
+- The API key only needs to be set once, as it will be saved in your settings
+- You can test if your API key is working with the `!testapikey` command
+- Your key can also be set in the application settings screen
+- Each API request counts toward your LeakCheck.io quota (check your plan limits)
 
-When enabled, the plugin will automatically run a leak check after collecting a specified number of usernames (default: 50). This can be configured with:
+### Privacy and Safety
+- The plugin only sends usernames to LeakCheck.io, never any personal information
+- All results are stored locally on your computer
+- API keys are stored securely in the application settings
+- No data is shared with other users or third parties
 
-```
-userlogsettings autoleakcheck on
-userlogsettings threshold 100
-```
+## Data Files
 
-## Leak Check Process
+When using the plugin, it creates several data files:
 
-The leak checker now maintains a persistent index of where it left off, allowing you to:
-
-1. Stop a check at any time with `leakcheckstop`
-2. Continue exactly where you left off with `leakcheck`
-3. Fast-forward or rewind to a specific position with `setindex <number>`
-4. Remove already processed usernames with `trimprocessed` to free up space
-
-The plugin carefully tracks which usernames have been processed to avoid duplicates and maintain efficiency.
-
-## Notes
-
-- The plugin requires the LeakCheck API key for leak checking functionality.
-- All state, including the current processing position, is saved between sessions.
-- The `processed_usernames.txt` file acts as an ignore list to prevent re-processing usernames in subsequent leak checks.
-- All log files are created in the data directory.
+- `collected_usernames.txt` - All usernames collected from the game
+- `processed_usernames.txt` - Usernames that have been checked
+- `found_accounts.txt` - Accounts found in public data leaks
+- `ajc_accounts.txt` - Accounts specifically from Animal Jam data leaks
+- `potential_accounts.txt` - Usernames that might need manual verification

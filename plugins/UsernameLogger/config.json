@@ -1,10 +1,10 @@
 {
   "isLoggingEnabled": true,
-  "customBasePath": null,
   "collectNearbyPlayers": true,
   "collectBuddies": true,
   "autoLeakCheck": false,
   "autoLeakCheckThreshold": 50,
-  "leakCheckLastProcessedIndex": 20,
+  "customBasePath": null,
+  "leakCheckLastProcessedIndex": -1,
   "migrationCompleted": true
 }
