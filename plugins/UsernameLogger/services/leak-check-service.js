@@ -124,10 +124,26 @@ class LeakCheckService {
           return { success: false, error: 'No new usernames' };
         }
 
-        this.application.consoleMessage({
-          type: 'notify',
-          message: `[Username Logger] Starting check from index ${startIndex}. Processing up to ${limitedUsernamesToCheck.length} usernames (limit: ${limit === Infinity ? 'All' : limit})...`
-        });
+        // More user-friendly message in production
+        if (isDevMode) {
+          this.application.consoleMessage({
+            type: 'notify',
+            message: `[Username Logger] Starting check from index ${startIndex}. Processing up to ${limitedUsernamesToCheck.length} usernames (limit: ${limit === Infinity ? 'All' : limit})...`
+          });
+        } else {
+          // Cleaner message for end users
+          if (startIndex <= 1) {
+            this.application.consoleMessage({
+              type: 'notify',
+              message: `[Username Logger] Starting leak check on ${limitedUsernamesToCheck.length} usernames...`
+            });
+          } else {
+            this.application.consoleMessage({
+              type: 'notify',
+              message: `[Username Logger] Continuing leak check from where you left off (${limitedUsernamesToCheck.length} usernames remaining)...`
+            });
+          }
+        }
 
         // Read already checked usernames (for duplicate output prevention)
         const processedUsernames = await this.fileService.readLinesFromFile(paths.processedUsernamesPath);
@@ -165,8 +181,14 @@ class LeakCheckService {
             // Write batches
             await this._writeBatches(paths, processedBatch, foundGeneralBatch, foundAjcBatch, potentialBatch);
             
-            // Update the index
+            // Update the index - only log in dev mode
             this.configModel.setLeakCheckIndex(currentOverallIndex);
+            if (isDevMode) {
+              this.application.consoleMessage({
+                type: 'logger',
+                message: `[Username Logger] Saving config with index: ${currentOverallIndex}`
+              });
+            }
             await this.configModel.saveConfig();
             
             // Reset state
@@ -193,6 +215,14 @@ class LeakCheckService {
               });
             }
             continue;
+          }
+          
+          // Update progress in the console (only in production mode)
+          if (!isDevMode && processedInThisRun % 5 === 1) { // Update every 5 accounts to reduce spam
+            this.application.consoleMessage({
+              type: 'notify',
+              message: `[Username Logger] Processing account ${processedInThisRun}/${limitedUsernamesToCheck.length}...`
+            });
           }
 
           try {
