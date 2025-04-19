@@ -2,6 +2,6 @@
   "smartfoxServer": "lb-iss04-classic-prod.animaljam.com",
   "secureConnection": true,
   "preventAutoLogin": false,
-  "leakCheckApiKey": "b38c72b84b3b17f963426ee95e3271392c9f81b0",
+  "leakCheckApiKey": "",
   "leakCheckOutputDir": ""
 }
