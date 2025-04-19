@@ -1,3 +1,4 @@
+settings.json
 node_modules/
 build/
 plugin_packages/
@@ -31,7 +32,6 @@ data/potential_accounts.txt
 data/processed_usernames.txt
 data/working_accounts.txt
 .DS_Store
-settings.json
 *.bak
 *.tmp
 *.swp
