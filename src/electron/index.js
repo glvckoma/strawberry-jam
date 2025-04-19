@@ -131,19 +131,26 @@ class Electron {
       devLog(`[IPC] Handling 'get-setting' for key: ${key}`);
       try {
         const value = this._store.get(key);
-        devLog(`[Store] Value retrieved for '${key}':`, value); // Log retrieved value
-        return value;
+        // Always return in a consistent format {value: actualValue}
+        const formattedValue = value && typeof value === 'object' && 'value' in value 
+          ? value 
+          : { value };
+        devLog(`[Store] Value retrieved for '${key}':`, formattedValue); // Log retrieved value
+        return formattedValue;
       } catch (error) {
         if (isDevelopment) console.error(`[Store] Error getting setting '${key}':`, error);
-        return undefined; // Or throw an error? Returning undefined might be safer.
+        return { value: undefined }; // Return consistent format even for errors
       }
     });
 
     ipcMain.handle('set-setting', (event, key, value) => {
       devLog(`[IPC] Handling 'set-setting' for key: ${key} with value:`, value); // Log value being set
       try {
-        // Removed special handling for autoClearCacheOnUpdate
-        this._store.set(key, value);
+        // Store all settings in a consistent format {value: actualValue}
+        const formattedValue = typeof value === 'object' && 'value' in value 
+          ? value 
+          : { value };
+        this._store.set(key, formattedValue);
         devLog(`[Store] Successfully set '${key}'.`); // Log success
         return { success: true };
       } catch (error) {

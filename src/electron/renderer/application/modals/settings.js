@@ -269,29 +269,46 @@ async function loadSettings ($modal, app) { // Made async
   try {
     // Get settings with direct IPC
     if (typeof ipcRenderer !== 'undefined' && ipcRenderer) {
-      const smartfoxServer = await ipcRenderer.invoke('get-setting', 'smartfoxServer'); // Use direct ipcRenderer
-      const secureConnection = await ipcRenderer.invoke('get-setting', 'secureConnection'); // Use direct ipcRenderer
-      const leakCheckApiKey = await ipcRenderer.invoke('get-setting', 'leakCheckApiKey'); // Use direct ipcRenderer
-      const leakCheckOutputDir = await ipcRenderer.invoke('get-setting', 'leakCheckOutputDir'); // Use direct ipcRenderer
-
-      // Populate inputs with current values, defaulting to empty string for server
-      if (smartfoxServer && smartfoxServer.value) {
-        $modal.find('#smartfoxServer').val(smartfoxServer.value);
+      // Log the loading attempt
+      console.log('[Settings] Loading settings via IPC...');
+      
+      // Define all settings to load 
+      const settingsToLoad = [
+        'smartfoxServer',
+        'secureConnection',
+        'leakCheckApiKey',
+        'leakCheckOutputDir'
+      ];
+      
+      // Load each setting
+      for (const key of settingsToLoad) {
+        try {
+          const settingObj = await ipcRenderer.invoke('get-setting', key);
+          console.log(`[Settings] Loaded ${key}:`, settingObj);
+          
+          // Handle the setting based on its type
+          if (settingObj && settingObj.value !== undefined) {
+            switch (key) {
+              case 'smartfoxServer':
+                $modal.find('#smartfoxServer').val(settingObj.value);
+                break;
+              case 'secureConnection':
+                $modal.find('#secureConnection').prop('checked', !!settingObj.value);
+                break;
+              case 'leakCheckApiKey':
+                $modal.find('#leakCheckApiKey').val(settingObj.value);
+                break;
+              case 'leakCheckOutputDir':
+                $modal.find('#leakCheckOutputDir').val(settingObj.value);
+                break;
+            }
+          } else {
+            console.log(`[Settings] No value found for ${key}`);
+          }
+        } catch (err) {
+          console.error(`[Settings] Error loading setting ${key}:`, err);
+        }
       }
-
-      if (secureConnection && secureConnection.value !== undefined) {
-        $modal.find('#secureConnection').prop('checked', secureConnection.value);
-      }
-
-      if (leakCheckApiKey && leakCheckApiKey.value) {
-        $modal.find('#leakCheckApiKey').val(leakCheckApiKey.value);
-      }
-
-      if (leakCheckOutputDir && leakCheckOutputDir.value) {
-        $modal.find('#leakCheckOutputDir').val(leakCheckOutputDir.value);
-      }
-
-      // REMOVED autoClearCache checkbox setup
     } else {
       console.error('ipcRenderer not available for loading settings');
       showToast('IPC Error: Cannot load settings', 'error');
@@ -314,50 +331,33 @@ async function saveSettings ($modal, app) { // Made async
   try {
     let settingsSaved = true;
 
-    // Save general settings using the existing app.settings if available
-    const generalSettingsToSave = {
+    // Get all settings from the form
+    const settingsToSave = {
       smartfoxServer: $modal.find('#smartfoxServer').val().trim() || 'lb-iss02-classic-prod.animaljam.com',
-      secureConnection: $modal.find('#secureConnection').prop('checked')
+      secureConnection: $modal.find('#secureConnection').prop('checked'),
+      leakCheckApiKey: $modal.find('#leakCheckApiKey').val().trim(),
+      leakCheckOutputDir: $modal.find('#leakCheckOutputDir').val().trim()
     };
-    if (app.settings && typeof app.settings.setAll === 'function') {
-      // Preserve other settings potentially managed by app.settings
-      const currentGeneralSettings = app.settings.getAll() || {};
-      // Filter out leakCheckApiKey and leakCheckOutputDir if they exist in currentGeneralSettings
-      delete currentGeneralSettings.leakCheckApiKey;
-      delete currentGeneralSettings.leakCheckOutputDir;
-      app.settings.setAll({ ...currentGeneralSettings, ...generalSettingsToSave });
-    } else {
-      console.warn('No app.settings.setAll method available for general settings');
-      // Decide if this is critical - maybe show a warning?
-    }
-
-    // Save LeakCheck API Key and Output Directory via IPC invoke
-    const leakCheckApiKey = $modal.find('#leakCheckApiKey').val().trim();
-    const leakCheckOutputDir = $modal.find('#leakCheckOutputDir').val().trim();
-    // REMOVED autoClearCacheOnUpdate variable
 
     if (hasIpc) {
       try {
-        // Save API Key
-        const apiKeyResult = await ipcRenderer.invoke('set-setting', 'leakCheckApiKey', leakCheckApiKey); // Use direct ipcRenderer
-        if (!apiKeyResult || !apiKeyResult.success) {
-          settingsSaved = false;
-          console.error('IPC Error saving leakCheckApiKey:', apiKeyResult?.error || 'Unknown error');
-          showToast(`Error saving LeakCheck API Key: ${apiKeyResult?.error || 'Unknown error'}`, 'error');
+        // Save each setting individually via IPC to ensure proper storage in main process
+        for (const [key, value] of Object.entries(settingsToSave)) {
+          const result = await ipcRenderer.invoke('set-setting', key, value);
+          
+          if (!result || !result.success) {
+            settingsSaved = false;
+            console.error(`IPC Error saving ${key}:`, result?.error || 'Unknown error');
+            showToast(`Error saving setting ${key}: ${result?.error || 'Unknown error'}`, 'error');
+            break; // Stop on first error
+          }
         }
 
-        // Save Output Directory (only proceed if API key save was successful or we want to save regardless)
-        if (settingsSaved) { // Check if previous save was ok before proceeding
-            const outputDirResult = await ipcRenderer.invoke('set-setting', 'leakCheckOutputDir', leakCheckOutputDir); // Use direct ipcRenderer
-            if (!outputDirResult || !outputDirResult.success) {
-              settingsSaved = false;
-              console.error('IPC Error saving leakCheckOutputDir:', outputDirResult?.error || 'Unknown error');
-              showToast(`Error saving Output Directory: ${outputDirResult?.error || 'Unknown error'}`, 'error');
-            }
+        // Also update local settings for immediate UI use
+        if (app.settings && typeof app.settings.setAll === 'function') {
+          const currentSettings = app.settings.getAll() || {};
+          app.settings.setAll({ ...currentSettings, ...settingsToSave });
         }
-
-        // REMOVED Save Auto Clear Cache setting
-
       } catch (ipcError) { // Catch errors from invoke calls
         settingsSaved = false;
         console.error('IPC Error saving settings:', ipcError);
