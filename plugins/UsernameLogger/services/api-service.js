@@ -32,33 +32,55 @@ class ApiService {
       try {
         apiKeyResponse = await ipcRenderer.invoke('get-setting', 'leakCheckApiKey');
       } catch (ipcError) {
-        // Silently handle IPC errors to prevent login issues
+        // Log the error in dev mode, but still return null silently
+        if (process.env.NODE_ENV === 'development') {
+          this.application.consoleMessage({ type: 'error', message: `[Username Logger] IPC Error getting API key: ${ipcError.message}` });
+        }
         return null;
       }
-      
+
+      // Log the raw response from IPC in dev mode
+      if (process.env.NODE_ENV === 'development') {
+        this.application.consoleMessage({ type: 'logger', message: `[Username Logger] Raw API key response from IPC: ${JSON.stringify(apiKeyResponse)}` });
+      }
+
       // Handle different formats - the key might be directly returned or in a 'value' property
-      let apiKey = null;
-      
+      let extractedValue = null;
+
       // Safely handle different response formats
       try {
-        if (apiKeyResponse && typeof apiKeyResponse === 'object' && apiKeyResponse.value) {
-          // If it's an object with a value property
-          apiKey = apiKeyResponse.value;
+        if (apiKeyResponse && typeof apiKeyResponse === 'object' && 'value' in apiKeyResponse) {
+          // If it's an object with a value property (even if value is null/undefined)
+          extractedValue = apiKeyResponse.value;
         } else if (typeof apiKeyResponse === 'string') {
           // If it's directly a string
-          apiKey = apiKeyResponse;
-        } else if (apiKeyResponse) {
-          // Try to stringify if it's something else
-          apiKey = String(apiKeyResponse);
+          extractedValue = apiKeyResponse;
         }
+        // Ignore other types or null/undefined apiKeyResponse
+
+        // Ensure the final result is either a string or null
+        const finalApiKey = (typeof extractedValue === 'string') ? extractedValue : null;
+
+        // Log the final extracted key in dev mode
+        if (process.env.NODE_ENV === 'development') {
+          this.application.consoleMessage({ type: 'logger', message: `[Username Logger] Final extracted API key: ${finalApiKey === null ? 'null' : (finalApiKey.length > 8 ? finalApiKey.substring(0, 4) + '...' + finalApiKey.substring(finalApiKey.length - 4) : '********')}` });
+        }
+
+        return finalApiKey;
+
       } catch (formatError) {
-        // Silent error handling to prevent login issues
+        // Log the error in dev mode, but still return null silently
+        if (process.env.NODE_ENV === 'development') {
+          this.application.consoleMessage({ type: 'error', message: `[Username Logger] Error formatting API key: ${formatError.message}` });
+        }
         return null;
       }
-      
-      return apiKey || null;
+
     } catch (error) {
-      // Quietly handle errors - don't break login
+      // Log the error in dev mode, but still return null silently
+      if (process.env.NODE_ENV === 'development') {
+        this.application.consoleMessage({ type: 'error', message: `[Username Logger] General error getting API key: ${error.message}` });
+      }
       return null;
     }
   }
@@ -93,6 +115,72 @@ class ApiService {
         message: `[Username Logger] Could not save API key to application settings: ${error.message}`
       });
       return false;
+    }
+  }
+
+  /**
+   * Validates the API key by making a silent call to the stats endpoint.
+   * @param {string} apiKey - The API key to validate.
+   * @returns {Promise<{valid: boolean, reason?: 'invalid_key' | 'api_error', error?: Error}>} Validation result.
+   */
+  async validateApiKey(apiKey) {
+    // Basic check (redundant but safe)
+    if (!apiKey || typeof apiKey !== 'string' || apiKey.trim() === '') {
+      return { valid: false, reason: 'invalid_key' }; // Treat blank as invalid for validation purposes
+    }
+
+    const httpClient = await this.loadHttpClient();
+    if (!httpClient) {
+      return { valid: false, reason: 'api_error', error: new Error('Failed to load HTTP client for validation') };
+    }
+
+    const statsUrl = `${LEAK_CHECK_API_URL}/stats`; // Use the base stats endpoint
+
+    try {
+      let responseStatus;
+      let responseData;
+
+      if (httpClient.isAxios !== false) {
+        const headers = { 'Accept': 'application/json', 'X-API-Key': apiKey };
+        const response = await httpClient.get(statsUrl, {
+          headers: headers,
+          validateStatus: (status) => status < 500 // Accept 4xx errors as valid responses
+        });
+        responseStatus = response.status;
+        responseData = response.data;
+      } else {
+        const headers = { 'Accept': 'application/json', 'X-API-Key': apiKey };
+        const fetchResponse = await httpClient.client(statsUrl, { method: 'GET', headers: headers });
+        responseStatus = fetchResponse.status;
+        if (!fetchResponse.ok && fetchResponse.status !== 400) { // Allow 400 for invalid key check
+           throw new Error(`HTTP error! status: ${fetchResponse.status}`);
+        }
+        try {
+            responseData = await fetchResponse.json();
+        } catch (e) {
+            // If response is not JSON (e.g., plain text error), handle gracefully
+            responseData = { error: `Non-JSON response: ${await fetchResponse.text()}` };
+        }
+      }
+
+      // Check response
+      if (responseStatus === 200 && responseData?.success) {
+        return { valid: true };
+      } else if (responseStatus === 400 && responseData?.error === 'Invalid X-API-Key') {
+        return { valid: false, reason: 'invalid_key' };
+      } else {
+        // Any other non-200 or error response indicates a problem
+        const errorMsg = responseData?.error || `Unexpected validation status: ${responseStatus}`;
+         if (process.env.NODE_ENV === 'development') {
+            this.application.consoleMessage({ type: 'error', message: `[Username Logger] API Key validation failed: ${errorMsg}` });
+         }
+        return { valid: false, reason: 'api_error', error: new Error(errorMsg) };
+      }
+    } catch (error) {
+       if (process.env.NODE_ENV === 'development') {
+         this.application.consoleMessage({ type: 'error', message: `[Username Logger] Error during API Key validation request: ${error.message}` });
+       }
+      return { valid: false, reason: 'api_error', error: error };
     }
   }
 
@@ -150,6 +238,12 @@ class ApiService {
    * @returns {Promise<Object>} The check result
    */
   async checkUsername(username, apiKey, rateLimit = 400) {
+    // Add defense-in-depth: Check API key validity here as well
+    if (!apiKey || typeof apiKey !== 'string' || apiKey.trim() === '') {
+        // Throw an error that will be caught by the calling service
+        throw new Error('API key is missing or blank. Cannot perform check.');
+    }
+
     // Wait for rate limit
     await wait(rateLimit);
 
@@ -209,16 +303,12 @@ class ApiService {
         response = await httpClient.get(apiUrl, {
           params: { type: 'username' },
           headers: headers,
-          validateStatus: (status) => status < 500
+          validateStatus: (status) => status < 500 // Treat 4xx as valid responses to check error message
         });
-        
-        if (response.status === 400 && response.data?.error === 'Invalid X-API-Key') {
-          this.application.consoleMessage({
-            type: 'error',
-            message: `[Username Logger] API key rejected by LeakCheck. Please check that your API key is valid and active.`
-          });
-        }
-        
+
+        // No longer log the specific invalid key error here, it's handled by pre-validation
+        // if (response.status === 400 && response.data?.error === 'Invalid X-API-Key') { ... }
+
         return {
           status: response.status,
           data: response.data,

@@ -56,12 +56,25 @@ class Spammer {
 
     content = content || input.value
 
+    // Get room ID from both sources to ensure we have it
+    const roomFromState = window.jam?.state?.room
+    const roomFromDispatch = dispatch.getState('room')
+    const room = roomFromState || roomFromDispatch
+
+    // Log room info for debugging
+    console.log('[Spammer] Room ID from state:', roomFromState)
+    console.log('[Spammer] Room ID from dispatch:', roomFromDispatch)
+    console.log('[Spammer] Using room ID:', room)
+
     // Process array content
     if (Array.isArray(content)) {
       const processedMessages = content.map(msg => {
         if (msg.includes('{room}')) {
-          const room = dispatch.getState('room')
-          return room ? msg.replaceAll('{room}', room) : msg
+          if (!room) {
+            console.error('[Spammer] Error: Room ID not found, cannot replace {room} in:', msg)
+            return msg // Return unmodified if room is not available
+          }
+          return msg.replaceAll('{room}', room)
         }
         return msg
       })
@@ -74,8 +87,9 @@ class Spammer {
 
     // Process single content string
     if (content.includes('{room}')) {
-      const room = dispatch.getState('room')
-      if (room) {
+      if (!room) {
+        console.error('[Spammer] Error: Room ID not found, cannot replace {room} in:', content)
+      } else {
         content = content.replaceAll('{room}', room)
       }
     }
@@ -262,10 +276,40 @@ class Spammer {
         const file = event.target.files[0]
         if (!file) return
 
+        console.log('[Spammer] Loading file:', file.name)
+        
         const text = await file.text()
-        const data = JSON.parse(text)
+        let data
+
+        // Try to parse as JSON
+        try {
+          data = JSON.parse(text)
+          console.log('[Spammer] Successfully parsed file as JSON')
+        } catch (jsonError) {
+          console.error('[Spammer] JSON parse error:', jsonError)
+          console.log('[Spammer] Attempting to handle as plain text file')
+          
+          // Handle plain text file with each line as a packet
+          const lines = text.split('\n').filter(line => line.trim().length > 0)
+          
+          if (lines.length > 0) {
+            data = {
+              input: lines[0],
+              packets: lines.map(line => ({
+                type: 'aj',
+                content: line,
+                delay: '0.5'
+              }))
+            }
+            console.log('[Spammer] Created packet data from text file with', lines.length, 'lines')
+          } else {
+            console.error('[Spammer] File appears to be empty')
+            return
+          }
+        }
 
         input.value = data.input || ''
+        console.log('[Spammer] Set input value to:', input.value)
 
         // Clear existing rows except header
         while (table.rows.length > 1) {
@@ -274,6 +318,8 @@ class Spammer {
 
         // Add packets from file
         if (data.packets && Array.isArray(data.packets)) {
+          console.log('[Spammer] Loading', data.packets.length, 'packets')
+          
           data.packets.forEach(packet => {
             const row = table.insertRow(-1)
             row.className = 'hover:bg-tertiary-bg/20 transition'
@@ -288,9 +334,9 @@ class Spammer {
             delayCell.className = 'py-2 px-3 text-xs'
             actionCell.className = 'py-2 px-3 text-xs'
 
-            typeCell.innerText = packet.type
+            typeCell.innerText = packet.type || 'aj'  // Default to 'aj' if not specified
             contentCell.innerText = packet.content
-            delayCell.innerText = packet.delay
+            delayCell.innerText = packet.delay || '0.5'  // Default to 0.5 if not specified
 
             // Add tooltip for full content
             contentCell.title = packet.content
@@ -301,9 +347,13 @@ class Spammer {
               </button>
             `
           })
+          
+          console.log('[Spammer] Successfully loaded packets into table')
+        } else {
+          console.error('[Spammer] No packets found in file or invalid format')
         }
       } catch (error) {
-        console.error('Error loading file:', error)
+        console.error('[Spammer] Error loading file:', error)
       }
     }
 

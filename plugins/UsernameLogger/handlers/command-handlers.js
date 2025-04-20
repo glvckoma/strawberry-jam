@@ -34,7 +34,7 @@ class CommandHandlers {
     this.handleLeakCheckStopCommand = this.handleLeakCheckStopCommand.bind(this);
     this.handleTrimProcessedCommand = this.handleTrimProcessedCommand.bind(this);
     this.handleSetApiKeyCommand = this.handleSetApiKeyCommand.bind(this);
-    this.handleTestApiKeyCommand = this.handleTestApiKeyCommand.bind(this);
+    // this.handleTestApiKeyCommand = this.handleTestApiKeyCommand.bind(this); // Removed
     this.handleSetIndexCommand = this.handleSetIndexCommand.bind(this);
   }
 
@@ -400,92 +400,8 @@ class CommandHandlers {
       });
     }
   }
-  
-  /**
-   * Handles the test API key command to verify if the API key works
-   * @param {Object} params - Command parameters
-   */
-  async handleTestApiKeyCommand({ parameters }) {
-    try {
-      // Allow optional parameter for a test username
-      const testUsername = parameters[0] || 'testuser';
-      
-      // Get API key with detailed logging
-      this.application.consoleMessage({
-        type: 'notify',
-        message: `[Username Logger] Testing API key with username: ${testUsername}`
-      });
-      
-      const apiKey = await this.apiService.getApiKey();
-      
-      if (!apiKey) {
-        this.application.consoleMessage({
-          type: 'error',
-          message: `[Username Logger] No API key found. Use !setapikey YOUR_API_KEY to set your LeakCheck.io API key.`
-        });
-        return;
-      }
-      
-      // Log masked key for debugging
-      if (apiKey.length > 8) {
-        const masked = apiKey.substring(0, 4) + '...' + apiKey.substring(apiKey.length - 4);
-        this.application.consoleMessage({
-          type: 'logger',
-          message: `[Username Logger] Testing with API key: ${masked}`
-        });
-      }
-      
-      // Make a test request with the username
-      const result = await this.apiService.checkUsername(testUsername, apiKey);
-      
-      if (result.status === 200 && result.data?.success !== undefined) {
-        this.application.consoleMessage({
-          type: 'success',
-          message: `[Username Logger] API key test successful! Your key is valid and working.`
-        });
-        
-        // Show quota information if available
-        if (result.data.quota !== undefined) {
-          this.application.consoleMessage({
-            type: 'logger',
-            message: `[Username Logger] Remaining API quota: ${result.data.quota} queries`
-          });
-        }
-      } else if (result.status === 400 && result.data?.error === 'Invalid X-API-Key') {
-        this.application.consoleMessage({
-          type: 'error',
-          message: `[Username Logger] API key is invalid or expired. Check your key on LeakCheck.io and use !setapikey to update.`
-        });
-        
-        this.application.consoleMessage({
-          type: 'error',
-          message: `[Username Logger] Make sure your subscription is active and the key is correct.`
-        });
-      } else if (result.status === 401) {
-        this.application.consoleMessage({
-          type: 'error',
-          message: `[Username Logger] Authentication failed: Missing or malformed API key.`
-        });
-      } else {
-        this.application.consoleMessage({
-          type: 'warn',
-          message: `[Username Logger] API test returned response: Status ${result.status}`
-        });
-        
-        if (result.data) {
-          this.application.consoleMessage({
-            type: 'logger',
-            message: `[Username Logger] Response data: ${JSON.stringify(result.data)}`
-          });
-        }
-      }
-    } catch (error) {
-      this.application.consoleMessage({
-        type: 'error',
-        message: `[Username Logger] Error testing API key: ${error.message}`
-      });
-    }
-  }
+
+  // Removed handleTestApiKeyCommand method
 
   /**
    * Sets the leak check index directly to a specific value.
@@ -563,18 +479,14 @@ class CommandHandlers {
       dispatch.onCommand({
         name: 'setapikey',
         description: 'Sets the LeakCheck API key. Usage: !setapikey YOUR_API_KEY',
-        callback: this.handleSetApiKeyCommand
-      });
-      
-      dispatch.onCommand({
-        name: 'testapikey',
-        description: 'Tests if the current LeakCheck API key is valid.',
-        callback: this.handleTestApiKeyCommand
-      });
-      
-      dispatch.onCommand({
-        name: 'setindex',
-        description: 'Sets the leak check index to a specific position. Usage: !setindex 1234',
+         callback: this.handleSetApiKeyCommand
+       });
+ 
+       // Removed testapikey command registration
+ 
+       dispatch.onCommand({
+         name: 'setindex',
+         description: 'Sets the leak check index to a specific position. Usage: !setindex 1234',
         callback: this.handleSetIndexCommand
       });
       

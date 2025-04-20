@@ -78,16 +78,57 @@ class LeakCheckService {
       try {
         // Get API key
         const apiKey = await this.apiService.getApiKey();
-        if (!apiKey) {
+
+        // Log the retrieved key type and value (masked) in dev mode BEFORE the check
+        if (isDevMode) {
           this.application.consoleMessage({
-            type: 'error',
-            message: `[Username Logger] Cannot perform leak check: No API key found. Use !setapikey YOUR_API_KEY to set your LeakCheck.io API key.`
+            type: 'logger',
+            message: `[Username Logger] API key retrieved in runLeakCheck: Type=${typeof apiKey}, Value=${apiKey === null ? 'null' : (typeof apiKey === 'string' ? (apiKey.length > 8 ? apiKey.substring(0, 4) + '...' + apiKey.substring(apiKey.length - 4) : '********') : '[Non-string/null]')}`
           });
-          this.stateModel.resetLeakCheckState();
-          return { success: false, error: 'API key missing', needsApiKey: true };
         }
-        
-        // Debug log the API key (partly masked)
+
+        // Explicitly check for null, undefined, non-string, or empty/blank string
+        // Note: The check `typeof apiKey !== 'string'` implicitly covers objects.
+        if (!apiKey || typeof apiKey !== 'string' || apiKey.trim() === '') {
+            // Log the single, user-friendly error message
+            this.application.consoleMessage({
+                type: 'error',
+                message: `[Username Logger] Cannot start leak check: API key is missing or blank. Please set your LeakCheck.io API key in the plugin settings or use the command: !setapikey YOUR_API_KEY`
+            });
+            // Ensure state is reset and return immediately
+            this.stateModel.resetLeakCheckState();
+            return { success: false, error: 'API key missing or blank', needsApiKey: true };
+        }
+
+        // --- START API Key Validation ---
+        if (isDevMode) {
+          this.application.consoleMessage({ type: 'logger', message: '[Username Logger] Performing pre-check API key validation...' });
+        }
+        const validationResult = await this.apiService.validateApiKey(apiKey);
+
+        if (!validationResult.valid) {
+          let userMessage = '[Username Logger] Leak check aborted due to an API key issue.';
+          if (validationResult.reason === 'invalid_key') {
+            userMessage = '[Username Logger] API Key is invalid or requires a Pro subscription. Please verify your key in settings. Leak check aborted.';
+          } else if (validationResult.reason === 'api_error') {
+            userMessage = '[Username Logger] Could not validate API key due to an API error. Please try again later. Leak check aborted.';
+            // Log the specific error in dev mode
+            if (isDevMode && validationResult.error) {
+              this.application.consoleMessage({ type: 'error', message: `[Username Logger] API validation error details: ${validationResult.error.message}` });
+            }
+          }
+
+          this.application.consoleMessage({ type: 'error', message: userMessage });
+          this.stateModel.resetLeakCheckState();
+          return { success: false, error: 'API key validation failed', validationReason: validationResult.reason };
+        }
+
+        if (isDevMode) {
+           this.application.consoleMessage({ type: 'logger', message: '[Username Logger] API key validation successful.' });
+        }
+        // --- END API Key Validation ---
+
+        // Debug log the API key (partly masked) - This is now slightly redundant but harmless
         if (apiKey.length > 8 && isDevMode) {
           const masked = apiKey.substring(0, 4) + '...' + apiKey.substring(apiKey.length - 4);
           this.application.consoleMessage({
@@ -181,16 +222,18 @@ class LeakCheckService {
             // Write batches
             await this._writeBatches(paths, processedBatch, foundGeneralBatch, foundAjcBatch, potentialBatch);
             
-            // Update the index - only log in dev mode
-            this.configModel.setLeakCheckIndex(currentOverallIndex);
-            if (isDevMode) {
-              this.application.consoleMessage({
-                type: 'logger',
-                message: `[Username Logger] Saving config with index: ${currentOverallIndex}`
-              });
-            }
+            // Update the index to the last successfully completed item
+            const lastCompletedIndex = currentOverallIndex - 1;
+            this.configModel.setLeakCheckIndex(lastCompletedIndex);
+            // Removed redundant dev log before saveConfig
+            // if (isDevMode) {
+            //   this.application.consoleMessage({
+            //     type: 'logger',
+            //     message: `[Username Logger] Saving config with index: ${lastCompletedIndex}` // Adjusted log message if kept
+            //   });
+            // }
             await this.configModel.saveConfig();
-            
+
             // Reset state
             this.stateModel.resetLeakCheckState();
             
@@ -349,6 +392,17 @@ class LeakCheckService {
               type: 'error',
               message: `[Username Logger] Request Error for ${username}: ${requestError.message}`
             });
+
+            // Check if the error is specifically about the missing API key from the api-service check
+            if (requestError.message.includes('API key is missing or blank')) {
+              this.application.consoleMessage({
+                type: 'error',
+                message: `[Username Logger] Stopping leak check: API key is missing or blank. Please set your LeakCheck.io API key in the plugin settings or use the command: !setapikey YOUR_API_KEY`
+              });
+              // Trigger the stop mechanism to cleanly exit the loop
+              this.stateModel.stopLeakCheck(); // Use the model's method to signal stop
+              break; // Exit the loop immediately
+            }
           }
         }
 

@@ -5,6 +5,6 @@
   "autoLeakCheck": false,
   "autoLeakCheckThreshold": 50,
   "customBasePath": null,
-  "leakCheckLastProcessedIndex": -1,
+  "leakCheckLastProcessedIndex": 23,
   "migrationCompleted": true
 }
