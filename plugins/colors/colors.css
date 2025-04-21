@@ -8,9 +8,10 @@ body {
   margin: 20px auto;
   width: 100%;
   max-width: 90% !important;
-  height: 250px !important;
+  /* height: 250px !important; */ /* Removed fixed height */
+  height: auto; /* Allow height to adjust to content */
   background-color: #1c1e26;
-  min-height: 250px !important;
+  min-height: 200px; /* Adjusted min-height */
   padding: 20px;
   box-sizing: border-box;
   border-radius: 5px;
@@ -35,8 +36,9 @@ body {
       position: relative;
     }
 
-    #sendPacketBtn { position: absolute; right: 20px; top: 185px; }
-    #copyPacketBtn { position: absolute; right: 20px; top: 135px; }
+    /* Removed absolute positioning for action buttons as they are now in a flex container */
+    /* #sendPacketBtn { position: absolute; right: 20px; top: 185px; } */
+    /* #copyPacketBtn { position: absolute; right: 20px; top: 135px; } */
 
     .color-display {
       width: 30px;
@@ -63,11 +65,12 @@ body {
       border: none;
       border-radius: 5px;
       cursor: pointer;
-      position: absolute;
+      position: absolute; /* Keep for modal buttons if needed, but removing for main preset buttons */
     }
-    #savePresetsBtn { top: 305px; left: 5%; }
-    #loadPresetsBtn { top: 305px; left: 19%; }
-    #addPresetBtn { top: 305px; right: 5%; }
+    /* Removed absolute positioning for preset management buttons */
+    /* #savePresetsBtn { top: 305px; left: 5%; } */
+    /* #loadPresetsBtn { top: 305px; left: 19%; } */
+    /* #addPresetBtn { top: 305px; right: 5%; } */
 
     #modal {
       display: none;
@@ -151,41 +154,54 @@ body {
     }
     #exclusiveColorChart { grid-template-columns: repeat(16, 30px); }
 
+    /* Updated Preset Container styles */
     .preset-container {
-      margin: 70px auto;  
-      width: 90%;
-      height: 90%;
-      max-width: 90%;
-      padding: 20px;
-      border: 2px solid #1A1C28;
+      /* Removed fixed margin, width, height - relies on parent div now */
+      /* margin: 70px auto; */
+      /* width: 90%; */
+      /* height: 90%; */
+      /* max-width: 90%; */
+      padding: 10px; /* Adjusted padding */
+      border: 1px solid #3a3d4d; /* Use theme border color */
       border-radius: 5px;
-      background-color: #1c1e26;
+      background-color: #1c1e26; /* Keep background */
+      overflow-y: auto; /* Add scroll for long lists */
+      max-height: 300px; /* Limit height */
+      min-height: 100px; /* Ensure it has some height even when empty */
     }
+    /* Updated Preset Item styles */
     .preset {
       display: flex;
       align-items: center;
-      justify-content: space-between;
-      margin: 10px 0;
-      padding: 10px;
+      justify-content: space-between; /* Keep space-between */
+      margin-bottom: 8px; /* Adjusted margin */
+      padding: 8px 12px; /* Adjusted padding */
       border: 1px solid #20232F;
       border-radius: 5px;
       background-color: #3a3d4d;
+      transition: background-color 0.2s ease-in-out; /* Add hover transition */
+    }
+    .preset:hover {
+      background-color: #4a4d5d; /* Subtle hover effect */
     }
     .preset input[type="text"] {
+      flex-grow: 1; /* Allow input to take available space */
       background-color: transparent;
       color: #CECECE;
       border: none;
       border-bottom: 1px solid #CECECE;
       outline: none;
-      width: 150px;
-      margin-left: 10px;
+      /* width: 150px; */ /* Removed fixed width */
+      margin: 0 10px; /* Adjusted margin */
     }
     .preset-color-display {
-      width: 30px;
-      height: 30px;
-      border-radius: 5px;
-      margin: 0 5px;
+      width: 25px; /* Slightly smaller */
+      height: 25px; /* Slightly smaller */
+      border-radius: 4px; /* Adjusted radius */
+      margin: 0 3px; /* Adjusted margin */
+      flex-shrink: 0; /* Prevent shrinking */
     }
+    /* Keep apply/delete button styles, maybe adjust slightly if needed */
     .apply-btn,
     .delete-btn {
       padding: 5px 10px;
@@ -193,10 +209,12 @@ body {
       border-radius: 5px;
       cursor: pointer;
       margin-left: 5px;
+      flex-shrink: 0; /* Prevent shrinking */
     }
 
     input[type="file"] { display: none; }
-    .random-color-icon {
+    /* Removed absolute positioning for random icon */
+    /* .random-color-icon {
       position: absolute;
       top: 190px;
       right: 240px;
@@ -205,7 +223,7 @@ body {
       transition: transform 0.3s, color 0.3s;
       color: #c3c3c3;
     }
-    .random-color-icon:hover { color: #38b000; }
+    .random-color-icon:hover { color: #38b000; } */
 
     .info-button {
       position: absolute;
