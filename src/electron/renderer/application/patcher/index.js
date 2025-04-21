@@ -123,14 +123,33 @@ module.exports = class Patcher {
         stdio: 'ignore',
         env: spawnEnv // Pass the environment variables
       });
-
-      // Log the success message
-      if (this._application) {
-        this._application.consoleMessage({
-          message: 'Successfully launched Animal Jam Classic!',
-          type: 'success'
-        });
-      }
+      
+      // Add listeners for process exit/error
+      this._animalJamProcess.on('close', (code) => {
+        const closeMessage = 'Animal Jam Classic closed.';
+        if (this._application) {
+          this._application.consoleMessage({
+            message: closeMessage,
+            type: 'notify'
+          });
+        } else {
+          console.log(closeMessage);
+        }
+        this._animalJamProcess = null; // Clear the reference
+      });
+      
+      this._animalJamProcess.on('error', (err) => {
+        const errorMessage = `Error with Animal Jam Classic process: ${err.message}`;
+        if (this._application) {
+          this._application.consoleMessage({
+            message: errorMessage,
+            type: 'error'
+          });
+        } else {
+          console.error(errorMessage);
+        }
+        this._animalJamProcess = null; // Clear the reference
+      });
 
       // No need for restoration on quit since we're using a separate installation
     } catch (error) {

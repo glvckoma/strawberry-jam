@@ -15,42 +15,37 @@ const {
 } = require('../constants/constants');
 
 /**
- * Determines the base path for log files.
- * @param {Object} dispatch - The dispatch object from the application
- * @returns {string} The base path for log files, determined by the environment.
+ * Determines the base path for Username Logger specific files.
+ * This should be the application's main data path (already including /data).
+ * @param {string} appDataPath - The application's main data path (e.g., .../strawberry-jam/data).
+ * @returns {string} The base path for Username Logger files.
  */
-function getBasePath(dispatch) {
-  // Use the dataPath property from dispatch
-  if (!dispatch.dataPath) {
-    // Fallback or error handling if dispatch doesn't have the dataPath yet
-    console.error("[Username Logger] Error: dispatch.dataPath is not available!");
-    // Provide a default fallback path using strawberry-jam directory
-    const fallbackPath = path.join(os.homedir(), 'AppData', 'Local', 'Programs', 'strawberry-jam', 'data');
-    try {
-      if (!fs.existsSync(fallbackPath)) {
-        fs.mkdirSync(fallbackPath, { recursive: true });
-      }
-    } catch (e) { /* ignore fallback creation error */ }
-    return fallbackPath;
+function getBasePath(appDataPath) {
+  // The provided appDataPath should already point to the desired /data directory.
+  if (!appDataPath) {
+    console.error("[Username Logger] Error: getBasePath called without appDataPath!");
+    return path.resolve('.', 'username_logger_data_error'); 
   }
-  return dispatch.dataPath;
+  // Removed creation of 'UsernameLogger' subdirectory and ensureDirectoryExists call.
+  // Files will be created directly in the provided appDataPath.
+  return appDataPath;
 }
 
 /**
- * Gets file paths based on current base path.
- * @param {Object} dispatch - The dispatch object from the application
- * @returns {Object} An object containing file paths.
+ * Gets file paths based on the provided application data path.
+ * @param {string} appDataPath - The application's main data path (e.g., .../strawberry-jam/data).
+ * @returns {Object} An object containing file paths directly within the dataPath.
  */
-function getFilePaths(dispatch) {
-  const currentBasePath = getBasePath(dispatch);
+function getFilePaths(appDataPath) {
+  const basePath = getBasePath(appDataPath); // Now just returns appDataPath
   
-  // File paths
+  // File paths directly within the basePath (which is the /data dir)
   const paths = {
-    collectedUsernamesPath: path.join(currentBasePath, COLLECTED_USERNAMES_FILE),
-    processedUsernamesPath: path.join(currentBasePath, PROCESSED_FILE),
-    potentialAccountsPath: path.join(currentBasePath, POTENTIAL_ACCOUNTS_FILE),
-    foundAccountsPath: path.join(currentBasePath, FOUND_GENERAL_FILE),
-    ajcAccountsPath: path.join(currentBasePath, FOUND_AJC_FILE)
+    collectedUsernamesPath: path.join(basePath, COLLECTED_USERNAMES_FILE),
+    processedUsernamesPath: path.join(basePath, PROCESSED_FILE),
+    potentialAccountsPath: path.join(basePath, POTENTIAL_ACCOUNTS_FILE),
+    foundAccountsPath: path.join(basePath, FOUND_GENERAL_FILE),
+    ajcAccountsPath: path.join(basePath, FOUND_AJC_FILE)
   };
   
   return paths;

@@ -63,22 +63,14 @@ exports.render = function (app, data = {}) {
                  <input id="leakCheckApiKey" type="password"
                    class="bg-tertiary-bg text-text-primary placeholder-text-primary focus:outline-none rounded px-3 py-2 w-full"
                    placeholder="Enter your LeakCheck API Key">
-                 <p class="mt-1 text-xs text-gray-400">Required for the leak check feature.</p>
+                 <p class="mt-1 text-xs text-gray-400"><span class="font-semibold text-highlight-yellow">Requires a LeakCheck.io Pro subscription.</span></p>
                </div>
-               <!-- Output Directory -->
-               <div>
-                <label for="leakCheckOutputDir" class="block mb-1 text-sm font-medium text-text-primary">
-                  Output Directory
-                </label>
-                <div class="flex items-center space-x-2">
-                  <input id="leakCheckOutputDir" type="text" readonly
-                    class="flex-grow bg-tertiary-bg text-text-primary placeholder-text-primary focus:outline-none rounded px-3 py-2"
-                    placeholder="Default: (Jam Project)/data/">
-                  <button type="button" class="bg-sidebar-hover text-text-primary px-3 py-2 rounded hover:bg-sidebar-hover/70 transition" id="browseOutputDirBtn">
-                    Browse...
-                  </button>
-                </div>
-                 <p class="mt-1 text-xs text-gray-400">Where Leak Check result files are saved. Default is the 'data' folder in Jam's directory.</p>
+               <!-- Output Directory (Replaced) -->
+               <div class="mt-2">
+                 <button type="button" id="openOutputDirBtn" class="w-full bg-sidebar-hover text-text-primary px-4 py-2 rounded hover:bg-sidebar-hover/70 transition">
+                   <i class="fas fa-folder-open mr-2"></i>Open Output Directory
+                 </button>
+                 <p class="mt-1 text-xs text-gray-400">Location where Leak Check results and other data files are saved.</p>
                </div>
             </div>
             <!-- End LeakCheck Settings Section -->
@@ -153,8 +145,9 @@ function setupEventHandlers ($modal, app) {
   // REMOVED const $startButton = $modal.find('#startLeakCheckBtn');
   // REMOVED const $pauseButton = $modal.find('#pauseLeakCheckBtn');
   // REMOVED const $stopButton = $modal.find('#stopLeakCheckBtn');
-  const $outputDirInput = $modal.find('#leakCheckOutputDir');
-  const $browseButton = $modal.find('#browseOutputDirBtn');
+  // REMOVED const $outputDirInput = $modal.find('#leakCheckOutputDir');
+  // REMOVED const $browseButton = $modal.find('#browseOutputDirBtn');
+  const $openOutputDirButton = $modal.find('#openOutputDirBtn');
   const $clearCacheButton = $modal.find('#clearCacheBtn');
   const $uninstallButton = $modal.find('#uninstallBtn');
   // REMOVED $autoClearCheckbox
@@ -178,21 +171,18 @@ function setupEventHandlers ($modal, app) {
 
 
   // --- Attach Button Click Handlers ---
-   $browseButton.on('click', async () => {
-    // Check if ipcRenderer exists before using it
-    if (typeof ipcRenderer !== 'undefined' && ipcRenderer) {
-      try {
-        const result = await ipcRenderer.invoke('select-output-directory'); // Use direct ipcRenderer
-        if (!result.canceled && result.path) {
-          $outputDirInput.val(result.path);
-        }
-      } catch (error) {
-        console.error('Error selecting output directory:', error);
-        showToast('Failed to select directory', 'error');
+  $openOutputDirButton.on('click', () => {
+    if (app.dataPath) {
+      // Check if ipcRenderer exists before using it
+      if (typeof ipcRenderer !== 'undefined' && ipcRenderer) {
+        ipcRenderer.send('open-directory', app.dataPath);
+      } else {
+         console.error('ipcRenderer not available for opening directory');
+         showToast('IPC Error: Cannot open directory', 'error');
       }
     } else {
-      console.error('ipcRenderer not available for browsing directory');
-      showToast('IPC Error: Cannot browse directory', 'error');
+      console.error('Data path not available to open.');
+      showToast('Error: Data path not loaded', 'error');
     }
   });
 
@@ -204,7 +194,7 @@ function setupEventHandlers ($modal, app) {
   $clearCacheButton.on('click', async () => {
     const confirmed = await showConfirmationModal(
       'Clear Cache Confirmation',
-      'Are you sure you want to clear the cache for both Animal Jam Classic and Strawberry Jam? This action cannot be undone. Strawberry Jam will close, and the cache will be cleared in the background. Please wait a few seconds before reopening.',
+      'Are you sure you want to clear the application cache for both Animal Jam Classic and Strawberry Jam? This primarily affects temporary files and should not delete your saved usernames or settings. Strawberry Jam will close to complete the process.',
       'Close App & Clear Cache',
       'Cancel'
     );
@@ -335,7 +325,8 @@ async function saveSettings ($modal, app) { // Made async
       smartfoxServer: $modal.find('#smartfoxServer').val().trim() || 'lb-iss02-classic-prod.animaljam.com',
       secureConnection: $modal.find('#secureConnection').prop('checked'),
       leakCheckApiKey: $modal.find('#leakCheckApiKey').val().trim(),
-      leakCheckOutputDir: $modal.find('#leakCheckOutputDir').val().trim()
+      // Remove leakCheckOutputDir as the input field is gone
+      // leakCheckOutputDir: $modal.find('#leakCheckOutputDir').val().trim()
     };
 
     if (hasIpc) {

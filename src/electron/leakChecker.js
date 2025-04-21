@@ -21,7 +21,6 @@ const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 // --- Constants ---
 const leakCheckApiUrl = 'https://leakcheck.io/api/v2/query';
 const defaultRateLimitDelay = 400; // Milliseconds
-const defaultDataDir = path.resolve('data'); // Default project data dir
 
 // --- File Names (Using Original Names for Compatibility) ---
 const ACCOUNTS_TO_TRY_FILE = 'accounts-to-try.txt'; // Original name
@@ -37,9 +36,10 @@ const LOGGED_USERNAMES_FILE = 'logged_usernames.txt'; // Input file (remains the
  * @param {BrowserWindow.webContents} options.webContents - The webContents of the main window to send IPC messages.
  * @param {function} options.log - The logging function (e.g., Jam's main process log).
  * @param {Store} options.store - The electron-store instance for settings (API key, output dir).
+ * @param {string} options.appDataPath - The application data path.
  * @param {number} [options.limit=Infinity] - Maximum number of usernames to process in this run.
  * @param {number} [options.startIndex=0] - The index in the input file to start processing from.
- * @param {function} [options.updateStateCallback=async () => {}] - Async function to report state updates (e.g., { status: 'running', lastProcessedIndex: 123 }).
+ * @param {function} options.updateStateCallback - Async function to report state updates (e.g., { status: 'running', lastProcessedIndex: 123 }).
  * @param {function} [options.checkPauseStatus=() => false] - Function to check if pause is requested.
  * @param {function} [options.checkStopStatus=() => false] - Function to check if stop is requested.
  */
@@ -48,6 +48,7 @@ async function startLeakCheck(options) {
         webContents,
         log,
         store,
+        appDataPath,
         limit = Infinity,
         startIndex = 0,
         updateStateCallback = async () => {}, // No-op default
@@ -89,7 +90,7 @@ async function startLeakCheck(options) {
     // sendStatus('Starting...'); // Replaced with log
 
     // --- Determine Output Directory ---
-    let outputDir = defaultDataDir; // Default to project data dir
+    let outputDir = appDataPath; // <-- Default to appDataPath first
     try {
       const customOutputDir = store.get('leakCheckOutputDir');
       if (customOutputDir && typeof customOutputDir === 'string') {
@@ -107,7 +108,7 @@ async function startLeakCheck(options) {
       await fs.mkdir(outputDir, { recursive: true });
     } catch (error) {
       log('error', `[LeakCheck] Error determining/creating output directory: ${error.message}. Using default.`);
-      outputDir = defaultDataDir; // Fallback to default on error
+      outputDir = appDataPath; // <-- Fallback to appDataPath on error
       try {
         await fs.mkdir(outputDir, { recursive: true }); // Try creating default just in case
       } catch (mkdirError) {
@@ -123,7 +124,8 @@ async function startLeakCheck(options) {
     const dontLogUsernamesPath = path.join(outputDir, PROCESSED_FILE); // This is the processed list
     const foundAccountsPath = path.join(outputDir, FOUND_GENERAL_FILE);
     const ajcConfirmedPath = path.join(outputDir, FOUND_AJC_FILE);
-    const loggedUsernamesPath = path.join(defaultDataDir, LOGGED_USERNAMES_FILE); // Input always from project data dir
+    // Use appDataPath for the input file (logged usernames from UsernameLogger)
+    const loggedUsernamesPath = path.join(appDataPath, 'UsernameLogger', LOGGED_USERNAMES_FILE);
 
     // --- Read API Key ---
     let apiKey;

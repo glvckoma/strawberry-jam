@@ -7,6 +7,7 @@ const fs = require('fs').promises;
 const fsSync = require('fs');
 const path = require('path');
 const os = require('os');
+const { getFilePaths } = require('../utils/path-utils');
 
 /**
  * Service for handling data migration between versions
@@ -18,11 +19,13 @@ class MigrationService {
    * @param {Object} options.application - The application object for logging
    * @param {Object} options.fileService - The file service for file operations
    * @param {Object} options.configModel - The config model for accessing configuration
+   * @param {string} options.dataPath - The application data path
    */
-  constructor({ application, fileService, configModel }) {
+  constructor({ application, fileService, configModel, dataPath }) {
     this.application = application;
     this.fileService = fileService;
     this.configModel = configModel;
+    this.dataPath = dataPath;
   }
 
   /**
@@ -47,8 +50,8 @@ class MigrationService {
         return true;
       }
       
-      // Get paths
-      const currentPaths = this.configModel.getFilePaths();
+      // Get paths using the utility function and stored dataPath
+      const currentPaths = getFilePaths(this.dataPath);
       
       // Define old file paths 
       const fileNames = Object.keys(currentPaths).map(key => path.basename(currentPaths[key]));
@@ -113,7 +116,8 @@ class MigrationService {
    */
   async loadIgnoreList(stateModel) {
     try {
-      const paths = this.configModel.getFilePaths();
+      // Get paths using the utility function and stored dataPath
+      const paths = getFilePaths(this.dataPath);
       let loadedCount = 0;
       
       // Load processed usernames

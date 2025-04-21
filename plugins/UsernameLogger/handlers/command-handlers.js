@@ -4,6 +4,7 @@
  */
 
 const path = require('path');
+const { getFilePaths } = require('../utils/path-utils');
 
 /**
  * Class for handling user commands
@@ -18,14 +19,16 @@ class CommandHandlers {
    * @param {Object} options.fileService - The file service for file operations
    * @param {Object} options.apiService - The API service for API operations
    * @param {Object} options.leakCheckService - The leak check service for leak checking
+   * @param {string} options.dataPath - The application data path
    */
-  constructor({ application, configModel, stateModel, fileService, apiService, leakCheckService }) {
+  constructor({ application, configModel, stateModel, fileService, apiService, leakCheckService, dataPath }) {
     this.application = application;
     this.configModel = configModel;
     this.stateModel = stateModel;
     this.fileService = fileService;
     this.apiService = apiService;
     this.leakCheckService = leakCheckService;
+    this.dataPath = dataPath;
     
     // Bind methods to ensure 'this' context is correct
     this.handleLogCommand = this.handleLogCommand.bind(this);
@@ -80,7 +83,7 @@ class CommandHandlers {
     if (parameters.length === 0) {
       // Display current settings
       const config = this.configModel.getConfig();
-      const paths = this.configModel.getFilePaths();
+      const paths = getFilePaths(this.dataPath);
       
       this.application.consoleMessage({
         type: 'logger',
@@ -235,10 +238,17 @@ class CommandHandlers {
         
         if (param === 'all') {
           // Process all remaining usernames (already the default with Infinity)
-          this.application.consoleMessage({
-            type: 'notify',
-            message: `[Username Logger] Processing all remaining usernames from index ${startIndex}.`
-          });
+          if (isDevMode) {
+            this.application.consoleMessage({
+              type: 'notify',
+              message: `[Username Logger] Processing all remaining usernames from index ${startIndex}.`
+            });
+          } else {
+            this.application.consoleMessage({
+              type: 'notify',
+              message: `[Username Logger] Processing all remaining usernames.`
+            });
+          }
         } else {
           // Try to parse as a number (limit)
           const num = parseInt(param, 10);
@@ -251,17 +261,31 @@ class CommandHandlers {
           }
           
           limit = num;
-          this.application.consoleMessage({
-            type: 'notify',
-            message: `[Username Logger] Processing up to ${limit} usernames from index ${startIndex}.`
-          });
+          if (isDevMode) {
+            this.application.consoleMessage({
+              type: 'notify',
+              message: `[Username Logger] Processing up to ${limit} usernames from index ${startIndex}.`
+            });
+          } else {
+            this.application.consoleMessage({
+              type: 'notify',
+              message: `[Username Logger] Processing up to ${limit} usernames.`
+            });
+          }
         }
       } else {
         // No parameters - default is to process all remaining
-        this.application.consoleMessage({
-          type: 'notify',
-          message: `[Username Logger] Processing all remaining usernames from index ${startIndex}.`
-        });
+        if (isDevMode) {
+          this.application.consoleMessage({
+            type: 'notify',
+            message: `[Username Logger] Processing all remaining usernames from index ${startIndex}.`
+          });
+        } else {
+          this.application.consoleMessage({
+            type: 'notify',
+            message: `[Username Logger] Processing all remaining usernames.`
+          });
+        }
       }
       
       // Run the leak check with the determined parameters
@@ -296,7 +320,7 @@ class CommandHandlers {
    */
   async handleTrimProcessedCommand() {
     try {
-      const { collectedUsernamesPath } = this.configModel.getFilePaths();
+      const { collectedUsernamesPath } = getFilePaths(this.dataPath);
       const processedIndex = this.configModel.getLeakCheckIndex();
       
       // Check if leak check is running
@@ -321,10 +345,18 @@ class CommandHandlers {
         // Save the config to persist the index change
         await this.configModel.saveConfig();
         
-        this.application.consoleMessage({
-          type: 'success',
-          message: `[Username Logger] Index reset to -1. Next leak check will start from index 0.`
-        });
+        const isDevMode = this._isDevMode();
+        if (isDevMode) {
+          this.application.consoleMessage({
+            type: 'success',
+            message: `[Username Logger] Index reset to -1. Next leak check will start from index 0.`
+          });
+        } else {
+          this.application.consoleMessage({
+            type: 'success',
+            message: `[Username Logger] Processed usernames trimmed. Next check will start from the beginning.`
+          });
+        }
       }
     } catch (error) {
       // Silent error handling

@@ -679,25 +679,32 @@ class Electron {
     }
   }
 
-  // --- Helper method to GET Cache Paths (Returns both paths again) ---
+  // --- Helper method to GET Cache Paths (Returns specific cache subdirs) ---
   _getCachePaths() {
-    devLog('[Cache Paths] Getting cache paths...');
-    const roamingPath = app.getPath('appData');
+    devLog('[Cache Paths] Getting specific cache paths...');
+    const roamingPath = app.getPath('appData'); // C:\Users\user\AppData\Roaming
+    const sjUserDataPath = app.getPath('userData'); // C:\Users\user\AppData\Roaming\strawberry-jam
     const cachePaths = [];
 
-    if (process.platform === 'win32') {
-      cachePaths.push(path.join(roamingPath, 'AJ Classic'));
-      cachePaths.push(path.join(roamingPath, 'strawberry-jam'));
-    } else if (process.platform === 'darwin') { // macOS
-      const libraryPath = app.getPath('home') + '/Library/Application Support'; // Use explicit path for consistency
-      cachePaths.push(path.join(libraryPath, 'AJ Classic'));
-      cachePaths.push(path.join(libraryPath, 'strawberry-jam')); // Assuming same name on macOS
+    if (process.platform === 'win32' || process.platform === 'darwin') {
+      // Target old AJ Classic cache folder (if desired)
+      const ajClassicCache = process.platform === 'win32'
+        ? path.join(roamingPath, 'AJ Classic')
+        : path.join(app.getPath('home'), 'Library', 'Application Support', 'AJ Classic');
+      cachePaths.push(ajClassicCache);
+      
+      // Target specific cache subdirectories within Strawberry Jam's user data folder
+      cachePaths.push(path.join(sjUserDataPath, 'Cache'));
+      cachePaths.push(path.join(sjUserDataPath, 'Code Cache'));
+      cachePaths.push(path.join(sjUserDataPath, 'GPUCache'));
+      // Add other specific cache folders if known (e.g., 'Session Storage', 'IndexedDB')
+      // NOTE: Avoid deleting the root sjUserDataPath or subfolders like 'data', 'logs', 'plugins' etc.
+      
     } else {
       console.warn('[Cache Paths] Unsupported platform for cache clearing:', process.platform);
-      // Return empty array or handle differently if needed
     }
 
-    devLog('[Cache Paths] Identified cache paths:', cachePaths);
+    devLog('[Cache Paths] Identified specific cache paths:', cachePaths);
     return cachePaths;
   }
 
@@ -877,6 +884,7 @@ class Electron {
         webContents: this._window.webContents,
         log: leakCheckLogger,
         store: this._store,
+        appDataPath: getDataPath(app),
         limit: options.limit, // Pass limit if provided (e.g., for manual start)
         startIndex: startIndex,
         updateStateCallback: updateStateCallback,

@@ -26,13 +26,15 @@ class UsernameLogger {
    * @param {Object} options - Plugin options
    * @param {Object} options.application - The application object
    * @param {Object} options.dispatch - The dispatch object
+   * @param {string} options.dataPath - The application data path
    */
-  constructor({ application, dispatch }) {
+  constructor({ application, dispatch, dataPath }) {
     this.application = application;
     this.dispatch = dispatch;
+    this.dataPath = dataPath;
     
-    // Set up configuration
-    this.configFilePath = path.resolve(process.cwd(), 'plugins', 'UsernameLogger', 'config.json');
+    // Set up configuration path within the user data directory
+    this.configFilePath = path.join(this.dataPath, 'UsernameLogger', 'config.json');
     
     // Initialize components
     this._initializeComponents();
@@ -58,7 +60,8 @@ class UsernameLogger {
     
     // Create services
     this.fileService = new FileService({
-      application: this.application
+      application: this.application,
+      dataPath: this.dataPath
     });
     
     this.apiService = new ApiService({
@@ -66,24 +69,24 @@ class UsernameLogger {
     });
     
     this.batchLogger = new BatchLogger({
-      application: this.application
+      application: this.application,
+      dataPath: this.dataPath
     });
-    
-    // Initialize config model with file paths
-    this.configModel.getFilePaths = () => getFilePaths(this.dispatch);
     
     this.leakCheckService = new LeakCheckService({
       application: this.application,
       fileService: this.fileService,
       apiService: this.apiService,
       configModel: this.configModel,
-      stateModel: this.stateModel
+      stateModel: this.stateModel,
+      dataPath: this.dataPath
     });
     
     this.migrationService = new MigrationService({
       application: this.application,
       fileService: this.fileService,
-      configModel: this.configModel
+      configModel: this.configModel,
+      dataPath: this.dataPath
     });
     
     // Create handlers
@@ -92,7 +95,8 @@ class UsernameLogger {
       configModel: this.configModel,
       stateModel: this.stateModel,
       fileService: this.fileService,
-      batchLogger: this.batchLogger
+      batchLogger: this.batchLogger,
+      dataPath: this.dataPath
     });
     
     this.commandHandlers = new CommandHandlers({
@@ -101,7 +105,8 @@ class UsernameLogger {
       stateModel: this.stateModel,
       fileService: this.fileService,
       apiService: this.apiService,
-      leakCheckService: this.leakCheckService
+      leakCheckService: this.leakCheckService,
+      dataPath: this.dataPath
     });
     
     // Set up auto leak check callback

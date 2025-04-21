@@ -96,32 +96,7 @@ class ConfigModel {
         fs.mkdirSync(configDir, { recursive: true });
       }
       
-      // Debug log to show what's being saved
-      this.application.consoleMessage({
-        type: 'logger',
-        message: `[Username Logger] Saving config with index: ${this.leakCheckLastProcessedIndex}`
-      });
-      
       fs.writeFileSync(this.configFilePath, JSON.stringify(configToSave, null, 2));
-      
-      // Verify file was written by reading it back
-      try {
-        const savedData = JSON.parse(fs.readFileSync(this.configFilePath, 'utf8'));
-        this.application.consoleMessage({
-          type: 'logger',
-          message: `[Username Logger] Verified saved index in config: ${savedData.leakCheckLastProcessedIndex}`
-        });
-      } catch (verifyError) {
-        this.application.consoleMessage({
-          type: 'warn',
-          message: `[Username Logger] Could not verify saved data: ${verifyError.message}`
-        });
-      }
-      
-      this.application.consoleMessage({
-        type: 'logger',
-        message: `[Username Logger] Saved configuration (including state) to ${this.configFilePath}`
-      });
       
       return true;
     } catch (error) {

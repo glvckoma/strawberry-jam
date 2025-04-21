@@ -34,7 +34,8 @@ const messageIcons = Object.freeze({
   notify: 'fa-info-circle',
   speech: 'fa-comment-alt',
   logger: 'fa-file-alt',
-  action: 'fa-bolt'
+  action: 'fa-bolt',
+  welcome: 'fa-heart'
 })
 
 module.exports = class Application extends EventEmitter {
@@ -600,6 +601,7 @@ module.exports = class Application extends EventEmitter {
       celebrate: 'bg-purple-500/10 border-l-4 border-purple-500 text-purple-400',
       warn: 'bg-highlight-yellow/10 border-l-4 border-highlight-yellow text-highlight-yellow',
       notify: 'bg-blue-500/10 border-l-4 border-blue-500 text-blue-400',
+      welcome: 'bg-red-600/10 border-l-4 border-red-500 text-white',
       speech: 'bg-primary-bg/10 border-l-4 border-primary-bg text-text-primary',
       logger: 'bg-gray-700/30 border-l-4 border-gray-600 text-gray-300',
       action: 'bg-teal-500/10 border-l-4 border-teal-500 text-teal-400'
@@ -684,6 +686,11 @@ module.exports = class Application extends EventEmitter {
     })
 
     $container.append($messageContainer)
+    
+    // Add data-message-id if provided in details
+    if (details && details.messageId) {
+      $container.attr('data-message-id', details.messageId);
+    }
 
     if (isPacket && details) {
       const $actionsContainer = createElement('div', 'flex ml-2 items-center')
@@ -882,16 +889,44 @@ module.exports = class Application extends EventEmitter {
     // Disable button and apply styles
     this.$playButton.classList.add('opacity-50', 'pointer-events-none');
     this.$playButton.onclick = () => false; // Prevent further clicks via onclick
+    
+    // Unique ID for the status message
+    const startMessageId = `start-aj-${Date.now()}`;
+    let launchSuccessful = false;
 
     try {
-      this.consoleMessage({ message: 'Starting Animal Jam Classic...', type: 'wait' });
+      // Log starting message with a unique ID
+      this.consoleMessage({ 
+        message: 'Starting Animal Jam Classic...', 
+        type: 'wait',
+        details: { messageId: startMessageId } // Pass ID
+      });
+      
       await this.patcher.killProcessAndPatch(); // Await the patching process
+      
+      launchSuccessful = true; // Assume success if killProcessAndPatch completes without error
+      
     } catch (error) {
       this.consoleMessage({
         message: `Error launching Animal Jam Classic: ${error.message}`,
         type: 'error'
       });
     } finally {
+      // Remove the "Starting..." message ONLY if launch was successful
+      if (launchSuccessful) {
+        const startingMessageElement = document.querySelector(`[data-message-id='${startMessageId}']`);
+        if (startingMessageElement) {
+          // Add a short delay before removing the starting message
+          await new Promise(resolve => setTimeout(resolve, 1000)); // 1 second delay
+          $(startingMessageElement).remove(); // Use jQuery remove for potential effects
+        }
+        // Log success message HERE, after removing the starting message
+        this.consoleMessage({
+          message: 'Successfully launched Animal Jam Classic!',
+          type: 'success'
+        });
+      }
+      
       // Re-enable button and remove styles regardless of success/failure
       if (this.$playButton) {
         this.$playButton.classList.remove('opacity-50', 'pointer-events-none');
@@ -1727,7 +1762,7 @@ module.exports = class Application extends EventEmitter {
     this._clearConsoleMessages();
     
     // Wait a moment to ensure clearing is complete
-    await new Promise(resolve => setTimeout(resolve, 100));
+    await new Promise(resolve => setTimeout(resolve, 3000));
     
     // Show final welcome message
     this.consoleMessage({
@@ -1736,9 +1771,8 @@ module.exports = class Application extends EventEmitter {
     });
     
     this.consoleMessage({
-      message: 'Thank you for choosing my flavor of jam! Commands can be typed here to utilize plugins.',
-      type: 'notify', // Changed from 'celebrate' to 'notify' to avoid purple background
-      style: 'color: #FF69B4;' // Pink color for the welcome message
+      message: 'Thanks for choosing strawberry jam, type commands here to use plugins.',
+      type: 'welcome'
     });
     
     // this._setupPluginIPC(); // Call moved to constructor

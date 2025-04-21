@@ -260,7 +260,15 @@ module.exports = class Dispatch {
    */
   async load (filter = file => path.basename(file) === 'plugin.json') {
     try {
-      const filepaths = await this.constructor.readdirRecursive(BASE_PATH)
+      // Revert to using BASE_PATH for locating plugin source code
+      if (!BASE_PATH) {
+        throw new Error('Plugin base path (BASE_PATH) could not be determined for this platform.');
+      }
+      devLog(`[Dispatch] Loading plugins from BASE_PATH: ${BASE_PATH}`);
+
+      // Remove the logic ensuring dataPath/plugins exists, as it's not needed for loading.
+
+      const filepaths = await this.constructor.readdirRecursive(BASE_PATH); // Use BASE_PATH
 
       await Promise.all(filepaths.map(async filepath => {
         if (filter(filepath)) {
@@ -401,8 +409,8 @@ module.exports = class Dispatch {
           const PluginInstance = require(path.join(filepath, configuration.main))
           const plugin = new PluginInstance({
             application: this._application,
-            dispatch: this
-            // apiKey is no longer passed here
+            dispatch: this,
+            dataPath: this.dataPath // Pass dataPath to game plugin constructors
           })
 
           this.plugins.set(configuration.name, {

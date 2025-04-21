@@ -4,6 +4,7 @@
  */
 
 const { shouldIgnoreUsername } = require('../utils/username-utils');
+const { getFilePaths } = require('../utils/path-utils');
 
 /**
  * Class for handling game message processing
@@ -17,13 +18,15 @@ class MessageHandlers {
    * @param {Object} options.stateModel - The state model for state management
    * @param {Object} options.fileService - The file service for file operations
    * @param {Object} options.batchLogger - The batch logger for console messages
+   * @param {string} options.dataPath - The application data path
    */
-  constructor({ application, configModel, stateModel, fileService, batchLogger }) {
+  constructor({ application, configModel, stateModel, fileService, batchLogger, dataPath }) {
     this.application = application;
     this.configModel = configModel;
     this.stateModel = stateModel;
     this.fileService = fileService;
     this.batchLogger = batchLogger;
+    this.dataPath = dataPath;
     
     // Bind methods to ensure 'this' context is correct
     this.handlePlayerAdd = this.handlePlayerAdd.bind(this);
@@ -62,8 +65,8 @@ class MessageHandlers {
     // Add to console batch log
     this.batchLogger.logUsername(username, source);
     
-    // Get current file paths
-    const { collectedUsernamesPath } = this.configModel.getFilePaths();
+    // Get current file paths using the utility and dataPath
+    const { collectedUsernamesPath } = getFilePaths(this.dataPath);
     
     // Append to collected usernames file
     await this.fileService.appendUsernameToLog(collectedUsernamesPath, username);

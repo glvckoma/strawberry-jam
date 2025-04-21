@@ -4,6 +4,7 @@
  */
 
 const { DEFAULT_BATCH_SIZE, DEFAULT_RATE_LIMIT_DELAY } = require('../constants/constants');
+const { getFilePaths } = require('../utils/path-utils');
 
 /**
  * Service for handling leak checking operations
@@ -17,13 +18,15 @@ class LeakCheckService {
    * @param {Object} options.apiService - The API service for API operations
    * @param {Object} options.configModel - The config model for accessing configuration
    * @param {Object} options.stateModel - The state model for managing state
+   * @param {string} options.dataPath - The application data path
    */
-  constructor({ application, fileService, apiService, configModel, stateModel }) {
+  constructor({ application, fileService, apiService, configModel, stateModel, dataPath }) {
     this.application = application;
     this.fileService = fileService;
     this.apiService = apiService;
     this.configModel = configModel;
     this.stateModel = stateModel;
+    this.dataPath = dataPath;
   }
 
   /**
@@ -137,8 +140,8 @@ class LeakCheckService {
           });
         }
 
-        // Get file paths from the config
-        const paths = this.configModel.getFilePaths();
+        // Get file paths using the utility and stored dataPath
+        const paths = getFilePaths(this.dataPath);
 
         // Read logged usernames from the collected usernames file
         const allUsernames = await this.fileService.readUsernamesFromLog(paths.collectedUsernamesPath);
@@ -237,6 +240,22 @@ class LeakCheckService {
             // Reset state
             this.stateModel.resetLeakCheckState();
             
+            // Log summary on stop/pause
+            const summary = {
+              processed: processedInThisRun -1, // Don't count the one currently being processed when stopped
+              found: foundCount,
+              notFound: notFoundCount,
+              errors: errorCount,
+              invalidChar: invalidCharCount,
+              startIndex: startIndex,
+              lastIndexProcessed: lastCompletedIndex
+            };
+            
+            this.application.consoleMessage({
+                type: 'warn', // Use 'warn' for orange styling
+                message: `[Username Logger] Leak check ${action}. Processed: ${summary.processed}, Found: ${summary.found}, Not Found: ${summary.notFound}, Errors: ${summary.errors}, Invalid: ${summary.invalidChar}`
+            });
+            
             return { 
               success: true, 
               status: action,
@@ -260,14 +279,6 @@ class LeakCheckService {
             continue;
           }
           
-          // Update progress in the console (only in production mode)
-          if (!isDevMode && processedInThisRun % 5 === 1) { // Update every 5 accounts to reduce spam
-            this.application.consoleMessage({
-              type: 'notify',
-              message: `[Username Logger] Processing account ${processedInThisRun}/${limitedUsernamesToCheck.length}...`
-            });
-          }
-
           try {
             // Check username
             const result = await this.apiService.checkUsername(username, apiKey, DEFAULT_RATE_LIMIT_DELAY);
@@ -278,10 +289,18 @@ class LeakCheckService {
               if (result.data.found > 0) {
                 foundCount++;
                 addedToProcessedList = true;
-                this.application.consoleMessage({
-                  type: 'logger',
-                  message: `[Username Logger] Found ${result.data.found} results for: ${username}`
-                });
+                if (isDevMode) {
+                  this.application.consoleMessage({
+                    type: 'logger',
+                    message: `[Username Logger] Found ${result.data.found} results for: ${username}`
+                  });
+                } else {
+                  // Simpler message for production
+                  this.application.consoleMessage({
+                    type: 'notify',
+                    message: `[Username Logger] Found results for: ${username}`
+                  });
+                }
 
                 // Extract passwords
                 const passwords = this.apiService.extractPasswordsFromResult(result);
@@ -303,15 +322,19 @@ class LeakCheckService {
 
                 // Log summary of found passwords
                 if (passwordsFoundAjc > 0 || passwordsFoundGeneral > 0) {
-                  this.application.consoleMessage({
-                    type: 'logger',
-                    message: `[Username Logger] Found ${passwordsFoundAjc} password(s) to save to ajc_accounts.txt and ${passwordsFoundGeneral} password(s) to save to found_accounts.txt.`
-                  });
+                  if (isDevMode) {
+                    this.application.consoleMessage({
+                      type: 'logger',
+                      message: `[Username Logger] Found ${passwordsFoundAjc} password(s) to save to ajc_accounts.txt and ${passwordsFoundGeneral} password(s) to save to found_accounts.txt.`
+                    });
+                  }
                 } else {
-                  this.application.consoleMessage({
-                    type: 'logger',
-                    message: `[Username Logger] No passwords found in results for ${username}, but breach exists.`
-                  });
+                  if (isDevMode) {
+                    this.application.consoleMessage({
+                      type: 'logger',
+                      message: `[Username Logger] No passwords found in results for ${username}, but breach exists.`
+                    });
+                  }
                 }
               } else {
                 notFoundCount++;
@@ -417,7 +440,22 @@ class LeakCheckService {
 
         // Update the last processed index
         this.configModel.setLeakCheckIndex(currentOverallIndex);
-        await this.configModel.saveConfig();
+        if (isDevMode) {
+           // Log saving index
+           this.application.consoleMessage({
+              type: 'logger',
+              message: `[Username Logger] Saving config with index: ${currentOverallIndex}`
+           });
+           await this.configModel.saveConfig();
+           // Verify saved index
+           const verifiedIndex = this.configModel.getLeakCheckIndex();
+           this.application.consoleMessage({
+             type: 'logger',
+             message: `[Username Logger] Verified saved index in config: ${verifiedIndex}`
+           });
+        } else {
+            await this.configModel.saveConfig(); // Save without logging steps
+        }
 
         const summary = {
           success: true,
@@ -432,7 +470,7 @@ class LeakCheckService {
         };
 
         this.application.consoleMessage({
-          type: 'notify',
+          type: 'success',
           message: `[Username Logger] Leak check complete. Processed: ${processedInThisRun}, Found: ${foundCount}, Not Found: ${notFoundCount}, Errors: ${errorCount}, Invalid: ${invalidCharCount}`
         });
 
