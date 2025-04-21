@@ -44,6 +44,12 @@ class Spammer {
         input.selectionEnd = s + tab.length
       }
     }
+    
+    // Add notice about room placeholder usage
+    if (input && input.value && input.value.includes('{room}')) {
+      console.log('[Spammer] Found {room} placeholder in packet. Will try to replace with current room ID.');
+      console.log('[Spammer] If using getStateSync is not available, placeholder will be handled by main application.');
+    }
   }
 
   /**
@@ -56,22 +62,66 @@ class Spammer {
 
     content = content || input.value
 
-    // Get room ID from both sources to ensure we have it
-    const roomFromState = window.jam?.state?.room
-    const roomFromDispatch = dispatch.getState('room')
-    const room = roomFromState || roomFromDispatch
+    // Get room ID using multiple fallback methods to ensure we have it
+    let roomFromDispatch;
+    try {
+      // First try the synchronous method (preferred)
+      if (window.jam.dispatch && window.jam.dispatch.getStateSync) {
+        roomFromDispatch = window.jam.dispatch.getStateSync('room');
+      }
+      // Fall back to the promise-based method if necessary
+      else if (window.jam.dispatch && window.jam.dispatch.getState) {
+        // Don't await here - we'll check below if it's a promise
+        roomFromDispatch = window.jam.dispatch.getState('room');
+        console.log('[Spammer] Got room ID using getState (possibly a Promise)');
+      } else {
+        console.warn('[Spammer] Neither getStateSync nor getState methods are available');
+      }
+    } catch (error) {
+      console.error('[Spammer] Error getting room state:', error);
+    }
 
-    // Log room info for debugging
-    console.log('[Spammer] Room ID from state:', roomFromState)
-    console.log('[Spammer] Room ID from dispatch:', roomFromDispatch)
-    console.log('[Spammer] Using room ID:', room)
+    // Allow packets without {room} placeholders to be sent even if we can't get room state
+    const needsRoom = (typeof content === 'string' && content.includes('{room}')) || 
+                     (Array.isArray(content) && content.some(msg => msg.includes('{room}')));
+                     
+    const roomFromState = window.jam?.state?.room;
+    
+    // Determine which room value to use
+    let room;
+    
+    // If roomFromDispatch is a Promise, use roomFromState as immediate fallback
+    if (roomFromDispatch && typeof roomFromDispatch.then === 'function') {
+      console.log('[Spammer] Dispatch returned a Promise, using state room instead');
+      room = roomFromState;
+    } else {
+      // Otherwise use the first non-null value
+      room = roomFromDispatch || roomFromState;
+    }
+
+    // If we need a room ID but don't have one, we have a few options
+    if (!room && needsRoom) {
+      console.warn('[Spammer] Room ID needed but not available');
+      
+      // For UI feedback
+      const feedbackArea = document.getElementById('statusFeedback');
+      if (feedbackArea) {
+        feedbackArea.innerText = "Warning: Room ID not available - {room} placeholders won't be replaced";
+        feedbackArea.style.color = "orange";
+        // Clear the message after 5 seconds
+        setTimeout(() => {
+          feedbackArea.innerText = "";
+        }, 5000);
+      }
+      
+      console.warn('[Spammer] The main application may try to process the placeholder');
+    }
 
     // Process array content
     if (Array.isArray(content)) {
       const processedMessages = content.map(msg => {
         if (msg.includes('{room}')) {
           if (!room) {
-            console.error('[Spammer] Error: Room ID not found, cannot replace {room} in:', msg)
             return msg // Return unmodified if room is not available
           }
           return msg.replaceAll('{room}', room)
@@ -88,9 +138,10 @@ class Spammer {
     // Process single content string
     if (content.includes('{room}')) {
       if (!room) {
-        console.error('[Spammer] Error: Room ID not found, cannot replace {room} in:', content)
       } else {
-        content = content.replaceAll('{room}', room)
+        const originalContent = content;
+        content = content.replaceAll('{room}', room);
+        console.log(`[Spammer] Successfully replaced {room} with ${room}`);
       }
     }
 

@@ -256,12 +256,26 @@ module.exports = class Application extends EventEmitter {
     if (typeof require === "function") {
       try {
         const { ipcRenderer } = require('electron');
-        devLog("[Main Renderer] Setting up plugin IPC listeners...");
+        // Import room tracking utils here, once
+        const roomUtils = require('../../../utils/room-tracking');
 
         ipcRenderer.on('plugin-remote-message', (event, msg) => {
-          devLog("[Main Renderer] Received plugin-remote-message:", msg);
+          let processedMsg = msg; // Start with the original message
+          
+          // Check if dispatch is ready and message needs processing
+          if (this.dispatch && typeof msg === 'string' && msg.includes('{room}')) {
+            const currentRoom = this.dispatch.getState('room');
+            
+            if (currentRoom) {
+              processedMsg = roomUtils.processRoomInPacket(msg, currentRoom);
+            } else {
+              return;
+            }
+          }
+          
+          // Send the (potentially processed) message
           if (this.dispatch && typeof this.dispatch.sendRemoteMessage === 'function') {
-            this.dispatch.sendRemoteMessage(msg).catch(err => {
+            this.dispatch.sendRemoteMessage(processedMsg).catch(err => {
               this.consoleMessage({ type: 'error', message: `Error sending remote message from plugin: ${err.message}` });
             });
           } else {
@@ -270,7 +284,6 @@ module.exports = class Application extends EventEmitter {
         });
 
         ipcRenderer.on('plugin-connection-message', (event, msg) => {
-          devLog("[Main Renderer] Received plugin-connection-message:", msg);
           if (this.dispatch && typeof this.dispatch.sendConnectionMessage === 'function') {
             this.dispatch.sendConnectionMessage(msg).catch(err => {
               this.consoleMessage({ type: 'error', message: `Error sending connection message from plugin: ${err.message}` });
@@ -282,19 +295,15 @@ module.exports = class Application extends EventEmitter {
 
         // Listener for UI plugins requesting state synchronously
         ipcRenderer.on('dispatch-get-state-sync', (event, key) => {
-          devLog(`[Main Renderer] Received dispatch-get-state-sync request for key: ${key}`);
           if (this.dispatch && typeof this.dispatch.getState === 'function') {
             try {
               const value = this.dispatch.getState(key);
-              devLog(`[Main Renderer] Returning sync state value for ${key}:`, value);
               event.returnValue = value; // Set return value for sendSync
             } catch (error) {
-              this.consoleMessage({ type: 'error', message: `Error getting sync state for key '${key}': ${error.message}` });
               devError(`[Main Renderer] Error getting sync state for key '${key}':`, error);
               event.returnValue = null; // Return null on error
             }
           } else {
-            this.consoleMessage({ type: 'error', message: `Cannot get sync state for key '${key}': Dispatch not ready.` });
             devError(`[Main Renderer] Cannot get sync state for key '${key}': Dispatch not ready.`);
             event.returnValue = null; // Return null if dispatch isn't ready
           }
@@ -302,30 +311,23 @@ module.exports = class Application extends EventEmitter {
 
         // Listener for asynchronous state requests from the main process
         ipcRenderer.on('main-renderer-get-state-async', (event, { key, replyChannel }) => {
-          devLog(`[Main Renderer] Received ASYNC request from main process for key: ${key} (Reply Channel: ${replyChannel})`);
           let value = null;
           // Check if dispatch and getState are available
           if (this.dispatch && typeof this.dispatch.getState === 'function') {
             try {
               value = this.dispatch.getState(key);
-              devLog(`[Main Renderer] Got state value for ${key}:`, value);
             } catch (error) {
-              this.consoleMessage({ type: 'error', message: `Error getting ASYNC state for key '${key}' in renderer: ${error.message}` });
               devError(`[Main Renderer] Error getting ASYNC state for key '${key}':`, error);
               value = null; // Ensure value is null on error
             }
           } else {
-            this.consoleMessage({ type: 'error', message: `Cannot get ASYNC state for key '${key}': Dispatch not ready.` });
             devError(`[Main Renderer] Cannot get ASYNC state for key '${key}': Dispatch not ready.`);
             value = null; // Ensure value is null if dispatch isn't ready
           }
           // Send the value back on the unique reply channel
-          devLog(`[Main Renderer] Sending reply for ${key} on channel ${replyChannel}:`, value);
           ipcRenderer.send(replyChannel, value);
         });
 
-
-        devLog("[Main Renderer] Plugin IPC listeners setup complete.");
       } catch (e) {
         devError("[Main Renderer] Error setting up plugin IPC listeners:", e);
       }

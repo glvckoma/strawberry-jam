@@ -31,25 +31,35 @@ try {
   // Define onPacket function, only if it doesn't exist
   if (!window.jam.onPacket) {
     window.jam.onPacket = function (callback) {
-      // console.log("[Preload] jam.onPacket called with callback:", typeof callback); // Removed log
       if (typeof callback !== 'function') {
         console.error("[Preload] Invalid callback provided to jam.onPacket");
-        return;
+        return function unsubscribe() {}; // Return no-op unsubscribe
       }
 
-      // console.log("[Preload] Subscribing to packet-event"); // Removed log
-      ipcRenderer.on('packet-event', (event, packetData) => {
-        // console.log("[Preload] Received packet-event, forwarding to callback"); // Keep commented unless needed
+      const listener = (event, packetData) => {
         try {
+          // Simply forward the packet data to the registered callback
           callback(packetData);
         } catch (err) {
           console.error("[Preload] Error in packet callback:", err);
         }
-      });
-    }; // End of function assignment
-    // console.log("[Preload] Successfully set up window.jam.onPacket"); // Removed log
+      };
+      
+      ipcRenderer.on('packet-event', listener);
+      
+      // Return an unsubscribe function
+      return function unsubscribe() {
+        try {
+          ipcRenderer.removeListener('packet-event', listener);
+          console.log("[Preload] Unsubscribed listener from packet-event.");
+        } catch (e) {
+           console.error("[Preload] Error removing packet-event listener:", e);
+        }
+      };
+    }; 
+    console.log("[Preload] Successfully set up window.jam.onPacket.");
   } else {
-    // console.log("[Preload] window.jam.onPacket already exists, skipping setup."); // Removed log
+    console.log("[Preload] window.jam.onPacket already exists, skipping setup.");
   }
 } catch (e) {
   console.error("[Preload] Error setting up window.jam.onPacket:", e);

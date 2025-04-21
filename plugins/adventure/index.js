@@ -4,11 +4,21 @@ module.exports = function ({ dispatch, application }) {
    */
   let interval = null
 
+  // Import room tracking utilities
+  const roomUtils = require('../../src/utils/room-tracking')
+
   /**
    * Handles adventure command.
    */
   const handleAdventureCommnd = () => {
-    const room = dispatch.getState('room')
+    // Try to get room from multiple sources
+    const roomFromState = window.jam?.state?.room
+    const roomFromDispatch = dispatch.getState('room')
+    const room = roomFromState || roomFromDispatch
+    
+    console.log('[Adventure] Room ID from jam.state:', roomFromState)
+    console.log('[Adventure] Room ID from dispatch:', roomFromDispatch)
+    console.log('[Adventure] Using room ID:', room)
 
     if (!room) {
       return application.consoleMessage({
@@ -25,8 +35,10 @@ module.exports = function ({ dispatch, application }) {
    * Sends the treasure packet to the server.
    */
   const adventure = async (room) => {
-    await dispatch.sendRemoteMessage(`%xt%o%qat%${room}%treasure_1%0%`)
-    dispatch.sendRemoteMessage(`%xt%o%qatt%${room}%treasure_1%1%`)
+    const roomId = roomUtils.getEffectiveRoomId(room)
+    console.log('[Adventure] Using effective room ID for packet:', roomId)
+    await dispatch.sendRemoteMessage(`%xt%o%qat%${roomId}%treasure_1%0%`)
+    dispatch.sendRemoteMessage(`%xt%o%qatt%${roomId}%treasure_1%1%`)
   }
 
   /**

@@ -291,14 +291,12 @@ class Electron {
 
     // --- Plugin State IPC Bridge ---
     ipcMain.handle('dispatch-get-state', async (event, key) => { // Make handler async
-      devLog(`[IPC Main] Received ASYNC 'dispatch-get-state' request from plugin for key: ${key}`);
       if (!this._window || !this._window.webContents || this._window.webContents.isDestroyed()) {
         if (isDevelopment) console.error(`[IPC Main] Cannot get state for key '${key}': Main window not available.`);
         return null; // Return null if main window isn't ready
       }
 
       const replyChannel = `get-state-reply-${crypto.randomUUID()}`;
-      devLog(`[IPC Main] Generated reply channel: ${replyChannel}`);
 
       return new Promise((resolve, reject) => {
         const timeout = setTimeout(() => {
@@ -309,14 +307,12 @@ class Electron {
 
         const listener = (event, value) => {
           clearTimeout(timeout);
-          devLog(`[IPC Main] Received reply on ${replyChannel} for key ${key}:`, value);
           resolve(value);
         };
 
         ipcMain.once(replyChannel, listener);
 
         // Send async request to main renderer
-        devLog(`[IPC Main] Sending async request 'main-renderer-get-state-async' to main window for key: ${key}`);
         this._window.webContents.send('main-renderer-get-state-async', { key, replyChannel });
       });
     });
@@ -1311,7 +1307,7 @@ ipcMain.on('open-plugin-window', (event, { url, name, pluginPath }) => {
         pluginWindow.webContents.executeJavaScript(`
           try {
             const { ipcRenderer } = require('electron');
-            if (process.env.NODE_ENV === 'development') console.log("[Plugin Window] Setting up window.jam...");
+            // REMOVED: if (process.env.NODE_ENV === 'development') console.log("[Plugin Window] Setting up window.jam...");
             
             // Ensure window.jam exists (created by preload)
             window.jam = window.jam || {};
@@ -1319,22 +1315,22 @@ ipcMain.on('open-plugin-window', (event, { url, name, pluginPath }) => {
             // Define dispatch object
             const dispatchObj = {
               sendRemoteMessage: function(msg) {
-                if (process.env.NODE_ENV === 'development') console.log("[Plugin Window] Sending remote message via IPC:", msg);
+                // REMOVED: if (process.env.NODE_ENV === 'development') console.log("[Plugin Window] Sending remote message via IPC:", msg);
                 ipcRenderer.send('send-remote-message', msg);
               },
               sendConnectionMessage: function(msg) {
-                if (process.env.NODE_ENV === 'development') console.log("[Plugin Window] Sending connection message via IPC:", msg);
+                // REMOVED: if (process.env.NODE_ENV === 'development') console.log("[Plugin Window] Sending connection message via IPC:", msg);
                 ipcRenderer.send('send-connection-message', msg);
               },
               // Add getState method using invoke
               getState: function(key) {
-                if (process.env.NODE_ENV === 'development') console.log("[Plugin Window] Requesting state via IPC invoke for key:", key);
+                // REMOVED: if (process.env.NODE_ENV === 'development') console.log("[Plugin Window] Requesting state via IPC invoke for key:", key);
                 // This returns a Promise! Plugin code needs to handle this (e.g., await).
                 return ipcRenderer.invoke('dispatch-get-state', key);
               },
               // Add getStateSync method using sendSync
               getStateSync: function(key) {
-                if (process.env.NODE_ENV === 'development') console.log("[Plugin Window] Requesting state via IPC sendSync for key:", key);
+                // REMOVED: if (process.env.NODE_ENV === 'development') console.log("[Plugin Window] Requesting state via IPC sendSync for key:", key);
                 // This returns the value directly.
                 return ipcRenderer.sendSync('dispatch-get-state-sync', key);
               }
@@ -1391,6 +1387,45 @@ ipcMain.on('send-connection-message', (event, msg) => {
 
 ipcMain.on('console-message', (event, { type, msg }) => {
   devLog(`[Plugin Console] ${type}: ${msg}`);
+});
+
+// Add handler for synchronous state requests
+ipcMain.on('dispatch-get-state-sync', (event, key) => {
+  // REMOVED: devLog(`[IPC Main] Received SYNC 'dispatch-get-state-sync' request for key: ${key}`);
+
+  const mainWindow = BrowserWindow.getAllWindows().find(win =>
+    win.webContents.getURL().includes('renderer/index.html')
+  );
+
+  if (!mainWindow || !mainWindow.webContents) {
+    devLog(`[IPC Main] Cannot handle dispatch-get-state-sync: Main window not found`); // Keep error log
+    event.returnValue = null;
+    return;
+  }
+
+  // For sync requests, we need to use a special approach since we can't wait for a response
+  // We'll return a default value or cached value if available
+  if (key === 'room') {
+    // For room state, check our cached room state if we have it
+    if (global.cachedRoomState !== undefined) {
+      // REMOVED: devLog(`[IPC Main] Returning cached room state: ${global.cachedRoomState}`);
+      event.returnValue = global.cachedRoomState;
+    } else {
+      devLog(`[IPC Main] No cached room state available, returning null`); // Keep this log
+      event.returnValue = null;
+    }
+  } else {
+    // For other states, we don't have a good way to get them synchronously
+    // Return null and log a warning
+    devLog(`[IPC Main] Cannot get state synchronously for key: ${key}`); // Keep this log
+    event.returnValue = null;
+  }
+});
+
+// Create a handler to update the cached room state
+ipcMain.on('update-room-state', (event, roomState) => {
+  devLog(`[IPC Main] Updating cached room state: ${roomState}`); // Keep this important state update log
+  global.cachedRoomState = roomState;
 });
 
 module.exports = Electron

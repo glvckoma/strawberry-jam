@@ -287,32 +287,62 @@ module.exports = class Dispatch {
       // --- Add Room State Hooks ---
       this.onMessage({
         type: ConnectionMessageTypes.aj, // Listen to game server messages
-        message: 'j#jr', // Packet type for joining a room
+        message: 'rj', // *** CORRECTED: Listen for 'rj' (join room) packet ***
         callback: ({ message }) => {
           try {
-            // Extract room ID (assuming it's the first parameter after %xt%j#jr%)
-            const parts = message.raw.split('%');
-            if (parts.length >= 5) {
-              const roomId = parts[4]; // Index 4 should be the room ID
+            // Extract room ID from the parsed message value (like jam-master)
+            // message.value should be an array of parameters for XtMessage
+            if (message.value && message.value.length >= 4) {
+              const roomId = message.value[3]; // Room ID is typically the 4th parameter (index 3)
+
+              if (typeof roomId !== 'string' || roomId.length === 0) {
+                devError('[Dispatch:rj] Extracted room ID is invalid:', roomId);
+                console.warn('[Dispatch] Invalid room ID extracted from rj packet:', message.raw);
+                return; // Don't proceed with invalid ID
+              }
+              
+              // Import room tracking utilities
+              const roomUtils = require('../../../../utils/room-tracking');
+              
+              // Store room info in state
               this.setState('room', roomId);
-              devLog(`[Dispatch] Room state set to: ${roomId}`);
-              this._application.consoleMessage({ type: 'logger', message: `Entered room: ${roomId}` });
+              this.setState('isAdventureRoom', roomUtils.isAdventureRoom(roomId));
+              this.setState('effectiveRoomId', roomUtils.getEffectiveRoomId(roomId));
+              
+              // Verify state immediately after setting
+              const currentRoomState = this.getState('room');
+              const currentAdventureState = this.getState('isAdventureRoom');
+              const currentEffectiveState = this.getState('effectiveRoomId');
+
+              if (currentRoomState === roomId) {
+                devLog('[Dispatch:rj] State update successful!');
+                this._application.consoleMessage({ type: 'logger', message: `[Dispatch] Entered room: ${roomId}` });
+              } else {
+                devError('[Dispatch:rj] STATE UPDATE FAILED! getState("room") did not return the expected value immediately after setState.');
+                this._application.consoleMessage({ type: 'error', message: `[Dispatch] Failed to update internal room state for: ${roomId}` });
+              }
             } else {
-               console.warn('[Dispatch] Could not parse room ID from j#jr packet:', message.raw);
+               devLog('[Dispatch:rj] Could not parse room ID from rj packet. message.value:', message.value);
+               console.warn('[Dispatch] Could not parse room ID from rj packet:', message.raw, 'Value:', message.value);
             }
           } catch (e) {
-            console.error('[Dispatch] Error processing j#jr packet:', e);
+            devError('[Dispatch:rj] Error processing rj packet:', e);
+            console.error('[Dispatch] Error processing rj packet:', e);
           }
         }
       });
 
       this.onMessage({
         type: ConnectionMessageTypes.aj, // Listen to game server messages
-        message: 'j#l', // Packet type for leaving a room
+        message: 'j#l', // Packet type for leaving a room (Assuming this is correct, check logs if needed)
         callback: () => {
+          devLog('[Dispatch:j#l] Received leave room packet.');
+          const oldRoom = this.getState('room');
           this.setState('room', null);
-          devLog('[Dispatch] Room state cleared (left room).');
-          this._application.consoleMessage({ type: 'logger', message: 'Left room.' });
+          this.setState('isAdventureRoom', false);
+          this.setState('effectiveRoomId', null);
+          devLog(`[Dispatch:j#l] Room state cleared (was: ${oldRoom}).`);
+          this._application.consoleMessage({ type: 'logger', message: '[Dispatch] Left room.' });
         }
       });
       // --- End Room State Hooks ---
@@ -508,6 +538,18 @@ module.exports = class Dispatch {
    */
   setState (key, value) {
     this.state[key] = value
+    
+    // When room state is updated, notify the main process for sync access
+    if (key === 'room' && typeof require === 'function') {
+      try {
+        const { ipcRenderer } = require('electron');
+        devLog(`[Dispatch] Broadcasting room state update: ${value}`);
+        ipcRenderer.send('update-room-state', value);
+      } catch (error) {
+        devError(`[Dispatch] Error broadcasting room state update: ${error.message}`);
+      }
+    }
+    
     return this
   }
 
