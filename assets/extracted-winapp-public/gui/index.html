@@ -327,22 +327,34 @@
       const authenticate = async (request, customDf) => {
         request.domain = "flash";
         
-        // Get the latest df value from main process if UUID spoofing is enabled
         try {
-          // Request fresh df from main process which handles UUID spoofing
+          // Always get fresh df from main process to ensure we have the current value
           console.log("[AUTH] Requesting fresh DF from main process");
           const freshDf = await window.ipc.getDf();
+          
           if (freshDf) {
-            console.log(`[AUTH] Received df: ${freshDf}`);
-            globals.df = freshDf; // Update the global df with the fresh value
+            // Check if UUID spoofing is enabled
+            const uuidSpooferEnabled = await window.ipc.invoke('get-setting', 'uuidSpoofingEnabled');
+            console.log(`[AUTH] Received df: ${freshDf.substr(0, 8)}... (UUID spoofing: ${uuidSpooferEnabled ? 'active' : 'disabled'})`);
+            
+            // Always update globals.df with the latest value from main process
+            globals.df = freshDf;
+          } else {
+            console.warn("[AUTH] Failed to get fresh DF from main process");
           }
         } catch (err) {
           console.warn(`[AUTH] Error getting fresh df: ${err.message}`);
         }
         
-        // Use custom df if provided, otherwise use the (possibly updated) globals.df
-        request.df = customDf || globals.df;
-        console.log(`[AUTH] Using df for authentication: ${request.df}`);
+        // Ensure we have a valid DF value by this point
+        if (!globals.df) {
+          console.error("[AUTH] No valid DF available, authentication may fail");
+        }
+        
+        // Use custom df if provided, otherwise use the (freshly updated) globals.df
+        const dfToUse = customDf || globals.df;
+        request.df = dfToUse;
+        console.log(`[AUTH] Using df for authentication: ${request.df ? request.df.substr(0, 8) + '...' : 'undefined'}`);
         
         const response = await globals.fetch(`${globals.config.authenticator}/authenticate`, {
           method: "POST",
@@ -355,8 +367,8 @@
         if (response.status === 200) {
           const authenticateData = JSON.parse(await response.text());
           const authenticatedByToken = (request.refresh_token !== undefined);
-          // Pass the customDf used for authentication down to getGameData
-          return await getGameData(authenticateData, authenticatedByToken, request.df);
+          // Pass the dfToUse to getGameData to ensure it's consistently used
+          return await getGameData(authenticateData, authenticatedByToken, dfToUse);
         }
         // account suspended/banned
         if (response.status === 401) {
@@ -425,38 +437,51 @@
         // });
 
         // Pass customDf to appendFlashVars and await the result
-        flashVars = await appendFlashVars(flashVars, customDf);
+        flashVars = await appendFlashVars(flashVars, customDf || globals.df);
 
         return {userData, flashVars};
       };
 
       // Modify appendFlashVars to prioritize the passed df, falling back to globals.df
       const appendFlashVars = async (flashVars, dfToUse) => {
+        // If no DF was provided and globals.df is null, get a fresh DF
+        if (!dfToUse && !globals.df) {
+          try {
+            console.log("[DF] No valid DF found, requesting fresh DF from main process");
+            const freshDf = await window.ipc.getDf();
+            if (freshDf) {
+              globals.df = freshDf;
+              console.log(`[DF] Successfully retrieved fresh DF: ${freshDf.substr(0, 8)}...`);
+            } else {
+              console.warn("[DF] Failed to get fresh DF from main process");
+            }
+          } catch (err) {
+            console.error(`[DF] Error getting fresh DF: ${err.message}`);
+          }
+        }
+        
         // Use the provided dfToUse if valid, otherwise fallback to the globally stored df
         const finalDf = dfToUse || globals.df; 
         
-        // Log the df value being used for debugging
-        console.log(`[DF Debug] appendFlashVars using df: ${finalDf} (received dfToUse: ${dfToUse}, globals.df: ${globals.df})`);
+        // Log the df value being used for debugging (handle null values safely)
+        const dfUsedStr = finalDf ? finalDf.substr(0, 8) + '...' : 'undefined';
+        const dfToUseStr = dfToUse ? dfToUse.substr(0, 8) + '...' : 'undefined';
+        const globalsDfStr = globals.df ? globals.df.substr(0, 8) + '...' : 'undefined';
+        console.log(`[DF Debug] appendFlashVars using df: ${dfUsedStr} (received dfToUse: ${dfToUseStr}, globals.df: ${globalsDfStr})`);
         
-        // Allow for testing different country/locale values (default to user's actual values)
+        // Allow for testing different locale values for server swapping
         // Fetch settings and await their resolution
-        let countryOverride = '';
         let localeOverride = '';
         
         try {
-          // Check for debugging overrides (await promises)
-          countryOverride = await window.ipc.invoke('get-setting', 'debug.country') || '';
+          // Check for locale override (this is now the server swap value)
           localeOverride = await window.ipc.invoke('get-setting', 'debug.locale') || '';
           
-          if (countryOverride) {
-            console.log(`[Server Debug] Using country override: ${countryOverride}`);
-          }
           if (localeOverride) {
-            console.log(`[Server Debug] Using locale override: ${localeOverride}`);
+            console.log(`[Server Debug] Using server swap locale: ${localeOverride}`);
           }
         } catch (err) {
-          console.log(`[Server Debug] Error fetching country/locale overrides:`, err);
-          countryOverride = '';
+          console.log(`[Server Debug] Error fetching locale override:`, err);
           localeOverride = '';
         }
         
@@ -471,7 +496,6 @@
             // Ensure the final determined df is included
             df: finalDf, 
             locale: localeOverride || globals.language,
-            country: countryOverride || flashVars.country, // Allow overriding country
             smartfoxServer: "127.0.0.1",
             username: globals.currentUser,
             webRefPath: "game/play",
@@ -722,6 +746,22 @@
           }
         });
       })();
+
+      // Listen for electron IPC messages
+      ipcRenderer.on('winReady', (event, ...args) => {
+        window.globals.isElectron = true;
+        document.dispatchEvent(new CustomEvent('winReady', { detail: args }));
+      });
+
+      // Add handler for UUID update events
+      ipcRenderer.on('update-df', (event, newDf) => {
+        if (window.globals) {
+          console.log(`Updating df to: ${newDf.substr(0, 8)}...`);
+          window.globals.df = newDf;
+        } else {
+          console.error('Globals not available for df update');
+        }
+      });
     </script>
 </body>
 </html>

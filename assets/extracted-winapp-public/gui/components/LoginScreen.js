@@ -503,28 +503,15 @@
               </div>
             </div>
             <div class="settings-item">
-              <label for="game-language-select" style="vertical-align: middle; margin-right: 8px;">Game Language:</label>
-              <select id="game-language-select" style="vertical-align: middle; padding: 2px 4px; border-radius: 4px; border: 1px solid var(--theme-settings-border); background-color: white; color: #333; font-family: CCDigitalDelivery; font-size: 11px;">
-                <option value="en">English</option>
-                <option value="de">German</option>
+              <label for="server-swap-select" style="vertical-align: middle; margin-right: 8px;">Server Swap:</label>
+              <select id="server-swap-select" style="vertical-align: middle; padding: 2px 4px; border-radius: 4px; border: 1px solid var(--theme-settings-border); background-color: white; color: #333; font-family: CCDigitalDelivery; font-size: 11px;">
+                <option value="">Default (US)</option>
+                <option value="en">English (US)</option>
                 <option value="fr">French</option>
+                <option value="de">German</option>
                 <option value="es">Spanish</option>
                 <option value="pt">Portuguese</option>
               </select>
-            </div>
-          </div>
-          <div class="settings-group">
-            <h4 style="margin: 5px 0; font-size: 14px; color: var(--theme-primary);">Advanced Testing</h4>
-            <div class="settings-item" style="margin-bottom: 8px;">
-              <label for="country-override" style="display: block; margin-bottom: 3px;">Country Override:</label>
-              <input type="text" id="country-override" placeholder="e.g., US, GB, CA" style="width: 100%; padding: 4px; border-radius: 4px; border: 1px solid #ccc;">
-            </div>
-            <div class="settings-item" style="margin-bottom: 8px;">
-              <label for="locale-override" style="display: block; margin-bottom: 3px;">Locale Override:</label>
-              <input type="text" id="locale-override" placeholder="e.g., en, es, fr" style="width: 100%; padding: 4px; border-radius: 4px; border: 1px solid #ccc;">
-            </div>
-            <div class="settings-item" style="text-align: center; margin-top: 10px;">
-              <button id="save-debug-settings" style="padding: 5px 10px; background-color: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer;">Save Debug Settings</button>
             </div>
           </div>
         </div>
@@ -567,7 +554,7 @@
       this.disableDevToolsToggle = this.shadowRoot.getElementById("disable-devtools-toggle");
       this.uuidSpooferToggle = this.shadowRoot.getElementById("uuid-spoofer-toggle");
       this.uuidSpoofingWarning = this.shadowRoot.getElementById("uuid-spoofing-warning");
-      this.gameLanguageSelect = this.shadowRoot.getElementById("game-language-select"); // Get reference
+      this.serverSwapSelect = this.shadowRoot.getElementById("server-swap-select");
       
       // Get country and locale override inputs
       this.countryOverrideInput = this.shadowRoot.getElementById("country-override");
@@ -591,6 +578,31 @@
           
           // Show success message
           window.alert('Debug settings saved. Changes will apply on next login.');
+          
+          // Hide settings panel after saving
+          if (this.settingsPanel) {
+            this.settingsPanel.classList.remove('show');
+          }
+        });
+      }
+
+      if (this.serverSwapSelect) {
+        this.serverSwapSelect.addEventListener('change', async (e) => {
+          const locale = e.target.value;
+          // Save the locale as both language and locale override
+          await window.ipc.invoke('set-setting', 'login.language', locale);
+          await window.ipc.invoke('set-setting', 'debug.locale', locale);
+          // Clear country override since we're using locale only
+          await window.ipc.invoke('set-setting', 'debug.country', '');
+          
+          console.log(`[Settings] Server Swap set to: ${locale || 'Default'}`);
+          
+          if (globals && globals.setLanguage && locale) {
+            globals.setLanguage(locale);
+          }
+          
+          // Apply immediately without requiring login
+          window.alert(`Server swap set to ${locale || 'Default'}. Changes will apply on next login.`);
           
           // Hide settings panel after saving
           if (this.settingsPanel) {
@@ -822,21 +834,44 @@
       }
       
       if (this.uuidSpooferToggle) {
-        this.uuidSpooferToggle.addEventListener('change', () => {
-          window.ipc.invoke('set-setting', 'uuid_spoofer_enabled', this.uuidSpooferToggle.checked);
-          console.log('[Settings] UUID spoofing set to:', this.uuidSpooferToggle.checked);
-          
-          // Show/hide warning
+        this.uuidSpooferToggle.addEventListener('change', async () => {
+          // If we're enabling UUID spoofing, we need to show confirmation dialog
           if (this.uuidSpooferToggle.checked) {
-            this.uuidSpoofingWarning.classList.add('show');
+            try {
+              // Call the main process to show confirmation dialog and toggle
+              const result = await window.ipc.invoke('toggle-uuid-spoofing', true);
+              
+              if (!result || !result.success) {
+                // If the user canceled or there was an error, revert the toggle
+                this.uuidSpooferToggle.checked = false;
+                console.log('[Settings] UUID spoofing canceled by user or failed:', result?.message);
+                return;
+              }
+              
+              // If successful, set the warning state
+              this.uuidSpoofingWarning.classList.add('show');
+              console.log('[Settings] UUID spoofing set to:', this.uuidSpooferToggle.checked);
+            } catch (err) {
+              // Error handling
+              console.error('[Settings] Error toggling UUID spoofing:', err);
+              this.uuidSpooferToggle.checked = false;
+              return;
+            }
           } else {
+            // Disabling UUID spoofing doesn't need confirmation
+            await window.ipc.invoke('toggle-uuid-spoofing', false);
             this.uuidSpoofingWarning.classList.remove('show');
+            console.log('[Settings] UUID spoofing set to:', this.uuidSpooferToggle.checked);
+            
+            // Clear the cached df to ensure we get a fresh copy of the original machine ID on next login
+            globals.df = null;
+            console.log('[Settings] Cleared cached DF value to force refresh on next login');
           }
         });
       }
       
-      if (this.gameLanguageSelect) {
-        this.gameLanguageSelect.addEventListener('change', (e) => {
+      if (this.serverSwapSelect) {
+        this.serverSwapSelect.addEventListener('change', (e) => {
           const newLanguage = e.target.value;
           window.ipc.invoke('set-setting', 'login.language', newLanguage);
           console.log(`[Settings] Language changed to: ${newLanguage}`);
@@ -850,7 +885,6 @@
       // Call async initialization methods (don't await in constructor)
       setTimeout(() => {
         this._initializeAsyncSettings();
-        this._initializeGameLanguageSetting();
         this.initializeSettings();
       }, 100);
     } // End Constructor
@@ -900,49 +934,16 @@
           // Default to disabled
         });
         
-      // Initialize country override value
-      window.ipc.invoke('get-setting', 'debug.country')
-        .then(country => {
-          if (this.countryOverrideInput && country) {
-            this.countryOverrideInput.value = country;
-            console.log('[LoginScreen] Loaded country override:', country);
-          }
-        })
-        .catch(err => {
-          console.warn("Error getting country override setting:", err);
-        });
-        
-      // Initialize locale override value
+      // Initialize server swap dropdown from locale
       window.ipc.invoke('get-setting', 'debug.locale')
         .then(locale => {
-          if (this.localeOverrideInput && locale) {
-            this.localeOverrideInput.value = locale;
-            console.log('[LoginScreen] Loaded locale override:', locale);
+          if (this.serverSwapSelect) {
+            this.serverSwapSelect.value = locale || '';
+            console.log('[LoginScreen] Server swap set to:', locale || 'Default');
           }
         })
         .catch(err => {
-          console.warn("Error getting locale override setting:", err);
-        });
-    }
-
-    // --- Game Language Setting Initialization ---
-    _initializeGameLanguageSetting() {
-      console.log('[LoginScreen] Initializing game language setting');
-      
-      // Load current setting
-      window.ipc.invoke('get-setting', 'gameLanguage')
-        .then(gameLanguage => {
-          if (gameLanguage && globals && globals.setLanguage) {
-            globals.setLanguage(gameLanguage);
-          }
-        })
-        .catch(error => {
-          console.warn('[LoginScreen] Error initializing game language setting:', error);
-          // Set default language (browser language or 'en')
-          if (globals && globals.setLanguage) {
-            const browserLang = navigator.language.split('-')[0];
-            globals.setLanguage(browserLang || 'en');
-          }
+          console.warn("Error getting server swap setting:", err);
         });
     }
 
@@ -998,28 +999,18 @@
           // Use fallback value (false)
         });
 
-      // Initialize game language setting with fallback
-      window.ipc.invoke('get-setting', 'login.language')
-        .then(gameLanguage => {
-          console.log('[LoginScreen] Game language setting:', gameLanguage);
+      // Initialize server swap setting with fallback
+      window.ipc.invoke('get-setting', 'debug.locale')
+        .then(locale => {
+          console.log('[LoginScreen] Server swap setting:', locale || 'Default');
           
           // Update any language selection UI if it exists
-          if (this.gameLanguageSelect) {
-            this.gameLanguageSelect.value = gameLanguage || 'en';
-          }
-          
-          // Set the language globally
-          if (gameLanguage && globals && globals.setLanguage) {
-            globals.setLanguage(gameLanguage);
+          if (this.serverSwapSelect) {
+            this.serverSwapSelect.value = locale || '';
           }
         })
         .catch(err => {
-          console.warn('[LoginScreen] Error initializing game language setting:', err);
-          // Use default language (browser language or 'en')
-          if (globals && globals.setLanguage) {
-            const browserLang = navigator.language.split('-')[0];
-            globals.setLanguage(browserLang || 'en');
-          }
+          console.warn('[LoginScreen] Error initializing server swap setting:', err);
         });
     }
 
@@ -1032,10 +1023,38 @@
       this.logInButtonElem.classList.add("loading");
       
       try {
+        // If globals.df is null, ensure we fetch a fresh one to avoid auth failures
+        if (globals.df === null) {
+          console.log('[LoginScreen] No valid DF found, requesting fresh one before login');
+          try {
+            const freshDf = await window.ipc.getDf();
+            if (freshDf) {
+              globals.df = freshDf;
+              console.log(`[LoginScreen] Retrieved fresh DF: ${freshDf.substr(0, 8)}...`);
+            } else {
+              console.warn('[LoginScreen] Failed to get fresh DF, login may fail');
+            }
+          } catch (dfErr) {
+            console.error('[LoginScreen] Error getting fresh DF:', dfErr);
+          }
+        }
+        
         // If UUID spoofing is enabled, refresh the DF to get a new UUID for this login
         if (this.uuidSpooferToggle && this.uuidSpooferToggle.checked) {
           console.log('[LoginScreen] UUID spoofing enabled, refreshing DF before login');
-          await window.ipc.refreshDf();
+          try {
+            const newUuid = await window.ipc.refreshDf();
+            if (newUuid) {
+              console.log(`[LoginScreen] Successfully refreshed DF. New UUID: ${newUuid.substr(0, 8)}...`);
+              // CRITICAL: Update globals.df with the new UUID value
+              globals.df = newUuid;
+              console.log(`[LoginScreen] Updated globals.df with new UUID: ${globals.df.substr(0, 8)}...`);
+            } else {
+              console.warn('[LoginScreen] Failed to refresh DF - no new UUID returned');
+            }
+          } catch (dfErr) {
+            console.error('[LoginScreen] Error refreshing DF:', dfErr);
+          }
         }
         
         // Continue with existing login logic
@@ -1045,10 +1064,21 @@
           try {
             authResult = await globals.authenticateWithAuthToken(this.authToken);
           } catch (err) {
-            console.error("[LoginScreen] Login failed: Missing authentication methods in globals");
-            this.passwordInputElem.error = "Login system not available";
-            this.loginBlocked = false;
-            return;
+            if (err.message === "Missing authentication methods in globals") {
+              console.error("[LoginScreen] Authentication methods not available, trying to recover");
+              // Try to recover by ensuring we have a valid DF
+              const freshDf = await window.ipc.getDf();
+              if (freshDf) {
+                globals.df = freshDf;
+                console.log(`[LoginScreen] Retrieved fresh DF for recovery: ${freshDf.substr(0, 8)}...`);
+                // Retry with fresh DF
+                authResult = await globals.authenticateWithAuthToken(this.authToken);
+              } else {
+                throw err; // Re-throw if recovery failed
+              }
+            } else {
+              throw err;
+            }
           }
         } else if (this.refreshToken) {
           authResult = await globals.authenticateWithRefreshToken(this.refreshToken, this.otp);

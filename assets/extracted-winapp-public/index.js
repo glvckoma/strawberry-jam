@@ -55,21 +55,45 @@ let spoofedUuid = null;
 
 // Function to toggle UUID spoofing
 async function toggleUuidSpoofing(enable) {
+  let logMsg = enable ? "Enabling" : "Disabling";
+  log("info", `[UUID Spoofer] ${logMsg} UUID spoofing`);
+
   try {
-    if (enable) {
-      // Generate a new UUID for spoofing
-      spoofedUuid = uuidv4();
-      log("info", `[UUID] Spoofing enabled with new UUID: ${spoofedUuid.substr(0, 8)}...`);
-      store.set(STORE_KEY_UUID_SPOOFER, true);
+    // Always save the setting first
+    store.set(STORE_KEY_UUID_SPOOFER, enable);
+    
+    if (win) {
+      if (enable) {
+        // Generate a new random UUID
+        const newUuid = uuidv4();
+        log("info", `[UUID Spoofer] Generated random UUID: ${newUuid.substr(0, 8)}...`);
+        
+        // Send the new random UUID to the renderer
+        win.webContents.send('update-df', newUuid);
+        
+        return { success: true, uuid: newUuid };
+      } else {
+        // When disabling, get the real machine ID and send it to the renderer
+        try {
+          const machineId = await getCurrentMachineId();
+          log("info", `[UUID Spoofer] Retrieved actual machine ID: ${machineId.substr(0, 8)}...`);
+          
+          // Send the actual machine ID to the renderer
+          win.webContents.send('update-df', machineId);
+          
+          return { success: true, uuid: machineId };
+        } catch (idErr) {
+          log("error", `[UUID Spoofer] Failed to get actual machine ID: ${idErr}`);
+          return { success: false, error: "Failed to get actual machine ID" };
+        }
+      }
     } else {
-      spoofedUuid = null;
-      log("info", `[UUID] Spoofing disabled, using original ID: ${originalMachineId.substr(0, 8)}...`);
-      store.set(STORE_KEY_UUID_SPOOFER, false);
+      log("error", "[UUID Spoofer] Window not available");
+      return { success: false, error: "Window not available" };
     }
-    return true;
   } catch (err) {
-    log("error", `[UUID] Error toggling UUID spoofing: ${err.message}`);
-    return false;
+    log("error", `[UUID Spoofer] Error toggling UUID spoofing: ${err}`);
+    return { success: false, error: err.message || String(err) };
   }
 }
 
@@ -100,17 +124,22 @@ async function getCurrentMachineId() {
   const uuidEnabled = store.get(STORE_KEY_UUID_SPOOFER, false);
   
   if (uuidEnabled && spoofedUuid) {
+    log("debug", `[UUID] Using spoofed UUID: ${spoofedUuid.substr(0, 8)}...`);
     return spoofedUuid;
   } else {
     // If spoofing is not enabled or failed, use the original ID
     if (!originalMachineId) {
       try {
         originalMachineId = await machineId();
+        log("debug", `[UUID] Retrieved original machine ID: ${originalMachineId.substr(0, 8)}...`);
       } catch (err) {
         log("error", `[UUID] Failed to get machine ID: ${err.message}`);
-        return uuidv4(); // Fallback to a random UUID if everything fails
+        const fallbackUuid = uuidv4();
+        log("debug", `[UUID] Using fallback random UUID: ${fallbackUuid.substr(0, 8)}...`);
+        return fallbackUuid; // Fallback to a random UUID if everything fails
       }
     }
+    log("debug", `[UUID] Using original machine ID: ${originalMachineId.substr(0, 8)}...`);
     return originalMachineId;
   }
 }
@@ -442,32 +471,47 @@ const getDf = async () => {
   // Check if UUID spoofing is enabled
   const uuidSpooferEnabled = store.get(STORE_KEY_UUID_SPOOFER, false);
 
-  // If UUID spoofing is enabled, always generate a new random UUID
+  // If UUID spoofing is enabled, use the current spoofed UUID or generate a new one
   if (uuidSpooferEnabled) {
+    // If we already have a spoofed UUID, use it
+    if (spoofedUuid) {
+      log("debug", `[DF] UUID spoofing enabled, using existing spoofed UUID: ${spoofedUuid.substr(0, 8)}...`);
+      return spoofedUuid;
+    }
+    
+    // Otherwise generate a new one
     const newUuid = uuidv4();
     spoofedUuid = newUuid; // Store this as the current spoofed value
-    log("debug", `[DF] UUID spoofing enabled, generating random UUID: ${newUuid}`);
+    log("debug", `[DF] UUID spoofing enabled, generated new spoofed UUID: ${newUuid.substr(0, 8)}...`);
     return newUuid;
   }
 
-  // Otherwise, use the stored or machine ID as before
-  let df = store.get("login.df");
-  if (df === undefined) {
-    try {
-      df = await machineId({original: true});
-      log("debug", `[DF] Generated new machine ID: ${df}`);
+  // UUID spoofing is disabled, always get the current machine ID directly
+  // rather than using stored value to ensure we have the real machine ID
+  try {
+    // Get (or refresh) the original machine ID
+    const realMachineId = await getCurrentMachineId();
+    
+    // Store this ID for future use
+    store.set("login.df", realMachineId);
+    log("debug", `[DF] UUID spoofing disabled, using original machine ID: ${realMachineId.substr(0, 8)}...`);
+    
+    return realMachineId;
+  } catch (err) {
+    log("debugError", `[DF] Error getting machine ID: ${JSON.stringify(err)}`);
+    
+    // If we can't get the machine ID, fall back to a stored value or generate new UUID
+    const storedDf = store.get("login.df");
+    if (storedDf) {
+      log("debug", `[DF] Using stored machine ID: ${storedDf.substr(0, 8)}...`);
+      return storedDf;
+    } else {
+      const fallbackUuid = uuidv4();
+      store.set("login.df", fallbackUuid);
+      log("debug", `[DF] Using random UUID as fallback machine ID: ${fallbackUuid.substr(0, 8)}...`);
+      return fallbackUuid;
     }
-    catch (err) {
-      log("debugError", `[DF] Error getting machine ID: ${JSON.stringify(err)}`);
-      df = uuidv4();
-      log("debug", `[DF] Using random UUID as fallback machine ID: ${df}`);
-    }
-    store.set("login.df", df);
-    log("debug", `[DF] Stored machine ID/fallback: ${df}`);
-  } else {
-    log("debug", `[DF] Using stored machine ID: ${df}`);
   }
-  return df;
 };
 
 // webview ready
@@ -596,9 +640,9 @@ ipcMain.handle("toggle-uuid-spoofing", async (event, enable) => {
     }
     
     // Toggle the UUID spoofing
-    const success = await toggleUuidSpoofing(enable);
+    const result = await toggleUuidSpoofing(enable);
     
-    if (success) {
+    if (result.success) {
       return { 
         success: true, 
         enabled: enable, 
@@ -607,14 +651,14 @@ ipcMain.handle("toggle-uuid-spoofing", async (event, enable) => {
     } else {
       return { 
         success: false, 
-        message: "Failed to toggle UUID spoofing" 
+        message: result.error || "Failed to toggle UUID spoofing" 
       };
     }
   } catch (error) {
     log("error", `[UUID] Error in toggle-uuid-spoofing handler: ${error.message}`);
     return { 
       success: false, 
-      message: `Error: ${error.message}` 
+      message: error.message || "An unknown error occurred" 
     };
   }
 });
@@ -1187,86 +1231,31 @@ ipcMain.handle('set-app-state', async (event, newState) => {
 });
 // --- End App State Management ---
 
-// --- IPC Handler to provide current DF ---
+// Get current machine ID (original or spoofed)
 ipcMain.handle('get-df', async () => {
-  log('debug', '[IPC] Handling get-df request from renderer');
   try {
     const currentDf = await getDf(); // Call the existing getDf function
     log('debug', `[IPC] Returning DF to renderer: ${currentDf}`);
     return currentDf;
   } catch (error) {
     log('error', `[IPC] Error handling get-df: ${error.message}`);
-    // Return a fallback or throw? Returning null might be safer.
     return null; 
   }
 });
 
-// --- IPC Handler for Setting Session User Agent ---
-ipcMain.handle('set-user-agent', async (event, userAgent) => {
-  if (userAgent && typeof userAgent === 'string') {
-    try {
-      // Use defaultSession
-      await session.defaultSession.setUserAgent(userAgent);
-      // console.log(`[Tester Integration] Session User-Agent set to: ${userAgent}`);
-      return true;
-    } catch (err) {
-      console.error('[Tester Integration] Failed to set User-Agent on session:', err);
-      return false;
-    }
-  } else {
-    console.warn('[Tester Integration] Invalid User-Agent received for session:', userAgent);
-    return false;
+// Handle refreshing df (force new UUID generation on next request)
+ipcMain.handle("refresh-df", async (event) => {
+  // Only generate a new UUID if UUID spoofing is enabled
+  if (store.get(STORE_KEY_UUID_SPOOFER, false)) {
+    // Generate new UUID immediately
+    const newUuid = uuidv4();
+    spoofedUuid = newUuid; // Store this for future getDf calls
+    log("debug", `[DF] Refreshed DF - generated new UUID: ${newUuid}`);
+    
+    return newUuid;
   }
+  return null;
 });
-// --- End IPC Handler for Setting Session User Agent ---
-
-// --- IPC Handlers for Settings ---
-ipcMain.handle("get-setting", async (event, key) => {
-  try {
-    if (key === 'uuidSpoofingEnabled') {
-      return store.get(STORE_KEY_UUID_SPOOFER, false);
-    } else if (key === 'debug.country') {
-      return store.get('debug.country', '');
-    } else if (key === 'debug.locale') {
-      return store.get('debug.locale', '');
-    }
-    return store.get(key);
-  } catch (error) {
-    log('error', `[IPC] Error getting setting ${key}: ${error.message}`);
-    return null;
-  }
-});
-
-ipcMain.handle('set-setting', async (event, key, value) => {
-  log('debug', `[IPC] Handling set-setting request for key: ${key}`);
-  if (!key || typeof key !== 'string') {
-    log('error', '[IPC] Invalid key provided to set-setting');
-    return { success: false, error: 'Invalid key' };
-  }
-
-  try {
-    if (key === 'uuid_spoofer_enabled') {
-      store.set(STORE_KEY_UUID_SPOOFER, value === true);
-      log("info", `[Settings] UUID spoofer set to: ${value === true}`);
-      return true;
-    } else if (key === 'debug.country') {
-      store.set('debug.country', value);
-      log("info", `[Settings] Country override set to: ${value || 'none'}`);
-      return true;
-    } else if (key === 'debug.locale') {
-      store.set('debug.locale', value);
-      log("info", `[Settings] Locale override set to: ${value || 'none'}`);
-      return true;
-    }
-    // All other key/value pairs store as is
-    store.set(key, value);
-    return true;
-  } catch (error) {
-    log('error', `[IPC] Error updating setting ${key}: ${error.message}`);
-    return { success: false, error: error.message };
-  }
-});
-// --- End IPC Handlers for Settings ---
 
 const translate = (phrase) => {
   const {error, value} = translation.translate(phrase);
@@ -1461,13 +1450,69 @@ app.on('will-quit', () => {
   log('info', '[Shortcut] Unregistered all global shortcuts.');
 });
 
-// Handle refreshing df (force new UUID generation on next request)
-ipcMain.handle("refresh-df", async (event) => {
-  // Only clear the spoofed UUID if UUID spoofing is enabled
-  if (store.get(STORE_KEY_UUID_SPOOFER, false)) {
-    spoofedUuid = null; // Clear the spoofed UUID to force regeneration
-    log("debug", `[DF] Refreshing DF - cleared spoofed UUID`);
-    return true;
+// --- IPC Handler for Setting Session User Agent ---
+ipcMain.handle('set-user-agent', async (event, userAgent) => {
+  if (userAgent && typeof userAgent === 'string') {
+    try {
+      // Use defaultSession
+      await session.defaultSession.setUserAgent(userAgent);
+      // console.log(`[Tester Integration] Session User-Agent set to: ${userAgent}`);
+      return true;
+    } catch (err) {
+      console.error('[Tester Integration] Failed to set User-Agent on session:', err);
+      return false;
+    }
+  } else {
+    console.warn('[Tester Integration] Invalid User-Agent received for session:', userAgent);
+    return false;
   }
-  return false;
 });
+// --- End IPC Handler for Setting Session User Agent ---
+
+// --- IPC Handlers for Settings ---
+ipcMain.handle("get-setting", async (event, key) => {
+  try {
+    if (key === 'uuidSpoofingEnabled') {
+      return store.get(STORE_KEY_UUID_SPOOFER, false);
+    } else if (key === 'debug.country') {
+      return store.get('debug.country', '');
+    } else if (key === 'debug.locale') {
+      return store.get('debug.locale', '');
+    }
+    return store.get(key);
+  } catch (error) {
+    log('error', `[IPC] Error getting setting ${key}: ${error.message}`);
+    return null;
+  }
+});
+
+ipcMain.handle('set-setting', async (event, key, value) => {
+  log('debug', `[IPC] Handling set-setting request for key: ${key}`);
+  if (!key || typeof key !== 'string') {
+    log('error', '[IPC] Invalid key provided to set-setting');
+    return { success: false, error: 'Invalid key' };
+  }
+
+  try {
+    if (key === 'uuid_spoofer_enabled') {
+      store.set(STORE_KEY_UUID_SPOOFER, value === true);
+      log("info", `[Settings] UUID spoofer set to: ${value === true}`);
+      return true;
+    } else if (key === 'debug.country') {
+      store.set('debug.country', value);
+      log("info", `[Settings] Country override set to: ${value || 'none'}`);
+      return true;
+    } else if (key === 'debug.locale') {
+      store.set('debug.locale', value);
+      log("info", `[Settings] Locale override set to: ${value || 'none'}`);
+      return true;
+    }
+    // All other key/value pairs store as is
+    store.set(key, value);
+    return true;
+  } catch (error) {
+    log('error', `[IPC] Error updating setting ${key}: ${error.message}`);
+    return { success: false, error: error.message };
+  }
+});
+// --- End IPC Handlers for Settings ---
