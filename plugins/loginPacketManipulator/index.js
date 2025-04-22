@@ -513,7 +513,7 @@ console.log("[LoginPacketManipulator] index.js loaded at " + new Date().toISOStr
           // Ignore packets that are not valid JSON or don't match
         }
       });
-      showToast("Subscribed to incoming login packets", "success");
+      // Packet listener set up successfully (no toast needed)
     } catch (err) {
       console.error("[LoginPacketManipulator] Error setting up incoming packet subscription:", err);
       showToast("Error setting up incoming packet listener: " + err.message, "error");
@@ -568,8 +568,28 @@ console.log("[LoginPacketManipulator] index.js loaded at " + new Date().toISOStr
 
     // Initial state
     updateStatusIndicator(false);
-    showToast("Login Packet Editor initialized and ready", "info");
+    // No initialization toast needed
   }
+
+  // Set up the minimize button functionality with proper DOM content loaded check
+  document.addEventListener('DOMContentLoaded', function() {
+    const minimizeBtn = document.getElementById('minimize-btn');
+    if (minimizeBtn) {
+      minimizeBtn.addEventListener('click', () => {
+        if (window.jam && window.jam.application) {
+          window.jam.application.minimize();
+        } else {
+          // Fallback if jam.application is not available
+          try {
+            const { ipcRenderer } = require('electron');
+            ipcRenderer.send('window-minimize');
+          } catch (e) {
+            console.error("[LoginPacketManipulator] Error minimizing window:", e);
+          }
+        }
+      });
+    }
+  });
 
   // Wait for the jam-ready event before initializing
   if (window.jam && window.jam.dispatch && window.jam.application && typeof window.jam.onPacket === 'function') {

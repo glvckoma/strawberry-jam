@@ -417,4 +417,22 @@ class Spammer {
 
   // Ensure the spammer stops when the window is closed
   window.addEventListener('beforeunload', spammer.stopClick);
+  
+  // Set up the minimize button functionality
+  const minimizeBtn = document.getElementById('minimize-btn');
+  if (minimizeBtn) {
+    minimizeBtn.addEventListener('click', () => {
+      if (window.jam && window.jam.application) {
+        window.jam.application.minimize();
+      } else {
+        // Fallback if jam.application is not available
+        try {
+          const { ipcRenderer } = require('electron');
+          ipcRenderer.send('window-minimize');
+        } catch (e) {
+          console.error("[Spammer] Error minimizing window:", e);
+        }
+      }
+    });
+  }
 });

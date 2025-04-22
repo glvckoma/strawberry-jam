@@ -130,6 +130,37 @@ class CommandHandlers {
         message: `Use userlogsettings [setting] [value] to change a setting.`
       });
       
+      // Display detailed information about available settings
+      this.application.consoleMessage({
+        type: 'logger',
+        message: `\nAvailable Settings:`
+      });
+      
+      this.application.consoleMessage({
+        type: 'logger',
+        message: `- [nearby] [on/off/yes/no/true/false] - Collect usernames of nearby players in rooms`
+      });
+      
+      this.application.consoleMessage({
+        type: 'logger',
+        message: `- [buddies] [on/off/yes/no/true/false] - Collect usernames from buddy list updates`
+      });
+      
+      this.application.consoleMessage({
+        type: 'logger',
+        message: `- [autoleakcheck] [on/off/yes/no/true/false] - Automatically run leak checks`
+      });
+      
+      this.application.consoleMessage({
+        type: 'logger',
+        message: `- [threshold] [positive number] - Number of new usernames before triggering auto leak check`
+      });
+      
+      this.application.consoleMessage({
+        type: 'logger',
+        message: `- [reset] - Reset all settings to default values (preserves API key)`
+      });
+      
       return;
     }
     

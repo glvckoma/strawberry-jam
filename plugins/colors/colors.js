@@ -439,3 +439,23 @@ waitForDispatch(function(dispatchInstance) {
 
 // Note: Functions are now defined globally and can be called by onclick handlers.
 // The waitForDispatch ensures colorsDispatch is set before functions needing it are called by user interaction.
+
+// Set up the minimize button functionality
+document.addEventListener('DOMContentLoaded', function() {
+  const minimizeBtn = document.getElementById('minimize-btn');
+  if (minimizeBtn) {
+    minimizeBtn.addEventListener('click', () => {
+      if (window.jam && window.jam.application) {
+        window.jam.application.minimize();
+      } else {
+        // Fallback if jam.application is not available
+        try {
+          const { ipcRenderer } = require('electron');
+          ipcRenderer.send('window-minimize');
+        } catch (e) {
+          console.error("[Colors] Error minimizing window:", e);
+        }
+      }
+    });
+  }
+});
