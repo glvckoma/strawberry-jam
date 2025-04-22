@@ -110,7 +110,7 @@ class MigrationService {
   }
 
   /**
-   * Loads the ignore list from processed usernames file
+   * Loads the ignore list from processed usernames file and collected usernames
    * @param {Object} stateModel - The state model to populate
    * @returns {Promise<boolean>} True if successful
    */
@@ -119,6 +119,7 @@ class MigrationService {
       // Get paths using the utility function and stored dataPath
       const paths = getFilePaths(this.dataPath);
       let loadedCount = 0;
+      let collectedCount = 0;
       
       // Load processed usernames
       if (await this.fileService.fileExists(paths.processedUsernamesPath)) {
@@ -129,33 +130,59 @@ class MigrationService {
             loadedCount++;
           }
         }
-        
-        this.application.consoleMessage({
-          type: 'logger',
-          message: `${loadedCount} ignored usernames loaded.`
-        });
       } else {
         // Create the file if it doesn't exist
         await this.fileService.writeLinesToFile(paths.processedUsernamesPath, []);
       }
       
+      // Load collected usernames to prevent duplicates
+      if (await this.fileService.fileExists(paths.collectedUsernamesPath)) {
+        // Use readUsernamesFromLog which extracts usernames from the timestamp format
+        const collectedUsernames = await this.fileService.readUsernamesFromLog(paths.collectedUsernamesPath);
+        
+        for (const username of collectedUsernames) {
+          if (username && stateModel.addIgnoredUsername(username)) {
+            collectedCount++;
+          }
+        }
+      }
+      
       // Also load potential accounts as part of the ignore list
+      let addedFromAccounts = 0;
       if (await this.fileService.fileExists(paths.potentialAccountsPath)) {
         const potentialAccounts = await this.fileService.readLinesFromFile(paths.potentialAccountsPath);
-        let addedFromAccounts = 0;
         
         for (const username of potentialAccounts) {
           if (username && stateModel.addIgnoredUsername(username)) {
             addedFromAccounts++;
           }
         }
+      }
+      
+      // Send a single combined message for all ignored usernames
+      const totalIgnored = loadedCount + collectedCount + addedFromAccounts;
+      
+      // Format a detailed breakdown if there are usernames from multiple sources
+      let detailMessage = "";
+      if (totalIgnored > 0) {
+        const details = [];
+        if (loadedCount > 0) details.push(`${loadedCount} from processed list`);
+        if (collectedCount > 0) details.push(`${collectedCount} from collected list`);
+        if (addedFromAccounts > 0) details.push(`${addedFromAccounts} from potential accounts`);
         
-        if (addedFromAccounts > 0) {
-          this.application.consoleMessage({
-            type: 'logger',
-            message: `[Username Logger] Added ${addedFromAccounts} usernames from potential accounts to ignore list.`
-          });
+        if (details.length > 1) {
+          detailMessage = ` (${details.join(", ")})`;
         }
+        
+        this.application.consoleMessage({
+          type: 'logger',
+          message: `${totalIgnored} already logged usernames will be ignored${detailMessage}.`
+        });
+      } else {
+        this.application.consoleMessage({
+          type: 'logger',
+          message: `No previously logged usernames found.`
+        });
       }
       
       return true;

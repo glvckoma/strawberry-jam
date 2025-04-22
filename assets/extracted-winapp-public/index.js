@@ -75,13 +75,18 @@ async function toggleUuidSpoofing(enable) {
       } else {
         // When disabling, get the real machine ID and send it to the renderer
         try {
-          const machineId = await getCurrentMachineId();
-          log("info", `[UUID Spoofer] Retrieved actual machine ID: ${machineId.substr(0, 8)}...`);
+          // Clear the spoofed UUID when disabling
+          spoofedUuid = null;
+          
+          // Get the real machine ID - use the stored original instead of getCurrentMachineId
+          // to avoid potential circular reference since getCurrentMachineId() calls this function
+          const realId = originalMachineId || await machineId();
+          log("info", `[UUID Spoofer] Restoring original machine ID: ${realId.substr(0, 8)}...`);
           
           // Send the actual machine ID to the renderer
-          win.webContents.send('update-df', machineId);
+          win.webContents.send('update-df', realId);
           
-          return { success: true, uuid: machineId };
+          return { success: true, uuid: realId };
         } catch (idErr) {
           log("error", `[UUID Spoofer] Failed to get actual machine ID: ${idErr}`);
           return { success: false, error: "Failed to get actual machine ID" };

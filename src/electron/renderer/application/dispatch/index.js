@@ -314,12 +314,8 @@ module.exports = class Dispatch {
               const currentAdventureState = this.getState('isAdventureRoom');
               const currentEffectiveState = this.getState('effectiveRoomId');
 
-              if (currentRoomState === roomId) {
-                devLog('[Dispatch:rj] State update successful!');
-                this._application.consoleMessage({ type: 'logger', message: `[Dispatch] Entered room: ${roomId}` });
-              } else {
+              if (currentRoomState !== roomId) {
                 devError('[Dispatch:rj] STATE UPDATE FAILED! getState("room") did not return the expected value immediately after setState.');
-                this._application.consoleMessage({ type: 'error', message: `[Dispatch] Failed to update internal room state for: ${roomId}` });
               }
             } else {
                devLog('[Dispatch:rj] Could not parse room ID from rj packet. message.value:', message.value);
@@ -336,13 +332,10 @@ module.exports = class Dispatch {
         type: ConnectionMessageTypes.aj, // Listen to game server messages
         message: 'j#l', // Packet type for leaving a room (Assuming this is correct, check logs if needed)
         callback: () => {
-          devLog('[Dispatch:j#l] Received leave room packet.');
           const oldRoom = this.getState('room');
           this.setState('room', null);
           this.setState('isAdventureRoom', false);
           this.setState('effectiveRoomId', null);
-          devLog(`[Dispatch:j#l] Room state cleared (was: ${oldRoom}).`);
-          this._application.consoleMessage({ type: 'logger', message: '[Dispatch] Left room.' });
         }
       });
       // --- End Room State Hooks ---
@@ -543,7 +536,6 @@ module.exports = class Dispatch {
     if (key === 'room' && typeof require === 'function') {
       try {
         const { ipcRenderer } = require('electron');
-        devLog(`[Dispatch] Broadcasting room state update: ${value}`);
         ipcRenderer.send('update-room-state', value);
       } catch (error) {
         devError(`[Dispatch] Error broadcasting room state update: ${error.message}`);

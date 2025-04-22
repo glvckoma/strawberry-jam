@@ -46,14 +46,18 @@ const initializeApp = async () => {
   // Start session timer
   sessionStartTime = new Date();
   
-  // Simple startup message like the original Jam
+  // Simple startup message with unique ID
+  const initialStartupMessageId = `initial-startup-message-${Date.now()}`;
   application.consoleMessage({
     message: 'Starting Strawberry Jam...',
-    type: 'wait'
+    type: 'wait',
+    details: { messageId: initialStartupMessageId }
   })
+  
+  // Store this ID in the application instance so it can be removed later
+  application.initialStartupMessageId = initialStartupMessageId;
 
-  // Add a delay to allow initial logs to be visible
-  await new Promise(resolve => setTimeout(resolve, 4000)); // 4-second delay
+  // No need for startup delay - our messages are stored with IDs for later removal
 
   try {
     await application.instantiate()

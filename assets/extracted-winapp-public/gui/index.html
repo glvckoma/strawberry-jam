@@ -748,13 +748,13 @@
       })();
 
       // Listen for electron IPC messages
-      ipcRenderer.on('winReady', (event, ...args) => {
+      window.ipc.on('winReady', (event, ...args) => {
         window.globals.isElectron = true;
         document.dispatchEvent(new CustomEvent('winReady', { detail: args }));
       });
 
       // Add handler for UUID update events
-      ipcRenderer.on('update-df', (event, newDf) => {
+      window.ipc.on('update-df', (event, newDf) => {
         if (window.globals) {
           console.log(`Updating df to: ${newDf.substr(0, 8)}...`);
           window.globals.df = newDf;

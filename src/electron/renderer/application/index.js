@@ -875,6 +875,30 @@ module.exports = class Application extends EventEmitter {
     $messages.empty();
     this._appMessageCount = 0;
   }
+  
+  /**
+   * Removes all messages with a specific ID.
+   * @param {string} messageId - The ID of the message(s) to remove.
+   * @private
+   */
+  _removeMessageById(messageId) {
+    if (!messageId) return;
+    
+    // Use querySelectorAll to get ALL elements with this ID
+    const messageElements = document.querySelectorAll(`[data-message-id='${messageId}']`);
+    
+    if (messageElements && messageElements.length > 0) {
+      // Log how many elements we're removing for debugging
+      devLog(`[Renderer] Removing ${messageElements.length} messages with ID: ${messageId}`);
+      
+      // Remove each matching element
+      messageElements.forEach(element => {
+        $(element).fadeOut(200, function() {
+          $(this).remove();
+        });
+      });
+    }
+  }
 
   /**
    * Opens Animal Jam Classic, disabling the button during patching.
@@ -1732,10 +1756,20 @@ module.exports = class Application extends EventEmitter {
       devLog('[Settings] Settings loaded successfully');
     }
     
-    // Display the loading plugins message first (like original Jam)
+    // Initial startup message with timestamp-based unique ID
+    const startupMessageId = `startup-message-${Date.now()}`;
+    this.consoleMessage({
+      message: 'Starting Strawberry Jam...',
+      type: 'wait',
+      details: { messageId: startupMessageId }
+    });
+    
+    // Display the loading plugins message with timestamp-based unique ID
+    const loadingPluginsMessageId = `loading-plugins-message-${Date.now()}`;
     this.consoleMessage({
       message: 'Loading plugins...',
-      type: 'wait'
+      type: 'wait',
+      details: { messageId: loadingPluginsMessageId }
     });
     
     // Load plugins with concise messaging
@@ -1760,13 +1794,17 @@ module.exports = class Application extends EventEmitter {
     // Start the server
     await this.server.serve();
     
-    // Clear all console messages just once, right before showing our final messages
-    this._clearConsoleMessages();
+    // Remove the initial startup messages
+    this._removeMessageById(startupMessageId);
+    this._removeMessageById(loadingPluginsMessageId);
     
-    // Wait a moment to ensure clearing is complete
-    await new Promise(resolve => setTimeout(resolve, 3000));
+    // Also remove the initial message set in renderer/index.js if it exists
+    if (this.initialStartupMessageId) {
+      this._removeMessageById(this.initialStartupMessageId);
+      this.initialStartupMessageId = null;
+    }
     
-    // Show final welcome message
+    // Show welcome messages
     this.consoleMessage({
       message: 'Server started!',
       type: 'success'
