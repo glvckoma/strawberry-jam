@@ -16,6 +16,9 @@ const sendWhitelist = new Set()
   .add("rememberMeStateUpdated")
   .add("systemCommand")
   .add("translate")
+  // Settings channels
+  .add("get-setting")        // Added for settings access
+  .add("set-setting")        // Added for settings access
   // App State channels
   .add("get-app-state")
   .add("set-app-state")

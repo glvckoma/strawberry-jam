@@ -1219,6 +1219,42 @@ ipcMain.handle('set-user-agent', async (event, userAgent) => {
 });
 // --- End IPC Handler for Setting Session User Agent ---
 
+// --- IPC Handlers for Settings ---
+ipcMain.handle('get-setting', async (event, key) => {
+  log('debug', `[IPC] Handling get-setting request for key: ${key}`);
+  if (!key || typeof key !== 'string') {
+    log('error', '[IPC] Invalid key provided to get-setting');
+    return { success: false, error: 'Invalid key' };
+  }
+
+  try {
+    const value = store.get(key);
+    log('debug', `[IPC] Retrieved setting ${key}: ${JSON.stringify(value)}`);
+    return value;
+  } catch (error) {
+    log('error', `[IPC] Error retrieving setting ${key}: ${error.message}`);
+    return null;
+  }
+});
+
+ipcMain.handle('set-setting', async (event, key, value) => {
+  log('debug', `[IPC] Handling set-setting request for key: ${key}`);
+  if (!key || typeof key !== 'string') {
+    log('error', '[IPC] Invalid key provided to set-setting');
+    return { success: false, error: 'Invalid key' };
+  }
+
+  try {
+    store.set(key, value);
+    log('debug', `[IPC] Setting ${key} updated to: ${JSON.stringify(value)}`);
+    return { success: true };
+  } catch (error) {
+    log('error', `[IPC] Error updating setting ${key}: ${error.message}`);
+    return { success: false, error: error.message };
+  }
+});
+// --- End IPC Handlers for Settings ---
+
 const translate = (phrase) => {
   const {error, value} = translation.translate(phrase);
   if (error) {

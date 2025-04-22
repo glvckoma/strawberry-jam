@@ -816,65 +816,143 @@
       this._initializeAsyncSettings();
       this._initializeGameLanguageSetting();
 
+      // Initialize settings with fallbacks for packed builds where IPC might be restricted
+      this.initializeSettings().catch(err => {
+        console.warn('[LoginScreen] Error initializing settings:', err);
+      });
     } // End Constructor
 
     // --- Async Settings Initialization ---
     async _initializeAsyncSettings() {
-      // Initialize debug toggle state
       try {
-        const { value: isEnabled } = await window.ipc.invoke('get-setting', 'debugLoggingEnabled');
-        this.debugToggle.checked = isEnabled;
-      } catch (err) {
-        console.error("Error getting debugLoggingEnabled setting:", err);
-        // Optionally set a default state
-        // this.debugToggle.checked = false;
-      }
+        // Initialize debug toggle state
+        try {
+          const debugLoggingEnabled = await window.ipc.invoke('get-setting', 'debugLoggingEnabled');
+          if (this.debugToggle) {
+            this.debugToggle.checked = debugLoggingEnabled;
+          }
+        } catch (err) {
+          console.warn("Error getting debugLoggingEnabled setting:", err);
+          // Default to false
+        }
 
-      // Initialize DevTools toggle state
-      try {
-        const { value: isDisabled } = await window.ipc.invoke('get-setting', 'disableDevTools');
-        // Invert the checkbox state - checked means ENABLE (opposite of disable)
-        this.disableDevToolsToggle.checked = !isDisabled;
-      } catch (err) {
-        console.error("Error getting disableDevTools setting:", err);
-        // Optionally set a default state
-        // this.disableDevToolsToggle.checked = true; // Default to enabled?
-      }
+        // Initialize DevTools toggle state
+        try {
+          const disableDevTools = await window.ipc.invoke('get-setting', 'disableDevTools');
+          // Invert the checkbox state - checked means ENABLE (opposite of disable)
+          if (this.disableDevToolsToggle) {
+            this.disableDevToolsToggle.checked = !disableDevTools;
+          }
+        } catch (err) {
+          console.warn("Error getting disableDevTools setting:", err);
+          // Default to enabled
+        }
 
-      // Initialize UUID spoofer toggle state
-      try {
-        const { value: isEnabled } = await window.ipc.invoke('get-setting', 'uuidSpoofingEnabled');
-        this.uuidSpooferToggle.checked = isEnabled;
-        // Show warning if enabled
-        if (isEnabled) {
-          this.uuidSpoofingWarning.classList.add('show');
+        // Initialize UUID spoofer toggle state
+        try {
+          const uuidSpoofingEnabled = await window.ipc.invoke('get-setting', 'uuidSpoofingEnabled');
+          if (this.uuidSpooferToggle) {
+            this.uuidSpooferToggle.checked = uuidSpoofingEnabled;
+            // Show warning if enabled
+            if (uuidSpoofingEnabled && this.uuidSpoofingWarning) {
+              this.uuidSpoofingWarning.classList.add('show');
+            }
+          }
+        } catch (err) {
+          console.warn("Error getting uuidSpoofingEnabled setting:", err);
+          // Default to disabled
         }
       } catch (err) {
-        console.error("Error getting uuidSpoofingEnabled setting:", err);
-        // Optionally set a default state
-        // this.uuidSpooferToggle.checked = false;
+        console.error("Error in _initializeAsyncSettings:", err);
+        // Continue with defaults
       }
     }
 
     // --- Game Language Setting Initialization ---
     async _initializeGameLanguageSetting() {
       try {
-        // Load current setting using window.ipc (assuming preload exposes it)
-        const result = await window.ipc.invoke('get-setting', 'gameLanguage'); // Reverted to window.ipc
-        const currentLanguage = (result && result.value) ? result.value : 'en'; // Default to 'en'
-        this.gameLanguageSelect.value = currentLanguage;
-
-        // Add listener to save changes using window.ipc (assuming preload exposes it)
-        this.gameLanguageSelect.addEventListener('change', (event) => {
-          const newLanguage = event.target.value;
-          window.ipc.send('set-setting', 'gameLanguage', newLanguage); // Reverted to window.ipc
-          console.log(`[LoginScreen] Game language setting changed to: ${newLanguage}`);
-        });
-
+        // Load current setting
+        const gameLanguage = await window.ipc.invoke('get-setting', 'gameLanguage');
+        if (gameLanguage && globals && globals.setLanguage) {
+          globals.setLanguage(gameLanguage);
+        }
       } catch (error) {
-        console.error('[LoginScreen] Error initializing game language setting:', error);
-        // Set default value in UI on error
-        this.gameLanguageSelect.value = 'en';
+        console.warn('[LoginScreen] Error initializing game language setting:', error);
+        // Set default language (browser language or 'en')
+        if (globals && globals.setLanguage) {
+          const browserLang = navigator.language.split('-')[0];
+          globals.setLanguage(browserLang || 'en');
+        }
+      }
+    }
+
+    // Add a new method to safely initialize settings with fallbacks
+    async initializeSettings() {
+      try {
+        // Initialize debug logging with fallback
+        let debugLoggingEnabled = false;
+        try {
+          debugLoggingEnabled = await window.ipc.invoke('get-setting', 'debugLoggingEnabled');
+          console.log('[LoginScreen] Debug logging enabled:', debugLoggingEnabled);
+        } catch (err) {
+          console.warn('[LoginScreen] Error getting debugLoggingEnabled setting:', err);
+          // Use fallback value (false)
+        }
+
+        // Initialize DevTools setting with fallback
+        let disableDevTools = true; // Default to disabled
+        try {
+          disableDevTools = await window.ipc.invoke('get-setting', 'disableDevTools');
+          console.log('[LoginScreen] Disable DevTools setting:', disableDevTools);
+          
+          // Update the UI if the tester is available
+          if (this.testerDisableDevToolsToggle) {
+            this.testerDisableDevToolsToggle.checked = !disableDevTools;
+          }
+        } catch (err) {
+          console.warn('[LoginScreen] Error getting disableDevTools setting:', err);
+          // Use fallback value (true)
+        }
+
+        // Initialize UUID spoofing with fallback
+        let uuidSpoofingEnabled = false; // Default to disabled
+        try {
+          uuidSpoofingEnabled = await window.ipc.invoke('get-setting', 'uuidSpoofingEnabled');
+          console.log('[LoginScreen] UUID spoofing enabled:', uuidSpoofingEnabled);
+          
+          // Update the UI if the tester is available
+          if (this.testerUuidSpooferToggle) {
+            this.testerUuidSpooferToggle.checked = uuidSpoofingEnabled;
+            if (uuidSpoofingEnabled && this.uuidSpoofingWarning) {
+              this.uuidSpoofingWarning.classList.add('show');
+            }
+          }
+        } catch (err) {
+          console.warn('[LoginScreen] Error getting uuidSpoofingEnabled setting:', err);
+          // Use fallback value (false)
+        }
+
+        // Initialize game language setting with fallback
+        try {
+          const gameLanguage = await window.ipc.invoke('get-setting', 'gameLanguage');
+          console.log('[LoginScreen] Game language setting:', gameLanguage);
+          if (gameLanguage && globals && globals.setLanguage) {
+            globals.setLanguage(gameLanguage);
+          }
+        } catch (err) {
+          console.warn('[LoginScreen] Error initializing game language setting:', err);
+          // Use default language (browser language or 'en')
+          if (globals && globals.setLanguage) {
+            const browserLang = navigator.language.split('-')[0];
+            globals.setLanguage(browserLang || 'en');
+          }
+        }
+
+        // Initialize additional settings as needed
+        
+      } catch (err) {
+        console.error('[LoginScreen] Error in settings initialization:', err);
+        // Continue with defaults
       }
     }
 
