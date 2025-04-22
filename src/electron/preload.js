@@ -64,3 +64,21 @@ try {
 } catch (e) {
   console.error("[Preload] Error setting up window.jam.onPacket:", e);
 }
+
+// Expose room tracking utilities needed by plugins
+try {
+  const roomUtils = require('../utils/room-tracking'); // Adjust path relative to preload.js
+  console.log("[Preload] Setting up window.jam.roomUtils...");
+
+  // Ensure window.jam exists
+  window.jam = window.jam || {};
+
+  // Expose specific utility function
+  window.jam.roomUtils = {
+    getEffectiveRoomId: roomUtils.getEffectiveRoomId
+  };
+
+  console.log("[Preload] Successfully set up window.jam.roomUtils.");
+} catch (e) {
+  console.error("[Preload] Error setting up window.jam.roomUtils:", e);
+}

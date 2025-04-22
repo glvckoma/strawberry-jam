@@ -52,6 +52,9 @@ const initializeApp = async () => {
     type: 'wait'
   })
 
+  // Add a delay to allow initial logs to be visible
+  await new Promise(resolve => setTimeout(resolve, 4000)); // 4-second delay
+
   try {
     await application.instantiate()
     

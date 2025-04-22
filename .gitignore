@@ -9,7 +9,6 @@ tmp_*/
 *-copy*/
 dev/
 assets/extracted-winapp-dev/
-assets/extracted-winapp-public/
 assets/winapp.asar
 assets/osxapp.asar
 assets/*-backup.asar

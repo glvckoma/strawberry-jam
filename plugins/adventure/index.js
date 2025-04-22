@@ -4,8 +4,8 @@ module.exports = function ({ dispatch, application }) {
    */
   let interval = null
 
-  // Import room tracking utilities
-  const roomUtils = require('../../src/utils/room-tracking')
+  // Room tracking utilities are now exposed via preload script on window.jam.roomUtils
+  // const roomUtils = require('../../src/utils/room-tracking') // Removed broken require
 
   /**
    * Handles adventure command.
@@ -35,7 +35,8 @@ module.exports = function ({ dispatch, application }) {
    * Sends the treasure packet to the server.
    */
   const adventure = async (room) => {
-    const roomId = roomUtils.getEffectiveRoomId(room)
+    // Use the globally exposed utility function
+    const roomId = window.jam.roomUtils.getEffectiveRoomId(room)
     console.log('[Adventure] Using effective room ID for packet:', roomId)
     await dispatch.sendRemoteMessage(`%xt%o%qat%${roomId}%treasure_1%0%`)
     dispatch.sendRemoteMessage(`%xt%o%qatt%${roomId}%treasure_1%1%`)
