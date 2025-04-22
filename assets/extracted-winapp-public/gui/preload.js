@@ -49,7 +49,9 @@ const sendWhitelist = new Set()
   // Specific file load channels for swap buttons
   .add("tester-load-all-accounts")
   .add("tester-load-confirmed-accounts")
-  .add("tester-load-works-accounts");
+  .add("tester-load-works-accounts")
+  .add("winReady") // Used to signal the window is ready
+  .add("refresh-df"); // ADDED: For refreshing UUID on login
 
 // main -> renderer
 const receiveWhitelist = new Set()
@@ -105,6 +107,14 @@ contextBridge.exposeInMainWorld(
     // --- Expose Session User Agent Setter ---
     setUserAgent: (userAgent) => ipcRenderer.invoke('set-user-agent', userAgent),
     // --- End Session User Agent Setter ---
+    // --- Expose Settings Handlers ---
+    getSetting: (key) => ipcRenderer.invoke('get-setting', key),
+    setSetting: (key, value) => ipcRenderer.invoke('set-setting', key, value),
+    // --- End Settings Handlers ---
+    // --- Expose DF Handler ---
+    getDf: () => ipcRenderer.invoke('get-df'),
+    refreshDf: () => ipcRenderer.invoke('refresh-df'), // ADDED: Refresh DF function
+    // --- End DF Handler ---
     // --- Expose UUID ---
     uuidv4: () => uuidv4() // Expose the uuidv4 function
   }

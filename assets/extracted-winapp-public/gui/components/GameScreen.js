@@ -331,11 +331,10 @@
         if (globals.config.showTools) {
           this.webViewElem.openDevTools();
         }
-        // Ensure locale remains 'en' for the Flash client UI, regardless of login language setting
-        const flashVarsForGame = { ...flashVars, locale: 'en' };
-        console.log('[GameScreen] Modified flashVars for game (locale forced to en):', flashVarsForGame); // Log the modified vars
-        this.webViewElem.send("flashVarsReady", flashVarsForGame);
-        if (flashVarsForGame.webRefPath !== "create_account") { // Use modified vars here too
+        // Use the flashVars as-is without forcing locale to 'en'
+        console.log('[GameScreen] Using original flashVars with locale:', flashVars.locale); // Log the selected locale
+        this.webViewElem.send("flashVarsReady", flashVars);
+        if (flashVars.webRefPath !== "create_account") {
           this.floatingContainerElem.expanded = true;
         }
       }, {once: true});

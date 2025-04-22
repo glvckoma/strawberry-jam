@@ -442,10 +442,12 @@ const getDf = async () => {
   // Check if UUID spoofing is enabled
   const uuidSpooferEnabled = store.get(STORE_KEY_UUID_SPOOFER, false);
 
-  // If UUID spoofing is enabled, always return a random UUID
+  // If UUID spoofing is enabled, always generate a new random UUID
   if (uuidSpooferEnabled) {
-    log("debug", "UUID spoofing enabled, generating random UUID");
-    return uuidv4();
+    const newUuid = uuidv4();
+    spoofedUuid = newUuid; // Store this as the current spoofed value
+    log("debug", `[DF] UUID spoofing enabled, generating random UUID: ${newUuid}`);
+    return newUuid;
   }
 
   // Otherwise, use the stored or machine ID as before
@@ -453,17 +455,17 @@ const getDf = async () => {
   if (df === undefined) {
     try {
       df = await machineId({original: true});
-      log("debug", `Generated new machine ID: ${df}`); // Added log for clarity
+      log("debug", `[DF] Generated new machine ID: ${df}`);
     }
     catch (err) {
-      log("debugError", `Error getting machine ID: ${JSON.stringify(err)}`);
+      log("debugError", `[DF] Error getting machine ID: ${JSON.stringify(err)}`);
       df = uuidv4();
-      log("debug", `Using random UUID as fallback machine ID: ${df}`); // Added log for clarity
+      log("debug", `[DF] Using random UUID as fallback machine ID: ${df}`);
     }
     store.set("login.df", df);
-    log("debug", `Stored machine ID/fallback: ${df}`); // Added log for clarity
+    log("debug", `[DF] Stored machine ID/fallback: ${df}`);
   } else {
-    log("debug", `Using stored machine ID: ${df}`); // Added log for clarity
+    log("debug", `[DF] Using stored machine ID: ${df}`);
   }
   return df;
 };
@@ -1198,7 +1200,6 @@ ipcMain.handle('get-df', async () => {
     return null; 
   }
 });
-// --- End IPC Handler ---
 
 // --- IPC Handler for Setting Session User Agent ---
 ipcMain.handle('set-user-agent', async (event, userAgent) => {
@@ -1220,19 +1221,18 @@ ipcMain.handle('set-user-agent', async (event, userAgent) => {
 // --- End IPC Handler for Setting Session User Agent ---
 
 // --- IPC Handlers for Settings ---
-ipcMain.handle('get-setting', async (event, key) => {
-  log('debug', `[IPC] Handling get-setting request for key: ${key}`);
-  if (!key || typeof key !== 'string') {
-    log('error', '[IPC] Invalid key provided to get-setting');
-    return { success: false, error: 'Invalid key' };
-  }
-
+ipcMain.handle("get-setting", async (event, key) => {
   try {
-    const value = store.get(key);
-    log('debug', `[IPC] Retrieved setting ${key}: ${JSON.stringify(value)}`);
-    return value;
+    if (key === 'uuidSpoofingEnabled') {
+      return store.get(STORE_KEY_UUID_SPOOFER, false);
+    } else if (key === 'debug.country') {
+      return store.get('debug.country', '');
+    } else if (key === 'debug.locale') {
+      return store.get('debug.locale', '');
+    }
+    return store.get(key);
   } catch (error) {
-    log('error', `[IPC] Error retrieving setting ${key}: ${error.message}`);
+    log('error', `[IPC] Error getting setting ${key}: ${error.message}`);
     return null;
   }
 });
@@ -1245,9 +1245,22 @@ ipcMain.handle('set-setting', async (event, key, value) => {
   }
 
   try {
+    if (key === 'uuid_spoofer_enabled') {
+      store.set(STORE_KEY_UUID_SPOOFER, value === true);
+      log("info", `[Settings] UUID spoofer set to: ${value === true}`);
+      return true;
+    } else if (key === 'debug.country') {
+      store.set('debug.country', value);
+      log("info", `[Settings] Country override set to: ${value || 'none'}`);
+      return true;
+    } else if (key === 'debug.locale') {
+      store.set('debug.locale', value);
+      log("info", `[Settings] Locale override set to: ${value || 'none'}`);
+      return true;
+    }
+    // All other key/value pairs store as is
     store.set(key, value);
-    log('debug', `[IPC] Setting ${key} updated to: ${JSON.stringify(value)}`);
-    return { success: true };
+    return true;
   } catch (error) {
     log('error', `[IPC] Error updating setting ${key}: ${error.message}`);
     return { success: false, error: error.message };
@@ -1446,4 +1459,15 @@ app.on('will-quit', () => {
 
   globalShortcut.unregisterAll();
   log('info', '[Shortcut] Unregistered all global shortcuts.');
+});
+
+// Handle refreshing df (force new UUID generation on next request)
+ipcMain.handle("refresh-df", async (event) => {
+  // Only clear the spoofed UUID if UUID spoofing is enabled
+  if (store.get(STORE_KEY_UUID_SPOOFER, false)) {
+    spoofedUuid = null; // Clear the spoofed UUID to force regeneration
+    log("debug", `[DF] Refreshing DF - cleared spoofed UUID`);
+    return true;
+  }
+  return false;
 });

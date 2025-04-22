@@ -498,7 +498,7 @@
             <div class="settings-item">
               <input type="checkbox" id="uuid-spoofer-toggle" style="vertical-align: middle;">
               <label for="uuid-spoofer-toggle" style="vertical-align: middle;">Enable UUID Spoofing</label>
-              <div id="uuid-spoofing-warning" class="hidden" style="margin-top: 5px; padding: 6px; background-color: rgba(255, 217, 0, 0.1); border-left: 3px solid rgba(255, 176, 0, 0.6); border-radius: 4px; font-size: 11px; line-height: 1.3;">
+              <div id="uuid-spoofing-warning" class="hidden" style="margin-top: 5px; padding: 6px; background-color: rgba(255, 217, 0, 0.1); border-left: 3px solid rgba(255, 176, 0, 0.6); border-radius: 4px; font-size: 11px; line-height: 1.4;">
                 ⚠️ Warning: UUID spoofing will not work with accounts that have 2FA enabled.
               </div>
             </div>
@@ -511,6 +511,20 @@
                 <option value="es">Spanish</option>
                 <option value="pt">Portuguese</option>
               </select>
+            </div>
+          </div>
+          <div class="settings-group">
+            <h4 style="margin: 5px 0; font-size: 14px; color: var(--theme-primary);">Advanced Testing</h4>
+            <div class="settings-item" style="margin-bottom: 8px;">
+              <label for="country-override" style="display: block; margin-bottom: 3px;">Country Override:</label>
+              <input type="text" id="country-override" placeholder="e.g., US, GB, CA" style="width: 100%; padding: 4px; border-radius: 4px; border: 1px solid #ccc;">
+            </div>
+            <div class="settings-item" style="margin-bottom: 8px;">
+              <label for="locale-override" style="display: block; margin-bottom: 3px;">Locale Override:</label>
+              <input type="text" id="locale-override" placeholder="e.g., en, es, fr" style="width: 100%; padding: 4px; border-radius: 4px; border: 1px solid #ccc;">
+            </div>
+            <div class="settings-item" style="text-align: center; margin-top: 10px;">
+              <button id="save-debug-settings" style="padding: 5px 10px; background-color: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer;">Save Debug Settings</button>
             </div>
           </div>
         </div>
@@ -554,6 +568,36 @@
       this.uuidSpooferToggle = this.shadowRoot.getElementById("uuid-spoofer-toggle");
       this.uuidSpoofingWarning = this.shadowRoot.getElementById("uuid-spoofing-warning");
       this.gameLanguageSelect = this.shadowRoot.getElementById("game-language-select"); // Get reference
+      
+      // Get country and locale override inputs
+      this.countryOverrideInput = this.shadowRoot.getElementById("country-override");
+      this.localeOverrideInput = this.shadowRoot.getElementById("locale-override");
+      this.saveDebugSettingsBtn = this.shadowRoot.getElementById("save-debug-settings");
+      
+      if (this.saveDebugSettingsBtn) {
+        this.saveDebugSettingsBtn.addEventListener('click', async () => {
+          // Save country and locale override settings
+          if (this.countryOverrideInput) {
+            const country = this.countryOverrideInput.value.trim();
+            await window.ipc.invoke('set-setting', 'debug.country', country);
+            console.log('[Settings] Country override set to:', country || 'none');
+          }
+          
+          if (this.localeOverrideInput) {
+            const locale = this.localeOverrideInput.value.trim();
+            await window.ipc.invoke('set-setting', 'debug.locale', locale);
+            console.log('[Settings] Locale override set to:', locale || 'none');
+          }
+          
+          // Show success message
+          window.alert('Debug settings saved. Changes will apply on next login.');
+          
+          // Hide settings panel after saving
+          if (this.settingsPanel) {
+            this.settingsPanel.classList.remove('show');
+          }
+        });
+      }
 
       // --- Fruit Rotation & Theming Logic ---
       const fruitThemes = {
@@ -761,96 +805,88 @@
         }
       });
       
-      // Initialize debug toggle
-      // Note: State initialization moved to _initializeAsyncSettings
-      this.debugToggle.addEventListener('change', () => {
-        window.ipc.send('set-setting', 'debugLoggingEnabled', this.debugToggle.checked);
-      });
+      // Set up initial toggle event listeners (without awaiting anything in constructor)
+      if (this.debugToggle) {
+        this.debugToggle.addEventListener('change', () => {
+          window.ipc.invoke('set-setting', 'tester_debugLoggingEnabled', this.debugToggle.checked);
+          console.log('[Settings] Debug logging set to:', this.debugToggle.checked);
+        });
+      }
       
-      // Initialize DevTools toggle with inverted logic
-      // (true means enable dev console, but stored setting is "disable")
-      // Note: State initialization moved to _initializeAsyncSettings
-      this.disableDevToolsToggle.addEventListener('change', () => {
-        // Invert the value when sending to main process
-        window.ipc.send('set-setting', 'disableDevTools', !this.disableDevToolsToggle.checked);
-      });
+      if (this.disableDevToolsToggle) {
+        this.disableDevToolsToggle.addEventListener('change', () => {
+          // Invert the value - checked means enable (opposite of disable)
+          window.ipc.invoke('set-setting', 'tester_disableDevToolsEnabled', !this.disableDevToolsToggle.checked);
+          console.log('[Settings] Disable DevTools set to:', !this.disableDevToolsToggle.checked);
+        });
+      }
       
-      // Initialize UUID spoofer toggle
-        // Note: State initialization moved to _initializeAsyncSettings
-      this.uuidSpooferToggle.addEventListener('change', async () => {
-        const newState = this.uuidSpooferToggle.checked;
-        
-        try {
-          // Use invoke instead of send to properly trigger the confirmation dialog
-          const result = await window.ipc.invoke('toggle-uuid-spoofing', newState);
+      if (this.uuidSpooferToggle) {
+        this.uuidSpooferToggle.addEventListener('change', () => {
+          window.ipc.invoke('set-setting', 'uuid_spoofer_enabled', this.uuidSpooferToggle.checked);
+          console.log('[Settings] UUID spoofing set to:', this.uuidSpooferToggle.checked);
           
-          if (result.success) {
-            // Toggle warning display based on the actual result
-            if (result.enabled) {
-              this.uuidSpoofingWarning.classList.add('show');
-            } else {
-              this.uuidSpoofingWarning.classList.remove('show');
-            }
-            
-            // Make sure checkbox matches the actual result
-            this.uuidSpooferToggle.checked = result.enabled;
+          // Show/hide warning
+          if (this.uuidSpooferToggle.checked) {
+            this.uuidSpoofingWarning.classList.add('show');
           } else {
-            // If it failed, reset the checkbox to the opposite state
-            this.uuidSpooferToggle.checked = !newState;
-            // Also adjust warning visibility
-            if (!newState) {
-              this.uuidSpoofingWarning.classList.add('show');
-            } else {
-              this.uuidSpoofingWarning.classList.remove('show');
-            }
-            console.log("[UUID] Toggle failed:", result.message);
+            this.uuidSpoofingWarning.classList.remove('show');
           }
-        } catch (error) {
-          console.error("[UUID] Error toggling UUID spoofing:", error);
-          // Reset checkbox on error
-          this.uuidSpooferToggle.checked = !newState;
-        }
-      });
+        });
+      }
+      
+      if (this.gameLanguageSelect) {
+        this.gameLanguageSelect.addEventListener('change', (e) => {
+          const newLanguage = e.target.value;
+          window.ipc.invoke('set-setting', 'login.language', newLanguage);
+          console.log(`[Settings] Language changed to: ${newLanguage}`);
+          
+          if (globals && globals.setLanguage) {
+            globals.setLanguage(newLanguage);
+          }
+        });
+      }
 
       // Call async initialization methods (don't await in constructor)
-      this._initializeAsyncSettings();
-      this._initializeGameLanguageSetting();
-
-      // Initialize settings with fallbacks for packed builds where IPC might be restricted
-      this.initializeSettings().catch(err => {
-        console.warn('[LoginScreen] Error initializing settings:', err);
-      });
+      setTimeout(() => {
+        this._initializeAsyncSettings();
+        this._initializeGameLanguageSetting();
+        this.initializeSettings();
+      }, 100);
     } // End Constructor
 
     // --- Async Settings Initialization ---
-    async _initializeAsyncSettings() {
-      try {
-        // Initialize debug toggle state
-        try {
-          const debugLoggingEnabled = await window.ipc.invoke('get-setting', 'debugLoggingEnabled');
+    _initializeAsyncSettings() {
+      console.log('[LoginScreen] Running async settings initialization');
+      
+      // Initialize debug toggle state
+      window.ipc.invoke('get-setting', 'debugLoggingEnabled')
+        .then(debugLoggingEnabled => {
           if (this.debugToggle) {
             this.debugToggle.checked = debugLoggingEnabled;
           }
-        } catch (err) {
+        })
+        .catch(err => {
           console.warn("Error getting debugLoggingEnabled setting:", err);
           // Default to false
-        }
+        });
 
-        // Initialize DevTools toggle state
-        try {
-          const disableDevTools = await window.ipc.invoke('get-setting', 'disableDevTools');
-          // Invert the checkbox state - checked means ENABLE (opposite of disable)
+      // Initialize DevTools toggle state
+      window.ipc.invoke('get-setting', 'disableDevTools')
+        .then(disableDevTools => {
+          // Invert the value when sending to main process
           if (this.disableDevToolsToggle) {
             this.disableDevToolsToggle.checked = !disableDevTools;
           }
-        } catch (err) {
+        })
+        .catch(err => {
           console.warn("Error getting disableDevTools setting:", err);
           // Default to enabled
-        }
+        });
 
-        // Initialize UUID spoofer toggle state
-        try {
-          const uuidSpoofingEnabled = await window.ipc.invoke('get-setting', 'uuidSpoofingEnabled');
+      // Initialize UUID spoofer toggle state
+      window.ipc.invoke('get-setting', 'uuidSpoofingEnabled')
+        .then(uuidSpoofingEnabled => {
           if (this.uuidSpooferToggle) {
             this.uuidSpooferToggle.checked = uuidSpoofingEnabled;
             // Show warning if enabled
@@ -858,133 +894,187 @@
               this.uuidSpoofingWarning.classList.add('show');
             }
           }
-        } catch (err) {
+        })
+        .catch(err => {
           console.warn("Error getting uuidSpoofingEnabled setting:", err);
           // Default to disabled
-        }
-      } catch (err) {
-        console.error("Error in _initializeAsyncSettings:", err);
-        // Continue with defaults
-      }
+        });
+        
+      // Initialize country override value
+      window.ipc.invoke('get-setting', 'debug.country')
+        .then(country => {
+          if (this.countryOverrideInput && country) {
+            this.countryOverrideInput.value = country;
+            console.log('[LoginScreen] Loaded country override:', country);
+          }
+        })
+        .catch(err => {
+          console.warn("Error getting country override setting:", err);
+        });
+        
+      // Initialize locale override value
+      window.ipc.invoke('get-setting', 'debug.locale')
+        .then(locale => {
+          if (this.localeOverrideInput && locale) {
+            this.localeOverrideInput.value = locale;
+            console.log('[LoginScreen] Loaded locale override:', locale);
+          }
+        })
+        .catch(err => {
+          console.warn("Error getting locale override setting:", err);
+        });
     }
 
     // --- Game Language Setting Initialization ---
-    async _initializeGameLanguageSetting() {
-      try {
-        // Load current setting
-        const gameLanguage = await window.ipc.invoke('get-setting', 'gameLanguage');
-        if (gameLanguage && globals && globals.setLanguage) {
-          globals.setLanguage(gameLanguage);
-        }
-      } catch (error) {
-        console.warn('[LoginScreen] Error initializing game language setting:', error);
-        // Set default language (browser language or 'en')
-        if (globals && globals.setLanguage) {
-          const browserLang = navigator.language.split('-')[0];
-          globals.setLanguage(browserLang || 'en');
-        }
-      }
+    _initializeGameLanguageSetting() {
+      console.log('[LoginScreen] Initializing game language setting');
+      
+      // Load current setting
+      window.ipc.invoke('get-setting', 'gameLanguage')
+        .then(gameLanguage => {
+          if (gameLanguage && globals && globals.setLanguage) {
+            globals.setLanguage(gameLanguage);
+          }
+        })
+        .catch(error => {
+          console.warn('[LoginScreen] Error initializing game language setting:', error);
+          // Set default language (browser language or 'en')
+          if (globals && globals.setLanguage) {
+            const browserLang = navigator.language.split('-')[0];
+            globals.setLanguage(browserLang || 'en');
+          }
+        });
     }
 
     // Add a new method to safely initialize settings with fallbacks
-    async initializeSettings() {
-      try {
-        // Initialize debug logging with fallback
-        let debugLoggingEnabled = false;
-        try {
-          debugLoggingEnabled = await window.ipc.invoke('get-setting', 'debugLoggingEnabled');
+    initializeSettings() {
+      console.log('[LoginScreen] Initializing settings...');
+      
+      // Initialize debug logging with fallback
+      window.ipc.invoke('get-setting', 'tester_debugLoggingEnabled')
+        .then(debugLoggingEnabled => {
           console.log('[LoginScreen] Debug logging enabled:', debugLoggingEnabled);
-        } catch (err) {
+          if (this.debugToggle) {
+            this.debugToggle.checked = debugLoggingEnabled;
+          }
+        })
+        .catch(err => {
           console.warn('[LoginScreen] Error getting debugLoggingEnabled setting:', err);
           // Use fallback value (false)
-        }
+        });
 
-        // Initialize DevTools setting with fallback
-        let disableDevTools = true; // Default to disabled
-        try {
-          disableDevTools = await window.ipc.invoke('get-setting', 'disableDevTools');
+      // Initialize DevTools setting with fallback
+      window.ipc.invoke('get-setting', 'tester_disableDevToolsEnabled')
+        .then(disableDevTools => {
           console.log('[LoginScreen] Disable DevTools setting:', disableDevTools);
           
-          // Update the UI if the tester is available
-          if (this.testerDisableDevToolsToggle) {
-            this.testerDisableDevToolsToggle.checked = !disableDevTools;
+          // Update the UI if the toggle is available
+          if (this.disableDevToolsToggle) {
+            this.disableDevToolsToggle.checked = !disableDevTools;
           }
-        } catch (err) {
+        })
+        .catch(err => {
           console.warn('[LoginScreen] Error getting disableDevTools setting:', err);
-          // Use fallback value (true)
-        }
+          // Use fallback value (false)
+        });
 
-        // Initialize UUID spoofing with fallback
-        let uuidSpoofingEnabled = false; // Default to disabled
-        try {
-          uuidSpoofingEnabled = await window.ipc.invoke('get-setting', 'uuidSpoofingEnabled');
+      // Initialize UUID spoofing with fallback
+      window.ipc.invoke('get-setting', 'uuid_spoofer_enabled')
+        .then(uuidSpoofingEnabled => {
           console.log('[LoginScreen] UUID spoofing enabled:', uuidSpoofingEnabled);
           
-          // Update the UI if the tester is available
-          if (this.testerUuidSpooferToggle) {
-            this.testerUuidSpooferToggle.checked = uuidSpoofingEnabled;
+          // Update the UI if the toggle is available
+          if (this.uuidSpooferToggle) {
+            this.uuidSpooferToggle.checked = uuidSpoofingEnabled;
+            
+            // Show/hide warning
             if (uuidSpoofingEnabled && this.uuidSpoofingWarning) {
               this.uuidSpoofingWarning.classList.add('show');
             }
           }
-        } catch (err) {
+        })
+        .catch(err => {
           console.warn('[LoginScreen] Error getting uuidSpoofingEnabled setting:', err);
           // Use fallback value (false)
-        }
+        });
 
-        // Initialize game language setting with fallback
-        try {
-          const gameLanguage = await window.ipc.invoke('get-setting', 'gameLanguage');
+      // Initialize game language setting with fallback
+      window.ipc.invoke('get-setting', 'login.language')
+        .then(gameLanguage => {
           console.log('[LoginScreen] Game language setting:', gameLanguage);
+          
+          // Update any language selection UI if it exists
+          if (this.gameLanguageSelect) {
+            this.gameLanguageSelect.value = gameLanguage || 'en';
+          }
+          
+          // Set the language globally
           if (gameLanguage && globals && globals.setLanguage) {
             globals.setLanguage(gameLanguage);
           }
-        } catch (err) {
+        })
+        .catch(err => {
           console.warn('[LoginScreen] Error initializing game language setting:', err);
           // Use default language (browser language or 'en')
           if (globals && globals.setLanguage) {
             const browserLang = navigator.language.split('-')[0];
             globals.setLanguage(browserLang || 'en');
           }
-        }
-
-        // Initialize additional settings as needed
-        
-      } catch (err) {
-        console.error('[LoginScreen] Error in settings initialization:', err);
-        // Continue with defaults
-      }
+        });
     }
 
     // --- Core Login Methods ---
-    // Removed customDf parameter - we will fetch it fresh each time
-    async logIn(isRetry = false) { // Added async keyword
-      if (!isRetry && this.loginBlocked) {
-        return;
-      }
+    // Added async keyword to class method
+    async logIn() {
+      if (this.loginBlocked) return;
       this.loginBlocked = true;
-
+      this.logInButtonElem.disabled = true;
+      this.logInButtonElem.classList.add("loading");
+      
       try {
-        this.usernameInputElem.error = "";
-        this.passwordInputElem.error = "";
-
+        // If UUID spoofing is enabled, refresh the DF to get a new UUID for this login
+        if (this.uuidSpooferToggle && this.uuidSpooferToggle.checked) {
+          console.log('[LoginScreen] UUID spoofing enabled, refreshing DF before login');
+          await window.ipc.refreshDf();
+        }
+        
+        // Continue with existing login logic
         let authResult;
+        
         if (this.authToken) {
-          authResult = await globals.authenticateWithAuthToken(this.authToken);
+          try {
+            authResult = await globals.authenticateWithAuthToken(this.authToken);
+          } catch (err) {
+            console.error("[LoginScreen] Login failed: Missing authentication methods in globals");
+            this.passwordInputElem.error = "Login system not available";
+            this.loginBlocked = false;
+            return;
+          }
         } else if (this.refreshToken) {
           authResult = await globals.authenticateWithRefreshToken(this.refreshToken, this.otp);
         } else {
           if (!this.username.length) throw new Error("EMPTY_USERNAME");
           if (!this.password.length) throw new Error("EMPTY_PASSWORD");
-          // Reverted: Rely on authenticate function in index.html to handle df fallback
-          // It will use customDf (passed as null here) or globals.df
+          // Rely on authenticate function in index.html to handle df fallback
           authResult = await globals.authenticateWithPassword(this.username, this.password, this.otp, null); 
         }
+        
+        // Clear OTP after use
         this.otp = null;
+        
+        // Get user data and flashVars from authentication result
         const {userData, flashVars} = authResult;
-        // Fetch the currently selected game language setting using window.ipc (assuming preload exposes it)
-        const langSettingResult = await window.ipc.invoke('get-setting', 'gameLanguage'); // Reverted to window.ipc
-        const selectedLanguage = (langSettingResult && langSettingResult.value) ? langSettingResult.value : 'en'; // Default to 'en'
+        
+        // Get language setting
+        let selectedLanguage = 'en'; // Default to 'en'
+        try {
+          const langSettingResult = await window.ipc.invoke('get-setting', 'login.language');
+          if (langSettingResult) {
+            selectedLanguage = langSettingResult;
+          }
+        } catch (langErr) {
+          console.warn("[LoginScreen] Error getting language setting:", langErr);
+        }
 
         const data = {
           username: userData.username,
@@ -1038,6 +1128,7 @@
         // Moved this check from finally block to ensure 'err' is defined
         if (err?.message !== "OTP_NEEDED") {
              this.loginBlocked = false;
+             this.logInButtonElem.classList.remove("loading");
         }
       } finally {
         // Code that needs to run regardless of success/error, but doesn't depend on 'err'
