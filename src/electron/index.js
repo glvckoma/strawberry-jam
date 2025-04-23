@@ -38,6 +38,36 @@ const STATE_FILE_PATH = path.join(USER_DATA_PATH, 'jam_state.json');
 const defaultDataDir = path.resolve('data'); // Default project data dir (Added from leakChecker.js)
 const LOGGED_USERNAMES_FILE = 'logged_usernames.txt'; // Input file (Added from leakChecker.js)
 
+// Add electron-store schema for better validation/defaults
+const schema = {
+  network: {
+    type: 'object',
+    properties: {
+      smartfoxServer: {
+        type: 'string',
+        default: 'lb-iss04-classic-prod.animaljam.com'
+      },
+      secureConnection: {
+        type: 'boolean',
+        default: false
+      }
+    },
+    default: {}
+  },
+  leakCheck: {
+     type: 'object',
+     properties: {
+       apiKey: {
+         type: 'string',
+         default: ''
+       }
+       // Removed outputDir from schema as it's implicitly app.dataPath
+     },
+     default: {}
+  }
+  // Add other top-level keys as needed
+};
+
 // Default structure for the state file
 const DEFAULT_APP_STATE = {
   leakCheck: {
@@ -97,7 +127,7 @@ class Electron {
   constructor () {
     this._window = null
     this._apiProcess = null
-    this._store = new Store(); // Instantiate Store
+    this._store = new Store({ schema }); // Instantiate Store with schema
     this._patcher = new Patcher(null); // Instantiate Patcher (pass null for application)
     this._isLeakCheckRunning = false; // Added for leak check state
     this._isLeakCheckPaused = false; // Flag for pause state
@@ -112,7 +142,22 @@ class Electron {
    * @private
    */
   _setupIPC () {
-    ipcMain.on('open-directory', (event, filePath) => shell.openExternal(`file://${filePath}`))
+    // Updated open-directory to use shell.openPath
+    ipcMain.on('open-directory', (event, filePath) => {
+      if (!filePath) {
+        console.error('[IPC open-directory] Received request with no filePath.');
+        return; // Do nothing if no path provided
+      }
+      console.log(`[IPC open-directory] Attempting to open path: ${filePath}`);
+      shell.openPath(filePath).catch(err => {
+         console.error(`[IPC open-directory] Error opening path '${filePath}':`, err);
+         // Optionally notify the renderer of the error
+         if (event && event.sender && !event.sender.isDestroyed()) {
+            event.sender.send('directory-open-error', { path: filePath, error: err.message });
+         }
+      });
+    })
+
     ipcMain.on('window-close', () => this._window.close())
     ipcMain.on('window-minimize', () => this._window.minimize())
     ipcMain.on('open-settings', (_, url) => shell.openExternal(url))
@@ -128,33 +173,21 @@ class Electron {
 
     // --- Settings IPC Handlers ---
     ipcMain.handle('get-setting', (event, key) => {
-      // Never log this method - it's called very frequently
       try {
-        const value = this._store.get(key);
-        // Always return in a consistent format {value: actualValue}
-        const formattedValue = value && typeof value === 'object' && 'value' in value 
-          ? value 
-          : { value };
-        
-        return formattedValue;
+        const valueFromStore = this._store.get(key);
+        return valueFromStore;
       } catch (error) {
         if (isDevelopment) console.error(`[Store] Error getting setting '${key}':`, error);
-        return { value: undefined }; // Return consistent format even for errors
+        return undefined; 
       }
     });
 
     ipcMain.handle('set-setting', (event, key, value) => {
-      // Never log this method
       try {
-        // Store all settings in a consistent format {value: actualValue}
-        const formattedValue = typeof value === 'object' && 'value' in value 
-          ? value 
-          : { value };
-        this._store.set(key, formattedValue);
-        
+        this._store.set(key, value);
         return { success: true };
       } catch (error) {
-        if (isDevelopment) console.error(`[Store] Error setting setting '${key}':`, error);
+        if (isDevelopment) console.error(`[Store] Error setting setting '${key}' with value`, value, ':', error);
         return { success: false, error: error.message };
       }
     });
@@ -220,6 +253,16 @@ class Electron {
        }
      });
     // --- End IPC Handler for saving working accounts ---
+
+    // --- App Restart Handler ---
+    ipcMain.on('app-restart', () => {
+      console.log('[IPC] Received app-restart signal.');
+      // Use app.relaunch() to restart the app after it exits
+      app.relaunch();
+      // Use app.exit() for a clean exit before relaunching
+      app.exit(0);
+    });
+    // --- End App Restart Handler ---
 
 
     // --- Leak Checker IPC ---

@@ -17,9 +17,10 @@ exports.render = function (app, data = {}) {
   const $modal = $(`
     <div class="flex items-center justify-center min-h-screen">
       <!-- Modal Backdrop -->
-      <div class="fixed inset-0 bg-black/50 transition-opacity"></div>
+      <div class="fixed inset-0 bg-black/50 backdrop-blur-sm transition-opacity"></div>
       
       <div class="relative bg-secondary-bg rounded-lg shadow-xl max-w-md w-full flex flex-col max-h-[85vh] overflow-hidden">
+        <!-- Modal Header -->
         <div class="flex items-center p-4 border-b border-sidebar-border flex-shrink-0">
           <h3 class="text-lg font-semibold text-text-primary">
             <i class="fas fa-cog text-highlight-yellow mr-2"></i>
@@ -29,9 +30,25 @@ exports.render = function (app, data = {}) {
             <i class="fas fa-times"></i>
           </button>
         </div>
-        <div class="p-5 overflow-y-auto">
-          <!-- Network Settings Content -->
-          <div class="space-y-4">
+
+        <!-- Tab Bar -->
+        <div class="flex border-b border-sidebar-border flex-shrink-0 px-2 pt-2">
+          <button type="button" class="settings-tab active-tab px-4 py-2 text-sm font-medium text-text-primary border-b-2 border-custom-pink focus:outline-none" data-tab="connection">
+            Connection
+          </button>
+          <button type="button" class="settings-tab px-4 py-2 text-sm font-medium text-sidebar-text border-b-2 border-transparent hover:text-text-primary hover:border-gray-500 focus:outline-none" data-tab="leakcheck">
+            LeakCheck
+          </button>
+          <button type="button" class="settings-tab px-4 py-2 text-sm font-medium text-sidebar-text border-b-2 border-transparent hover:text-text-primary hover:border-gray-500 focus:outline-none" data-tab="advanced">
+            Advanced
+          </button>
+        </div>
+
+        <!-- Tab Content Area -->
+        <div class="p-5 overflow-y-auto flex-grow">
+
+          <!-- Connection Tab Content -->
+          <div id="connectionTabContent" class="settings-tab-content space-y-4">
             <!-- Server IP -->
             <div>
               <label for="smartfoxServer" class="block mb-2 text-sm font-medium text-text-primary">
@@ -44,64 +61,65 @@ exports.render = function (app, data = {}) {
             </div>
 
             <!-- Secure Connection -->
-            <div class="flex items-center mt-4 bg-tertiary-bg/30 p-3 rounded mb-6">
+            <div class="flex items-center mt-4 bg-tertiary-bg/30 p-3 rounded">
               <input id="secureConnection" type="checkbox"
                 class="w-4 h-4 bg-tertiary-bg rounded focus:ring-custom-pink">
               <label for="secureConnection" class="ml-2 text-sm text-text-primary">
                 Use secure connection (SSL/TLS)
               </label>
             </div>
-
-            <!-- LeakCheck Settings Section -->
-            <div class="mt-6 pt-4 border-t border-sidebar-border space-y-4">
-               <h4 class="text-md font-semibold text-text-primary mb-3">LeakCheck Settings</h4>
-               <!-- LeakCheck API Key -->
-               <div>
-                 <label for="leakCheckApiKey" class="block mb-2 text-sm font-medium text-text-primary">
-                   LeakCheck API Key
-                 </label>
-                 <input id="leakCheckApiKey" type="password"
-                   class="bg-tertiary-bg text-text-primary placeholder-text-primary focus:outline-none rounded px-3 py-2 w-full"
-                   placeholder="Enter your LeakCheck API Key">
-                 <p class="mt-1 text-xs text-gray-400"><span class="font-semibold text-highlight-yellow">Requires a LeakCheck.io Pro subscription.</span></p>
-               </div>
-               <!-- Output Directory (Replaced) -->
-               <div class="mt-2">
-                 <button type="button" id="openOutputDirBtn" class="w-full bg-sidebar-hover text-text-primary px-4 py-2 rounded hover:bg-sidebar-hover/70 transition">
-                   <i class="fas fa-folder-open mr-2"></i>Open Output Directory
-                 </button>
-                 <p class="mt-1 text-xs text-gray-400">Location where Leak Check results and other data files are saved.</p>
-               </div>
-            </div>
-            <!-- End LeakCheck Settings Section -->
-
-            <!-- Danger Zone Section -->
-            <div class="mt-6 pt-4 border-t border-sidebar-border space-y-4">
-              <h4 class="text-md font-semibold text-red-500 mb-3">
-                <i class="fas fa-exclamation-triangle mr-2"></i>Danger Zone
-              </h4>
-
-              <!-- Clear Cache Button -->
-              <div>
-                <button type="button" id="clearCacheBtn" class="w-full bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 transition">
-                  Clear Cache Now
-                </button>
-                <p class="mt-1 text-xs text-gray-400">Deletes cache for both Animal Jam Classic and Strawberry Jam. Requires app restart.</p>
-              </div>
-
-              <!-- Uninstall Button -->
-              <div class="mt-4">
-                <button type="button" id="uninstallBtn" class="w-full bg-red-800 text-white px-4 py-2 rounded hover:bg-red-900 transition">
-                  Uninstall Strawberry Jam
-                </button>
-                <p class="mt-1 text-xs text-gray-400">Removes Strawberry Jam from your computer. This action is irreversible.</p>
-              </div>
-            </div>
-            <!-- End Danger Zone Section -->
-
           </div>
+          <!-- End Connection Tab Content -->
+
+          <!-- LeakCheck Tab Content -->
+          <div id="leakcheckTabContent" class="settings-tab-content space-y-4 hidden">
+             <!-- LeakCheck API Key -->
+             <div>
+               <label for="leakCheckApiKey" class="block mb-2 text-sm font-medium text-text-primary">
+                 LeakCheck API Key
+               </label>
+               <input id="leakCheckApiKey" type="password"
+                 class="bg-tertiary-bg text-text-primary placeholder-text-primary focus:outline-none rounded px-3 py-2 w-full"
+                 placeholder="Enter LeakCheck API Key">
+               <p class="mt-1 text-xs text-gray-400"><span class="font-semibold text-highlight-yellow">Requires a LeakCheck.io Pro subscription.</span></p>
+             </div>
+             <!-- Output Directory Button -->
+             <div class="mt-2">
+               <button type="button" id="openOutputDirBtn" class="w-full bg-sidebar-hover text-text-primary px-4 py-2 rounded hover:bg-sidebar-hover/70 transition">
+                 <i class="fas fa-folder-open mr-2"></i>Open Output Directory
+               </button>
+               <p class="mt-1 text-xs text-gray-400\">Location where Leak Check results and other data files are saved.</p>
+             </div>
+          </div>
+          <!-- End LeakCheck Tab Content -->
+
+          <!-- Advanced Tab Content (Danger Zone) -->
+          <div id="advancedTabContent" class="settings-tab-content space-y-4 hidden">
+            <h4 class="text-md font-semibold text-red-500 mb-3">
+              <i class="fas fa-exclamation-triangle mr-2\"></i>Danger Zone
+            </h4>
+
+            <!-- Clear Cache Button -->
+            <div>
+              <button type="button" id="clearCacheBtn" class="w-full bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 transition">
+                Clear Cache Now
+              </button>
+              <p class="mt-1 text-xs text-gray-400">Deletes cache for both Animal Jam Classic and Strawberry Jam. Requires app restart.</p>
+            </div>
+
+            <!-- Uninstall Button -->
+            <div class="mt-4">
+              <button type="button" id="uninstallBtn" class="w-full bg-red-800 text-white px-4 py-2 rounded hover:bg-red-900 transition">
+                Uninstall Strawberry Jam
+              </button>
+              <p class="mt-1 text-xs text-gray-400">Removes Strawberry Jam from your computer. This action is irreversible.</p>
+            </div>
+          </div>
+          <!-- End Advanced Tab Content -->
+
         </div>
 
+        <!-- Modal Footer -->
         <div class="flex items-center justify-end p-4 border-t border-sidebar-border flex-shrink-0">
           <button type="button" class="bg-sidebar-hover text-text-primary px-4 py-2 mr-2 rounded hover:bg-sidebar-hover/70 transition" id="cancelSettingsBtn">
             Cancel
@@ -165,6 +183,21 @@ function setupEventHandlers ($modal, app) {
     saveSettings($modal, app)
   })
   // --- End Core Modal Handlers ---
+
+  // --- Tab Switching Logic ---
+  $modal.find('.settings-tab').on('click', function () {
+    const $this = $(this)
+    const tabId = $this.data('tab')
+
+    // Update tab appearance
+    $('.settings-tab').removeClass('active-tab border-custom-pink text-text-primary').addClass('text-sidebar-text border-transparent') // Remove active state from all
+    $this.addClass('active-tab border-custom-pink text-text-primary').removeClass('text-sidebar-text border-transparent') // Add active state to clicked tab
+
+    // Show/Hide content panes
+    $('.settings-tab-content').addClass('hidden'); // Hide all content
+    $('#' + tabId + 'TabContent').removeClass('hidden'); // Show selected content
+  });
+  // --- End Tab Switching Logic ---
 
 
   // --- REMOVED IPC Listeners for leak-check-progress and leak-check-result ---
@@ -256,118 +289,136 @@ function setupEventHandlers ($modal, app) {
  * @param {Application} app - The application instance
  */
 async function loadSettings ($modal, app) { // Made async
+  console.log('[Settings] Loading settings...'); // Log added
   try {
-    // Get settings with direct IPC
+    // Load settings using ipcRenderer with individual 'get-setting' calls
+    // Check if ipcRenderer exists before using it
+    let smartfoxServer = 'lb-iss04-classic-prod.animaljam.com'; // Default
+    let secureConnection = false; // Default
+    let leakCheckApiKey = ''; // Default
+
     if (typeof ipcRenderer !== 'undefined' && ipcRenderer) {
-      // Removed log
-      
-      // Define all settings to load 
-      const settingsToLoad = [
-        'smartfoxServer',
-        'secureConnection',
-        'leakCheckApiKey',
-        'leakCheckOutputDir'
-      ];
-      
-      // Load each setting
-      for (const key of settingsToLoad) {
-        try {
-          const settingObj = await ipcRenderer.invoke('get-setting', key);
-          // Removed log
-          
-          // Handle the setting based on its type
-          if (settingObj && settingObj.value !== undefined) {
-            switch (key) {
-              case 'smartfoxServer':
-                $modal.find('#smartfoxServer').val(settingObj.value);
-                break;
-              case 'secureConnection':
-                $modal.find('#secureConnection').prop('checked', !!settingObj.value);
-                break;
-              case 'leakCheckApiKey':
-                $modal.find('#leakCheckApiKey').val(settingObj.value);
-                break;
-              case 'leakCheckOutputDir':
-                $modal.find('#leakCheckOutputDir').val(settingObj.value);
-                break;
-            }
-          } else {
-            console.log(`[Settings] No value found for ${key}`);
-          }
-        } catch (err) {
-          console.error(`[Settings] Error loading setting ${key}:`, err);
+      try {
+        const serverSetting = await ipcRenderer.invoke('get-setting', 'network.smartfoxServer');
+        if (serverSetting !== undefined) { 
+          smartfoxServer = serverSetting;
         }
-      }
+      } catch (e) { console.error('[Settings Load] Error getting smartfoxServer:', e); }
+
+      try {
+        const secureSetting = await ipcRenderer.invoke('get-setting', 'network.secureConnection');
+        if (secureSetting === true || secureSetting === false) {
+          secureConnection = secureSetting;
+        }
+      } catch (e) { console.error('[Settings Load] Error getting secureConnection:', e); }
+
+      try {
+        const apiKeySetting = await ipcRenderer.invoke('get-setting', 'leakCheck.apiKey');
+         if (apiKeySetting !== undefined) {
+           leakCheckApiKey = apiKeySetting;
+         }
+      } catch (e) { console.error('[Settings Load] Error getting leakCheckApiKey:', e); }
+
     } else {
-      console.error('ipcRenderer not available for loading settings');
-      showToast('IPC Error: Cannot load settings', 'error');
+       console.warn('[Settings Load] ipcRenderer not available. Using defaults.');
     }
+
+    // Store raw original values for restart check
+    app.originalSettings = { smartfoxServer, secureConnection };
+
+    // Apply loaded/default values to the UI
+    $modal.find('#smartfoxServer').val(smartfoxServer);
+    $modal.find('#secureConnection').prop('checked', secureConnection);
+    $modal.find('#leakCheckApiKey').val(leakCheckApiKey);
+
+    // --- REMOVED LeakCheck Initial State Loading Logic ---
+
+    console.log('[Settings] Settings loaded successfully.'); // Log added
+
   } catch (error) {
-    console.error('Error loading settings:', error);
-    showToast('Error loading settings', 'error');
+    console.error('[Settings] Error loading settings:', error);
+    showToast('Failed to load settings', 'error');
+    // Apply default values in case of error
+    $modal.find('#smartfoxServer').val('lb-iss04-classic-prod.animaljam.com');
+    $modal.find('#secureConnection').prop('checked', false);
+    $modal.find('#leakCheckApiKey').val('');
   }
 }
 
 /**
- * Save settings from the form
+ * Save settings from the modal
  * @param {JQuery<HTMLElement>} $modal - The modal element
  * @param {Application} app - The application instance
  */
 async function saveSettings ($modal, app) { // Made async
-  // Check if ipcRenderer exists before using it
-  const hasIpc = typeof ipcRenderer !== 'undefined' && ipcRenderer;
-
+  console.log('[Settings] Attempting to save settings...'); // Log added
   try {
-    let settingsSaved = true;
-
-    // Get all settings from the form
-    const settingsToSave = {
-      smartfoxServer: $modal.find('#smartfoxServer').val().trim() || 'lb-iss02-classic-prod.animaljam.com',
-      secureConnection: $modal.find('#secureConnection').prop('checked'),
-      leakCheckApiKey: $modal.find('#leakCheckApiKey').val().trim(),
-      // Remove leakCheckOutputDir as the input field is gone
-      // leakCheckOutputDir: $modal.find('#leakCheckOutputDir').val().trim()
+    // Get current values from the form
+    const newSettings = {
+      smartfoxServer: $modal.find('#smartfoxServer').val().trim() || 'lb-iss04-classic-prod.animaljam.com', // Fallback to default if empty
+      secureConnection: $modal.find('#secureConnection').is(':checked'),
+      apiKey: $modal.find('#leakCheckApiKey').val().trim() // Trim API key
     };
 
-    if (hasIpc) {
+    console.log('[Settings] Settings to save:', newSettings); // Log added
+
+    // Check if ipcRenderer exists before using it
+    if (typeof ipcRenderer !== 'undefined' && ipcRenderer) {
+      let saveOk = true;
+      // Save settings individually using 'set-setting'
       try {
-        // Save each setting individually via IPC to ensure proper storage in main process
-        for (const [key, value] of Object.entries(settingsToSave)) {
-          const result = await ipcRenderer.invoke('set-setting', key, value);
-          
-          if (!result || !result.success) {
-            settingsSaved = false;
-            console.error(`IPC Error saving ${key}:`, result?.error || 'Unknown error');
-            showToast(`Error saving setting ${key}: ${result?.error || 'Unknown error'}`, 'error');
-            break; // Stop on first error
-          }
+         // Send raw values directly
+         await ipcRenderer.invoke('set-setting', 'network.smartfoxServer', newSettings.smartfoxServer);
+         await ipcRenderer.invoke('set-setting', 'network.secureConnection', newSettings.secureConnection);
+         await ipcRenderer.invoke('set-setting', 'leakCheck.apiKey', newSettings.apiKey);
+         // Add other settings here if needed in the future
+      } catch (error) {
+        console.error('[Settings Save] Error during individual set-setting calls:', error);
+        showToast(`Error saving settings: ${error.message || 'Unknown error'}`, 'error');
+        saveOk = false;
+      }
+
+
+      if (saveOk) {
+        console.log('[Settings] Settings saved successfully via IPC.'); // Log added
+        showToast('Settings saved successfully!', 'success');
+
+        // Check if network settings changed and prompt for restart if necessary
+        // Compare raw new values with raw original values loaded into app.originalSettings
+        const original = app.originalSettings || {}; 
+        const requiresRestart = original.smartfoxServer !== newSettings.smartfoxServer ||
+                                original.secureConnection !== newSettings.secureConnection;
+
+        if (requiresRestart) {
+           console.log('[Settings] Network settings changed, prompting for restart.');
+           showConfirmationModal(
+              'Restart Required',
+              'Changing network settings requires an application restart to take effect. Restart now?',
+              'Restart Now',
+              'Later'
+           ).then(confirmed => {
+               if (confirmed && typeof ipcRenderer !== 'undefined' && ipcRenderer) {
+                   console.log('[Settings] User confirmed restart.');
+                   ipcRenderer.send('app-restart'); // Tell main process to restart
+               } else {
+                  console.log('[Settings] User declined restart or IPC unavailable.');
+               }
+           });
         }
 
-        // Also update local settings for immediate UI use
-        if (app.settings && typeof app.settings.setAll === 'function') {
-          const currentSettings = app.settings.getAll() || {};
-          app.settings.setAll({ ...currentSettings, ...settingsToSave });
-        }
-      } catch (ipcError) { // Catch errors from invoke calls
-        settingsSaved = false;
-        console.error('IPC Error saving settings:', ipcError);
-        showToast('IPC Error: Failed to save settings', 'error');
+        app.modals.close(); // Close modal on successful save ONLY if no restart needed or user declines
       }
+      // If saveOk is false, modal stays open
+
+
     } else {
-      settingsSaved = false;
-      console.error('ipcRenderer not available for saving settings');
+      console.error('[Settings Save] ipcRenderer not available. Cannot save settings.');
       showToast('IPC Error: Cannot save settings', 'error');
     }
 
-    if (settingsSaved) {
-      app.modals.close();
-      showToast('Settings saved successfully');
-    }
-    // If not saved, keep modal open for user to see error/retry
-
   } catch (error) {
-    console.error('Error saving settings:', error);
-    showToast('Error saving settings', 'error')
+    console.error('[Settings] Error saving settings:', error);
+    showToast('Failed to save settings', 'error');
   }
 }
 
