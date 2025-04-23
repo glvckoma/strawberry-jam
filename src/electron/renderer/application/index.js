@@ -172,6 +172,7 @@ module.exports = class Application extends EventEmitter {
     this.$playButton = document.getElementById('playButton'); // Use vanilla JS as jQuery might not be ready
 
     this._setupPluginIPC(); // Moved from instantiate to ensure handlers are ready early
+    this._setupStatusIndicatorIPC(); // Add call to setup new listeners
   }
 
   /**
@@ -334,6 +335,75 @@ module.exports = class Application extends EventEmitter {
     }
   }
 
+  /**
+   * Sets up IPC listeners for plugin window status updates.
+   * @private
+   */
+  _setupStatusIndicatorIPC() {
+    if (typeof require === "function") {
+      try {
+        const { ipcRenderer } = require('electron');
+
+        ipcRenderer.on('plugin-window-opened', (event, pluginName) => {
+          devLog(`[Renderer IPC] Received plugin-window-opened for: ${pluginName}`);
+          this._updatePluginStatusIndicator(pluginName, true);
+        });
+
+        ipcRenderer.on('plugin-window-closed', (event, pluginName) => {
+          devLog(`[Renderer IPC] Received plugin-window-closed for: ${pluginName}`);
+          this._updatePluginStatusIndicator(pluginName, false);
+        });
+
+      } catch (e) {
+        devError("[Renderer IPC] Error setting up status indicator listeners:", e);
+      }
+    }
+  }
+
+  /**
+   * Updates the status indicator for a specific plugin.
+   * @param {string} pluginName - The name of the plugin.
+   * @param {boolean} isOpen - Whether the plugin window is open.
+   * @private
+   */
+  _updatePluginStatusIndicator(pluginName, isOpen) {
+    // Ensure pluginList is available
+    if (!this.$pluginList || this.$pluginList.length === 0) {
+        devError(`[Status Update] Cannot update indicator for ${pluginName}: $pluginList not found.`);
+        return;
+    }
+    
+    const $listItem = this.$pluginList.find(`li[data-plugin-name="${pluginName}"]`);
+    if ($listItem.length === 0) {
+        // It's possible the list hasn't fully rendered yet, or the plugin isn't listed.
+        // We could potentially retry or queue the update, but for now, just log.
+        devWarn(`[Status Update] List item for plugin "${pluginName}" not found.`);
+        return;
+    }
+
+    const $indicator = $listItem.find('.plugin-status-indicator');
+    if ($indicator.length === 0) {
+        devError(`[Status Update] Status indicator for plugin "${pluginName}" not found within list item.`);
+        return;
+    }
+
+    // Only update UI plugins
+    const pluginType = $listItem.data('plugin-type');
+    if (pluginType === 'ui') {
+        if (isOpen) {
+            $indicator.removeClass('bg-red-500 bg-yellow-500').addClass('bg-green-500');
+            devLog(`[Status Update] Set indicator for ${pluginName} to GREEN`);
+        } else {
+            $indicator.removeClass('bg-green-500 bg-yellow-500').addClass('bg-red-500');
+            devLog(`[Status Update] Set indicator for ${pluginName} to RED`);
+        }
+    } else {
+         // Keep game plugins yellow
+         $indicator.removeClass('bg-red-500 bg-green-500').addClass('bg-yellow-500');
+         // devLog(`[Status Update] Ignored status update for non-UI plugin ${pluginName}`);
+    }
+  }
+
   open (url) {
     ipcRenderer.send('open-url', url)
   }
@@ -366,6 +436,15 @@ module.exports = class Application extends EventEmitter {
    */
   openPluginHub () {
     this.modals.show('pluginLibraryModal', '#modalContainer')
+  }
+
+  /**
+   * Opens the links modal.
+   * @returns {void}
+   * @public
+   */
+  openLinksModal () {
+    this.modals.show('linksModal', '#modalContainer')
   }
 
   /**

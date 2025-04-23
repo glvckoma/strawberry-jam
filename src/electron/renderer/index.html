@@ -53,26 +53,11 @@
         <!-- ADDED Links -->
         <li class="relative">
           <a href="#" id="openLinksSection"
-            class="flex items-center space-x-3 text-sidebar-text hover:bg-tertiary-bg group px-3 py-2.5 rounded-md transition-all">
+            class="flex items-center space-x-3 text-sidebar-text hover:bg-tertiary-bg group px-3 py-2.5 rounded-md transition-all"
+            onclick="jam.application.openLinksModal()">
             <i class="fas fa-link text-sidebar-text/80 text-xl"></i>
             <span class="font-medium">Links</span>
           </a>
-          <div id="linksPanel" class="absolute left-full top-0 ml-2 p-3 bg-secondary-bg rounded-md shadow-lg border border-sidebar-border z-40 opacity-0 pointer-events-none transform -translate-x-2 transition-all duration-200 ease-out">
-            <div class="flex space-x-3">
-              <a href="#" class="text-sidebar-text hover:text-indigo-400 p-1.5 rounded hover:bg-tertiary-bg transition-colors" onclick="jam.application.open('https://discord.gg/HzFe7XpuPs')" aria-label="Discord" data-tooltip="Discord">
-                <i class="fab fa-discord text-lg"></i>
-              </a>
-              <a href="#" class="text-sidebar-text hover:text-highlight-green p-1.5 rounded hover:bg-tertiary-bg transition-colors" onclick="jam.application.open('https://github.com/glvckoma/strawberry-jam')" aria-label="GitHub" data-tooltip="GitHub">
-                <i class="fab fa-github text-lg"></i>
-              </a>
-              <a href="#" class="text-sidebar-text hover:text-peachy-beige p-1.5 rounded hover:bg-tertiary-bg transition-colors" onclick="jam.application.open('https://jam.exposed')" aria-label="Masterpieces" data-tooltip="Masterpieces">
-                <i class="fas fa-palette text-lg"></i>
-              </a>
-              <a href="#" class="text-sidebar-text hover:text-blue-400 p-1.5 rounded hover:bg-tertiary-bg transition-colors" onclick="jam.application.open('https://github.com/glvckoma/AJC-Price-Checker')" aria-label="AJC Price Checker" data-tooltip="AJC Price Checker">
-                <i class="fas fa-tags text-lg"></i>
-              </a>
-            </div>
-          </div>
         </li>
         <!-- ADDED Plugin Library -->
         <li>
@@ -367,12 +352,6 @@
         box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
       }
     }
-    /* ADDED Links Panel Active State */
-    #linksPanel.active {
-      opacity: 1;
-      pointer-events: auto;
-      transform: translateX(0);
-    }
   </style>
   <script>
     // REMOVED Vanilla JS fruit icon handler
@@ -421,26 +400,6 @@
           }
         });
       }
-
-      // ADDED Links Panel Toggle Logic
-      const openLinksButton = document.getElementById('openLinksSection');
-      const linksPanel = document.getElementById('linksPanel');
-
-      if (openLinksButton && linksPanel) {
-        openLinksButton.addEventListener('click', (event) => {
-          event.preventDefault(); // Prevent default anchor behavior
-          linksPanel.classList.toggle('active');
-        });
-
-        // Optional: Close panel when clicking outside
-        document.addEventListener('click', (event) => {
-          // Check if the click is outside the panel AND outside the button that opens it
-          if (!linksPanel.contains(event.target) && !openLinksButton.contains(event.target) && linksPanel.classList.contains('active')) {
-            linksPanel.classList.remove('active');
-          }
-        });
-      }
-
     });
   </script>
 

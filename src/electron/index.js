@@ -135,6 +135,7 @@ class Electron {
     this._isQuitting = false; // Flag to prevent multiple quit handler runs
     this._isClearingCacheAndQuitting = false; // Flag for cache clear on quit
     this._setupIPC()
+    this.pluginWindows = new Map(); // Add map to track plugin windows
   }
 
   /**
@@ -653,7 +654,135 @@ class Electron {
     });
     // --- End Danger Zone IPC Handlers ---
 
+    // Bind the open plugin window handler
+    ipcMain.on('open-plugin-window', this._handleOpenPluginWindow.bind(this));
   }
+
+  /**
+   * Handles the 'open-plugin-window' IPC event.
+   * @param {Electron.IpcMainEvent} event - The IPC event.
+   * @param {object} args - Arguments sent from renderer.
+   * @param {string} args.url - URL of the plugin HTML.
+   * @param {string} args.name - Name of the plugin.
+   * @param {string} args.pluginPath - Filesystem path to the plugin directory.
+   * @private
+   */
+  _handleOpenPluginWindow(event, { url, name, pluginPath }) {
+    devLog(`[IPC Main Handler] Creating plugin window for ${name}`);
+
+    const isDev = process.env.NODE_ENV === 'development';
+
+    const pluginWindow = new BrowserWindow({
+      ...defaultWindowOptions,
+      title: name,
+      width: 800,
+      height: 600,
+      frame: false,
+      webPreferences: {
+        ...defaultWindowOptions.webPreferences,
+        devTools: true, // Allow devtools in any environment
+        nodeIntegration: true,
+        contextIsolation: false
+      }
+    });
+
+    // Load the plugin URL
+    pluginWindow.loadURL(url);
+
+    // When window is ready, inject the jam object and jQuery
+    pluginWindow.webContents.on('did-finish-load', () => {
+      devLog(`[IPC Main Handler] Plugin window ${name} loaded`);
+
+      // Inject jQuery from CDN
+      pluginWindow.webContents.executeJavaScript(`
+        (function() {
+          if (!window.jQuery) {
+            var script = document.createElement('script');
+            script.src = "https://code.jquery.com/jquery-3.6.0.min.js";
+            script.onload = function() {
+              if (process.env.NODE_ENV === 'development') console.log("[Plugin Window] jQuery injected:", typeof window.$);
+            };
+            document.head.appendChild(script);
+          }
+        })();
+      `).then(() => {
+          // Inject window.jam object after jQuery injection
+          pluginWindow.webContents.executeJavaScript(`
+            try {
+              const { ipcRenderer } = require('electron');
+              // REMOVED: if (process.env.NODE_ENV === 'development') console.log("[Plugin Window] Setting up window.jam...");
+              
+              // Ensure window.jam exists (created by preload)
+              window.jam = window.jam || {};
+
+              // Define dispatch object
+              const dispatchObj = {
+                sendRemoteMessage: function(msg) {
+                  // REMOVED: if (process.env.NODE_ENV === 'development') console.log("[Plugin Window] Sending remote message via IPC:", msg);
+                  ipcRenderer.send('send-remote-message', msg);
+                },
+                sendConnectionMessage: function(msg) {
+                  // REMOVED: if (process.env.NODE_ENV === 'development') console.log("[Plugin Window] Sending connection message via IPC:", msg);
+                  ipcRenderer.send('send-connection-message', msg);
+                },
+                // Add getState method using invoke
+                getState: function(key) {
+                  // REMOVED: if (process.env.NODE_ENV === 'development') console.log("[Plugin Window] Requesting state via IPC invoke for key:", key);
+                  // This returns a Promise! Plugin code needs to handle this (e.g., await).
+                  return ipcRenderer.invoke('dispatch-get-state', key);
+                },
+                // Add getStateSync method using sendSync
+                getStateSync: function(key) {
+                  // REMOVED: if (process.env.NODE_ENV === 'development') console.log("[Plugin Window] Requesting state via IPC sendSync for key:", key);
+                  // This returns the value directly.
+                  return ipcRenderer.sendSync('dispatch-get-state-sync', key);
+                }
+              };
+
+              // Define application object
+              const applicationObj = {
+                consoleMessage: function(type, msg) {
+                  // Use string concatenation to avoid nested template literals
+                  if (process.env.NODE_ENV === 'development') console.log("[Plugin App Console] " + type + ": " + msg); 
+                  ipcRenderer.send('console-message', { type, msg });
+                }
+              };
+
+              // Assign to window.jam
+              window.jam.dispatch = dispatchObj;
+              window.jam.application = applicationObj;
+
+              // Dispatch a custom event to signal readiness
+              window.dispatchEvent(new CustomEvent('jam-ready'));
+            } catch (err) {
+              if (process.env.NODE_ENV === 'development') console.error("[Plugin Window] Error setting up window.jam:", err);
+            }
+          `);
+      });
+    });
+
+    // Store reference and send opened event
+    // 'this' should now correctly refer to the Electron instance
+    this.pluginWindows.set(name, pluginWindow);
+    if (this._window && this._window.webContents && !this._window.isDestroyed()) {
+      this._window.webContents.send('plugin-window-opened', name);
+    }
+
+    // Handle window closing
+    pluginWindow.on('closed', () => {
+      devLog(`[IPC Main Handler] Plugin window ${name} closed`);
+      if (this._window && this._window.webContents && !this._window.isDestroyed()) {
+        this._window.webContents.send('plugin-window-closed', name);
+      }
+      // 'this' should also be correct here due to arrow function
+      this.pluginWindows.delete(name); // Remove from tracking map
+    });
+
+    // Handle window errors
+    pluginWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
+      if (isDevelopment) console.error(`[IPC Main Handler] Plugin window ${name} failed to load:`, errorDescription);
+    });
+  } // End _handleOpenPluginWindow method
 
  // --- Helper methods for State Management ---
   async getAppState() {
@@ -1297,113 +1426,6 @@ ipcMain.on('packet-event', (event, packetData) => {
     } catch (e) {
       console.error(`[IPC Main] Error sending packet-event to window: ${e.message}`);
     }
-  });
-});
-
-/**
- * Handle plugin window creation.
- * - In development: plugin windows never open devtools automatically.
- * - In production: plugin windows cannot open devtools at all.
- */
-ipcMain.on('open-plugin-window', (event, { url, name, pluginPath }) => {
-    devLog(`[IPC Main] Creating plugin window for ${name}`);
-
-    const isDev = process.env.NODE_ENV === 'development';
-
-  const pluginWindow = new BrowserWindow({
-    ...defaultWindowOptions,
-    title: name,
-    width: 800,
-    height: 600,
-    frame: false,
-    webPreferences: {
-      ...defaultWindowOptions.webPreferences,
-      devTools: true, // Allow devtools in any environment
-      nodeIntegration: true,
-      contextIsolation: false
-    }
-  });
-
-  // Load the plugin URL
-  pluginWindow.loadURL(url);
-
-  // When window is ready, inject the jam object and jQuery, and open dev tools
-    pluginWindow.webContents.on('did-finish-load', () => {
-      devLog(`[IPC Main] Plugin window ${name} loaded`);
-
-      // Dev tools do not open automatically for plugin windows.
-
-      // Inject jQuery from CDN
-      pluginWindow.webContents.executeJavaScript(`
-        (function() {
-          if (!window.jQuery) {
-            var script = document.createElement('script');
-            script.src = "https://code.jquery.com/jquery-3.6.0.min.js";
-            script.onload = function() {
-              if (process.env.NODE_ENV === 'development') console.log("[Plugin Window] jQuery injected:", typeof window.$);
-            };
-            document.head.appendChild(script);
-          }
-        })();
-      `).then(() => {
-        // Inject window.jam object after jQuery injection
-        pluginWindow.webContents.executeJavaScript(`
-          try {
-            const { ipcRenderer } = require('electron');
-            // REMOVED: if (process.env.NODE_ENV === 'development') console.log("[Plugin Window] Setting up window.jam...");
-            
-            // Ensure window.jam exists (created by preload)
-            window.jam = window.jam || {};
-
-            // Define dispatch object
-            const dispatchObj = {
-              sendRemoteMessage: function(msg) {
-                // REMOVED: if (process.env.NODE_ENV === 'development') console.log("[Plugin Window] Sending remote message via IPC:", msg);
-                ipcRenderer.send('send-remote-message', msg);
-              },
-              sendConnectionMessage: function(msg) {
-                // REMOVED: if (process.env.NODE_ENV === 'development') console.log("[Plugin Window] Sending connection message via IPC:", msg);
-                ipcRenderer.send('send-connection-message', msg);
-              },
-              // Add getState method using invoke
-              getState: function(key) {
-                // REMOVED: if (process.env.NODE_ENV === 'development') console.log("[Plugin Window] Requesting state via IPC invoke for key:", key);
-                // This returns a Promise! Plugin code needs to handle this (e.g., await).
-                return ipcRenderer.invoke('dispatch-get-state', key);
-              },
-              // Add getStateSync method using sendSync
-              getStateSync: function(key) {
-                // REMOVED: if (process.env.NODE_ENV === 'development') console.log("[Plugin Window] Requesting state via IPC sendSync for key:", key);
-                // This returns the value directly.
-                return ipcRenderer.sendSync('dispatch-get-state-sync', key);
-              }
-            };
-
-            // Define application object
-            const applicationObj = {
-              consoleMessage: function(type, msg) {
-                // Use string concatenation to avoid nested template literals
-                if (process.env.NODE_ENV === 'development') console.log("[Plugin App Console] " + type + ": " + msg); 
-                ipcRenderer.send('console-message', { type, msg });
-              }
-            };
-
-            // Assign to window.jam
-            window.jam.dispatch = dispatchObj;
-            window.jam.application = applicationObj;
-
-            // Dispatch a custom event to signal readiness
-            window.dispatchEvent(new CustomEvent('jam-ready'));
-          } catch (err) {
-            if (process.env.NODE_ENV === 'development') console.error("[Plugin Window] Error setting up window.jam:", err);
-          }
-        `);
-      });
-    });
-
-  // Handle window errors
-  pluginWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
-    if (isDevelopment) console.error(`[IPC Main] Plugin window ${name} failed to load:`, errorDescription);
   });
 });
 
