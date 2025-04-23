@@ -2,7 +2,7 @@
   "name": "strawberry-jam",
   "description": "strawberry jam is my personal fork of the project jam created and developed by sxip.",
   "main": "src/index.js",
-  "version": "2.0.4",
+  "version": "2.0.3",
   "author": "glvckoma",
   "scripts": {
     "devtools": "electron dev/index.js",
@@ -21,6 +21,7 @@
     "plugin:tag": "node src/utils/manage-plugin-tags.js",
     "plugin:tag:list": "node src/utils/manage-plugin-tags.js list",
     "publish:win": "npm run version:patch && npm run build:win:public && npm run verify && npx electron-builder build -w -p always",
+    "publish:force": "npm run build:win:public && npx electron-builder build -w -p always",
     "publish:mac-docker": "docker run --rm -e GH_TOKEN -v \"%cd%\":/project -v \"%cd%/build\":/project/build electronuserland/builder:wine /bin/bash -c \"npm run pack:asar:public && npx electron-builder build --mac -c.mac.target=zip --x64 --arm64 -p always --config.asar=true --config.npmRebuild=true -c.mac.identity=null --config.electronDownload.mirror=https://npmmirror.com/mirrors/electron/\""
   },
   "repository": {
