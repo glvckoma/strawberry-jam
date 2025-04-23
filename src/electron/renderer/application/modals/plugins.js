@@ -39,6 +39,9 @@ exports.render = function (app) {
             <i class="fas fa-puzzle-piece text-highlight-green mr-2"></i>
             Plugin Library
           </h3>
+          <button type="button" class="ml-auto text-gray-400 transition-colors duration-200 transform rounded-full p-1" id="closePluginLibraryBtn" aria-label="Close">
+            <i class="fas fa-times"></i>
+          </button>
         </div>
         
         <!-- Search Bar -->
@@ -89,11 +92,17 @@ exports.render = function (app) {
     }
   }
 
-  $modal.find('#closeLibraryModalBtn, #closeModalBtn').on('click', closeHandler)
+  $modal.find('#closeLibraryModalBtn, #closeModalBtn, #closePluginLibraryBtn').on('click', closeHandler)
 
   $modal.find('#modalBackdrop').on('click', function () {
     app.modals.close()
   })
+
+  // Add hover effect to close button
+  $modal.find('#closePluginLibraryBtn').hover(
+    function() { $(this).css({ 'color': 'var(--theme-primary)', 'background-color': 'rgba(232, 61, 82, 0.1)', 'transform': 'scale(1.1)' }); },
+    function() { $(this).css({ 'color': '', 'background-color': '', 'transform': '' }); }
+  );
 
   // Prevent multiple simultaneous refreshes
   let refreshInProgress = false;

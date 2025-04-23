@@ -26,7 +26,7 @@ exports.render = function (app, data = {}) {
             <i class="fas fa-cog text-highlight-yellow mr-2"></i>
             Settings
           </h3>
-          <button type="button" class="ml-auto p-2 w-8 h-8 flex-shrink-0 rounded hover:bg-error-red hover:text-white text-sidebar-text focus:outline-none flex items-center justify-center" id="closeSettingsBtn">
+          <button type="button" class="ml-auto text-gray-400 transition-colors duration-200 transform rounded-full p-1" id="closeSettingsBtn" aria-label="Close">
             <i class="fas fa-times"></i>
           </button>
         </div>
@@ -195,6 +195,12 @@ function setupEventHandlers ($modal, app) {
     // console.log('[Settings Modal] Close/Cancel button clicked.'); // Log removed
     app.modals.close();
   });
+
+  // Add hover effect to close button
+  $modal.find('#closeSettingsBtn').hover(
+    function() { $(this).css({ 'color': 'var(--theme-primary)', 'background-color': 'rgba(232, 61, 82, 0.1)', 'transform': 'scale(1.1)' }); },
+    function() { $(this).css({ 'color': '', 'background-color': '', 'transform': '' }); }
+  );
 
   $modal.find('#saveSettingsBtn').on('click', () => {
     saveSettings($modal, app)

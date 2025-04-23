@@ -25,11 +25,15 @@ module.exports = {
     });
 
     const $closeButton = $('<button>', {
-      class: 'text-gray-400 hover:text-highlight-red transition-colors duration-200 transform hover:scale-110 rounded-full p-1 hover:bg-highlight-red/10',
+      class: 'text-gray-400 transition-colors duration-200 transform rounded-full p-1',
       'aria-label': 'Close'
     }).append(
       $('<i>', { class: 'fas fa-times' })
-    ).on('click', () => application.modals.close()); // Use modal system close
+    ).on('click', () => application.modals.close()
+    ).hover(
+      function() { $(this).css({ 'color': 'var(--theme-primary)', 'background-color': 'rgba(232, 61, 82, 0.1)', 'transform': 'scale(1.1)' }); },
+      function() { $(this).css({ 'color': '', 'background-color': '', 'transform': '' }); }
+    );
 
     $header.append($title, $closeButton);
 
