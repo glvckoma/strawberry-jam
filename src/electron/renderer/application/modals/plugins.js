@@ -29,7 +29,7 @@ exports.render = function (app) {
   const $modal = $(`
     <div class="flex items-center justify-center min-h-screen p-4" style="z-index: 9999;">
       <!-- Modal Backdrop -->
-      <div class="fixed inset-0 bg-black/50 transition-opacity" id="modalBackdrop" style="z-index: 9000;"></div>
+      <div class="fixed inset-0 bg-black/50 backdrop-blur-sm transition-opacity" id="modalBackdrop" style="z-index: 9000;"></div>
       
       <!-- Modal Content -->
       <div class="relative bg-secondary-bg rounded-lg shadow-xl max-w-5xl w-full" style="z-index: 9100;">
@@ -71,10 +71,10 @@ exports.render = function (app) {
             </span>
           </div>
           <div class="flex space-x-2">
-            <button type="button" class="text-xs text-gray-400 hover:text-highlight-green transition px-2 py-1 rounded" id="refreshPluginsBtn">
+            <button type="button" class="text-xs text-gray-400 hover:text-highlight-green transition px-2 py-1 rounded" id="refreshPluginsBtn" data-tooltip="Refresh plugin list from GitHub">
               <i class="fas fa-sync-alt mr-1"></i> Refresh
             </button>
-            <button type="button" class="bg-tertiary-bg text-text-primary px-3 py-1 rounded hover:bg-sidebar-hover/70 transition" id="closeModalBtn">
+            <button type="button" class="bg-tertiary-bg text-text-primary px-3 py-1 rounded hover:bg-sidebar-hover/70 transition" id="closeModalBtn" data-tooltip="Close Library">
               Close
             </button>
           </div>
@@ -456,12 +456,12 @@ exports.render = function (app) {
 
         $pluginsList.append(`
           <div class="bg-tertiary-bg/30 rounded-lg p-4 border border-sidebar-border hover:border-highlight-green transition-colors" data-plugin-name="${plugin.name.toLowerCase()}">
-            <div class="flex justify-between items-start mb-3">
+            <div class="flex justify-between items-start mb-3 flex-wrap gap-y-1">
               <div>
-                <div class="flex items-center">
+                <div class="flex items-center flex-wrap gap-x-2 gap-y-1">
                   ${iconHtml}
                   <h4 class="text-text-primary font-medium text-sm">${metadata.name || plugin.name}</h4>
-                  ${metadata.version ? `<span class="ml-2 text-xs text-gray-400">v${metadata.version}</span>` : ''}
+                  ${metadata.version ? `<span class="text-xs text-gray-400">v${metadata.version}</span>` : ''}
                   ${badgeHtml}
                   ${betaTagHtml}
                 </div>
@@ -469,7 +469,7 @@ exports.render = function (app) {
                   <i class="fas fa-user mr-1"></i> ${metadata.author}
                 </div>
               </div>
-              <div>
+              <div class="flex-shrink-0">
                 <span class="px-1.5 py-0.5 text-xs rounded-full ${installed ? 'bg-highlight-green/20 text-highlight-green' : 'bg-error-red/20 text-error-red'}">
                   ${installed ? 'Installed' : 'Not Installed'}
                 </span>
@@ -490,10 +490,10 @@ exports.render = function (app) {
                 </button>
                 
                 ${!installed
-                  ? `<button data-plugin="${encodeURIComponent(JSON.stringify(plugin))}" class="install-plugin-btn px-3 py-1 text-xs bg-highlight-green/20 text-highlight-green rounded hover:bg-highlight-green/30 transition">
+                  ? `<button data-plugin="${encodeURIComponent(JSON.stringify(plugin))}" class="install-plugin-btn px-3 py-1 text-xs bg-highlight-green/20 text-highlight-green rounded hover:bg-highlight-green/30 transition" data-tooltip="Install ${metadata.name || plugin.name}">
                     <i class="fas fa-download mr-1"></i> Install
                   </button>`
-                  : `<button data-plugin-name="${plugin.name}" class="uninstall-plugin-btn px-3 py-1 text-xs bg-error-red/20 text-error-red rounded hover:bg-error-red/30 transition">
+                  : `<button data-plugin-name="${plugin.name}" class="uninstall-plugin-btn px-3 py-1 text-xs bg-error-red/20 text-error-red rounded hover:bg-error-red/30 transition" data-tooltip="Uninstall ${plugin.name}">
                     <i class="fas fa-trash-alt mr-1"></i> Uninstall
                   </button>`
                 }

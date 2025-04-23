@@ -130,6 +130,9 @@ class ModalSystem {
         $container: $container
       }
 
+      // Trigger event for plugins and other handlers
+      $(document).trigger('modal:opened', { name, modal: $modal })
+
       return $modal
     } catch (error) {
       this.application.consoleMessage({

@@ -598,6 +598,10 @@ video {
   pointer-events: auto;
 }
 
+.invisible{
+  visibility: hidden;
+}
+
 .static{
   position: static;
 }
@@ -660,6 +664,10 @@ video {
 
 .z-50{
   z-index: 50;
+}
+
+.z-\[9999\]{
+  z-index: 9999;
 }
 
 .col-span-full{
@@ -1032,6 +1040,15 @@ video {
 
 .gap-4{
   gap: 1rem;
+}
+
+.gap-x-2{
+  -moz-column-gap: 0.5rem;
+       column-gap: 0.5rem;
+}
+
+.gap-y-1{
+  row-gap: 0.25rem;
 }
 
 .space-x-1 > :not([hidden]) ~ :not([hidden]){

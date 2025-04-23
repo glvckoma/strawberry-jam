@@ -696,8 +696,79 @@
         $('#incomingCount, #outgoingCount, #totalCount').text('0')
       })
 
+      // Initialize tooltips for all elements with data-tooltip attribute
+      function initTooltips() {
+        // Remove any existing tooltip elements
+        $('.tooltip-element').remove();
+        
+        // For each element with data-tooltip attribute
+        $('[data-tooltip]').each(function() {
+          const $el = $(this);
+          
+          // Handle mouseenter (instead of mouseover)
+          $el.off('mouseenter.tooltip mouseleave.tooltip')
+            .on('mouseenter.tooltip', function() {
+              // Don't create another tooltip if one exists for this element
+              if ($el.data('tooltip-active')) return;
+              
+              // Set flag that tooltip is active
+              $el.data('tooltip-active', true);
+              
+              // Remove any existing tooltips
+              $('.tooltip-element').stop(true, true).remove();
+              
+              const tooltipText = $el.attr('data-tooltip');
+              const $tooltip = $('<div>', {
+                class: 'tooltip-element absolute bg-secondary-bg text-text-primary text-xs py-1 px-2 rounded shadow-md z-[9999] pointer-events-none',
+                text: tooltipText
+              });
+              
+              // Store reference to the tooltip
+              $el.data('tooltip-element', $tooltip);
+              
+              // Append to body for proper positioning
+              $('body').append($tooltip);
+              
+              // Position tooltip above the element
+              const elOffset = $el.offset();
+              const elWidth = $el.outerWidth();
+              const elHeight = $el.outerHeight();
+              const tooltipWidth = $tooltip.outerWidth();
+              const tooltipHeight = $tooltip.outerHeight();
+              
+              // Position tooltip centered above the element
+              $tooltip.css({
+                top: elOffset.top - tooltipHeight - 5,
+                left: elOffset.left + (elWidth / 2) - (tooltipWidth / 2),
+                opacity: 0 // Start invisible for animation
+              }).animate({
+                top: elOffset.top - tooltipHeight - 10,
+                opacity: 1
+              }, 150);
+            })
+            .on('mouseleave.tooltip', function() {
+              // Reset flag on mouseleave
+              $el.data('tooltip-active', false);
+              
+              // Use stop() to prevent animation queue buildup
+              $('.tooltip-element').stop(true, true).fadeOut(100, function() {
+                $(this).remove();
+              });
+            });
+        });
+      }
+      
+      // Initialize tooltips on page load
+      initTooltips();
+      
+      // Re-initialize tooltips when modals are shown (to catch dynamically added elements)
+      $(document).on('modal:opened', function() {
+        setTimeout(initTooltips, 100);
+      });
+
     window.applyFilter = applyFilter
     window.openTab = openTab
+    window.initTooltips = initTooltips
     })
   </script>
 </body>
