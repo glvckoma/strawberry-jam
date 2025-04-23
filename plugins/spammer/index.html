@@ -1,102 +1,129 @@
-<body class="bg-primary-bg text-text-primary p-6 h-screen flex flex-col"> <!-- Keep flex-col h-screen -->
-  <!-- Standardized Draggable Header with Minimize and Close Buttons -->
-  <div style="-webkit-app-region: drag;" class="flex items-center justify-between bg-secondary-bg rounded-t-md px-4 py-2 mb-2 select-none flex-shrink-0">
-    <span class="font-bold text-lg">Packet Spammer</span>
-    <div class="flex items-center" style="-webkit-app-region: no-drag;">
-      <button id="minimize-btn" class="text-gray-400 hover:text-highlight-blue focus:outline-none px-2 mr-1 transition-colors">
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Packet Spammer</title>
+  <!-- Base Styles -->
+  <link href="../../assets/css/style.css" rel="stylesheet">
+  <!-- Font Awesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+  <!-- jQuery (for some plugins) -->
+  <script>window.jQuery = window.$ = require('jquery');</script>
+</head>
+<body class="bg-primary-bg text-text-primary p-0 h-screen flex flex-col overflow-hidden">
+  <!-- Standardized Draggable Header -->
+  <div class="jam-plugin-header">
+    <span class="jam-plugin-title">Packet Spammer</span>
+    <div class="jam-plugin-controls">
+      <button class="jam-plugin-minimize" aria-label="Minimize">
         <i class="fas fa-minus"></i>
       </button>
-      <button onclick="window.close()" class="text-gray-400 hover:text-highlight-red transition-colors duration-200 transform hover:scale-110 rounded-full p-1 hover:bg-highlight-red/10">
+      <button class="jam-plugin-close" aria-label="Close">
         <i class="fas fa-times"></i>
       </button>
     </div>
   </div>
 
-  <!-- Table Area - This will grow and scroll -->
-  <div class="bg-secondary-bg rounded-md shadow overflow-hidden flex-grow overflow-y-auto mb-4"> <!-- flex-grow makes it take space, overflow-auto for scroll, mb-4 for spacing -->
-    <table class="w-full text-left">
-      <thead class="bg-tertiary-bg sticky top-0 z-20"> <!-- Sticky relative to this container -->
-        <tr>
-          <th class="text-base py-3 px-4 font-medium">Type</th>
-          <th class="text-base py-3 px-4 font-medium">Content</th>
-          <th class="text-base py-3 px-4 font-medium">Delay</th>
-          <th class="text-base py-3 px-4 font-medium">Actions</th>
-        </tr>
-      </thead>
-      <tbody id="table">
-        <!-- Packets will be added here -->
-      </tbody>
-    </table>
-  </div>
-
-  <!-- Input Area - Fixed Bottom -->
-  <div class="bg-secondary-bg rounded-md shadow p-4 space-y-4 flex-shrink-0 mb-4"> <!-- flex-shrink-0 prevents growing/shrinking, mb-4 for spacing -->
-    <textarea id="inputTxt"
-      class="w-full bg-tertiary-bg text-text-primary placeholder-gray-400 p-3 rounded-md focus:outline-none resize-y min-h-[100px] text-base"
-      placeholder="Enter packet content here..."></textarea>
-
-    <div class="flex flex-wrap items-center gap-4">
-      <!-- Type Selector -->
-      <select id="inputType" class="min-w-[150px] bg-tertiary-bg text-text-primary p-2 rounded-md focus:outline-none text-base">
-        <option value="connection">Client</option>
-        <option value="aj">Animal Jam</option>
-      </select>
-
-      <!-- Delay Input -->
-      <input type="text" id="inputDelay"
-        class="min-w-[100px] bg-tertiary-bg text-text-primary p-2 rounded-md focus:outline-none text-base"
-        placeholder="Delay" value="1">
-
-      <!-- Action Buttons -->
-      <button type="button" onclick="spammer.addClick()"
-        class="px-4 py-2 bg-tertiary-bg hover:bg-sidebar-hover text-text-primary rounded-md transition text-base">
-        <i class="fas fa-plus mr-2"></i> Add
-      </button>
-      <button type="button" onclick="spammer.sendClick()"
-        class="px-4 py-2 bg-highlight-green/20 hover:bg-highlight-green/30 text-highlight-green rounded-md transition text-base">
-        <i class="fas fa-paper-plane mr-2"></i> Send
-      </button>
+  <!-- Main Content Area -->
+  <div class="jam-plugin-content">
+    <!-- Table Area - This will grow and scroll -->
+    <div class="bg-secondary-bg rounded-md shadow overflow-hidden flex-grow overflow-y-auto mb-4 m-4"> 
+      <table class="w-full text-left">
+        <thead class="bg-tertiary-bg sticky top-0 z-20"> <!-- Sticky relative to this container -->
+          <tr>
+            <th class="text-base py-3 px-4 font-medium">Type</th>
+            <th class="text-base py-3 px-4 font-medium">Content</th>
+            <th class="text-base py-3 px-4 font-medium">Delay</th>
+            <th class="text-base py-3 px-4 font-medium">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="table">
+          <!-- Packets will be added here -->
+        </tbody>
+      </table>
     </div>
-  </div>
 
-  <!-- Controls - Fixed Bottom -->
-  <div class="bg-secondary-bg rounded-md shadow p-4 space-y-4 flex-shrink-0"> <!-- flex-shrink-0 prevents growing/shrinking -->
-    <div class="flex flex-wrap gap-4 items-center">
-      <!-- File Operations -->
-      <div class="flex gap-2">
-        <button type="button" onclick="spammer.saveToFile()"
+    <!-- Input Area -->
+    <div class="bg-secondary-bg rounded-md shadow p-4 space-y-4 flex-shrink-0 mb-4 mx-4">
+      <textarea id="inputTxt"
+        class="w-full bg-tertiary-bg text-text-primary placeholder-gray-400 p-3 rounded-md focus:outline-none resize-y min-h-[100px] text-base"
+        placeholder="Enter packet content here..."></textarea>
+
+      <div class="flex flex-wrap items-center gap-4">
+        <!-- Type Selector -->
+        <select id="inputType" class="min-w-[150px] bg-tertiary-bg text-text-primary p-2 rounded-md focus:outline-none text-base">
+          <option value="connection">Client</option>
+          <option value="aj">Animal Jam</option>
+        </select>
+
+        <!-- Delay Input -->
+        <input type="text" id="inputDelay"
+          class="min-w-[100px] bg-tertiary-bg text-text-primary p-2 rounded-md focus:outline-none text-base"
+          placeholder="Delay" value="1">
+
+        <!-- Action Buttons -->
+        <button type="button" onclick="spammer.addClick()"
           class="px-4 py-2 bg-tertiary-bg hover:bg-sidebar-hover text-text-primary rounded-md transition text-base">
-          <i class="fas fa-save mr-2"></i> Save
+          <i class="fas fa-plus mr-2"></i> Add
         </button>
-        <button type="button" onclick="spammer.loadFromFile()"
-          class="px-4 py-2 bg-tertiary-bg hover:bg-sidebar-hover text-text-primary rounded-md transition text-base">
-          <i class="fas fa-folder-open mr-2"></i> Load
-        </button>
-      </div>
-
-      <!-- Run Type Selector -->
-      <select id="inputRunType" class="min-w-[120px] bg-tertiary-bg text-text-primary p-2 rounded-md focus:outline-none text-base">
-        <option value="loop">Loop</option>
-        <option value="once">Once</option>
-      </select>
-
-      <!-- Run Controls -->
-      <div class="flex gap-2 ml-auto">
-        <button type="button" id="stopButton" onclick="spammer.stopClick()"
-          class="px-4 py-2 bg-error-red/20 hover:bg-error-red/30 text-error-red rounded-md transition text-base">
-          <i class="fas fa-stop mr-2"></i> Stop
-        </button>
-        <button type="button" id="runButton" onclick="spammer.runClick()"
+        <button type="button" onclick="spammer.sendClick()"
           class="px-4 py-2 bg-highlight-green/20 hover:bg-highlight-green/30 text-highlight-green rounded-md transition text-base">
-          <i class="fas fa-play mr-2"></i> Start
+          <i class="fas fa-paper-plane mr-2"></i> Send
         </button>
       </div>
     </div>
 
-    <!-- Status Feedback Area -->
-    <div id="statusFeedback" class="text-sm text-highlight-green mt-2 min-h-[20px]"></div>
+    <!-- Controls -->
+    <div class="bg-secondary-bg rounded-md shadow p-4 space-y-4 flex-shrink-0 mx-4 mb-4">
+      <div class="flex flex-wrap gap-4 items-center">
+        <!-- File Operations -->
+        <div class="flex gap-2">
+          <button type="button" onclick="spammer.saveToFile()"
+            class="px-4 py-2 bg-tertiary-bg hover:bg-sidebar-hover text-text-primary rounded-md transition text-base">
+            <i class="fas fa-save mr-2"></i> Save
+          </button>
+          <button type="button" onclick="spammer.loadFromFile()"
+            class="px-4 py-2 bg-tertiary-bg hover:bg-sidebar-hover text-text-primary rounded-md transition text-base">
+            <i class="fas fa-folder-open mr-2"></i> Load
+          </button>
+        </div>
+
+        <!-- Run Type Selector -->
+        <select id="inputRunType" class="min-w-[120px] bg-tertiary-bg text-text-primary p-2 rounded-md focus:outline-none text-base">
+          <option value="loop">Loop</option>
+          <option value="once">Once</option>
+        </select>
+
+        <!-- Run Controls -->
+        <div class="flex gap-2 ml-auto">
+          <button type="button" id="stopButton" onclick="spammer.stopClick()"
+            class="px-4 py-2 bg-error-red/20 hover:bg-error-red/30 text-error-red rounded-md transition text-base">
+            <i class="fas fa-stop mr-2"></i> Stop
+          </button>
+          <button type="button" id="runButton" onclick="spammer.runClick()"
+            class="px-4 py-2 bg-highlight-green/20 hover:bg-highlight-green/30 text-highlight-green rounded-md transition text-base">
+            <i class="fas fa-play mr-2"></i> Start
+          </button>
+        </div>
+      </div>
+
+      <!-- Status Feedback Area -->
+      <div id="statusFeedback" class="text-sm text-highlight-green mt-2 min-h-[20px]"></div>
+    </div>
   </div>
 
+  <!-- Import Plugin Utilities -->
+  <script src="../../assets/javascript/plugin-utils.js"></script>
   <!-- Spammer Script -->
   <script src="./index.js"></script>
+  <!-- Initialize Standardized UI -->
+  <script>
+    // Initialize the standardized UI components when the document is ready
+    document.addEventListener('DOMContentLoaded', function() {
+      // Initialize standard plugin UI behavior (minimize/close)
+      initializePluginUI();
+    });
+  </script>
 </body>
+</html>

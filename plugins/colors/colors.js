@@ -459,3 +459,11 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 });
+
+// Initialize minimize/maximize functionality when the document is fully loaded
+document.addEventListener('DOMContentLoaded', function() {
+  // This will be handled by the plugin-utils.js initializePluginUI function
+  // Any plugin-specific initialization code can be added here
+  
+  console.log('[Color Changer] Plugin initialized');
+});

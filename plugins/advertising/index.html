@@ -4,128 +4,142 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Auto Advertising</title>
+  <!-- Base Styles -->
+  <link href="../../assets/css/style.css" rel="stylesheet">
+  <!-- Font Awesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+  <!-- jQuery (for functionality) -->
+  <script>window.jQuery = window.$ = require('jquery');</script>
+  <script src="../../assets/javascript/jquery-ui.js"></script>
 </head>
-<body class="bg-primary-bg text-text-primary p-6 h-screen flex flex-col overflow-hidden">
-  <!-- Standardized Draggable Header with Minimize and Close Buttons -->
-  <div style="-webkit-app-region: drag;" class="flex items-center justify-between bg-secondary-bg rounded-t-md px-4 py-2 mb-2 select-none">
-    <span class="font-bold text-lg">Auto Advertising</span>
-    <div class="flex items-center" style="-webkit-app-region: no-drag;">
-      <button id="minimize-btn" class="text-gray-400 hover:text-highlight-blue focus:outline-none px-2 mr-1 transition-colors">
+<body class="bg-primary-bg text-text-primary p-0 h-screen flex flex-col overflow-hidden">
+  <!-- Standardized Draggable Header -->
+  <div class="jam-plugin-header">
+    <span class="jam-plugin-title">Auto Advertising</span>
+    <div class="jam-plugin-controls">
+      <button class="jam-plugin-minimize" aria-label="Minimize">
         <i class="fas fa-minus"></i>
       </button>
-      <button onclick="window.close()" class="text-gray-400 hover:text-error-red focus:outline-none px-2 transition-colors">
+      <button class="jam-plugin-close" aria-label="Close">
         <i class="fas fa-times"></i>
       </button>
     </div>
   </div>
-  <div class="flex-1 flex flex-col h-full">
-    <div class="bg-secondary-bg rounded-md shadow p-4 mb-4">
-      <div class="flex justify-between items-center">
-        <div>
-          <h1 class="text-lg font-medium text-text-primary">Auto Advertising</h1>
-          <p class="text-sm text-gray-400 mt-1">Set up automated messages to be sent periodically</p>
+  
+  <!-- Main Content Area -->
+  <div class="jam-plugin-content">
+    <div class="flex-1 flex flex-col h-full p-4">
+      <div class="bg-secondary-bg rounded-md shadow p-4 mb-4">
+        <div class="flex justify-between items-center">
+          <div>
+            <h1 class="text-lg font-medium text-text-primary">Auto Advertising</h1>
+            <p class="text-sm text-gray-400 mt-1">Set up automated messages to be sent periodically</p>
+          </div>
+          <div class="flex items-center gap-3">
+            <span id="status-indicator" class="px-2 py-1 text-xs rounded-full bg-error-red/20 text-error-red">
+              <i class="fas fa-circle mr-1"></i> Inactive
+            </span>
+          </div>
         </div>
-        <div class="flex items-center gap-3">
-          <span id="status-indicator" class="px-2 py-1 text-xs rounded-full bg-error-red/20 text-error-red">
-            <i class="fas fa-circle mr-1"></i> Inactive
-          </span>
+      </div>
+
+      <div class="flex-1 overflow-y-auto mb-4 pr-1" style="max-height: calc(100% - 180px)">
+        <div class="bg-secondary-bg rounded-md shadow p-4 space-y-4 mb-4">
+          <div class="flex items-center justify-between mb-2">
+            <h2 class="text-base font-medium text-text-primary">Message Rotation</h2>
+            <div class="text-xs text-gray-400">
+            </div>
+          </div>
+
+          <div id="messages-container" class="space-y-3">
+          </div>
+
+          <div class="flex justify-center mt-4">
+            <button id="add-message-btn"
+              class="px-4 py-2 bg-tertiary-bg hover:bg-sidebar-hover text-text-primary rounded-md transition text-sm">
+              <i class="fas fa-plus mr-2"></i> Add Message
+            </button>
+          </div>
+        </div>
+
+        <div class="bg-secondary-bg rounded-md shadow p-4 space-y-4 mb-4">
+          <h2 class="text-base font-medium text-text-primary mb-3">Settings</h2>
+
+          <div class="flex flex-wrap gap-4">
+            <div class="flex-1 min-w-[200px]">
+              <label for="interval" class="block text-xs font-medium text-gray-400 mb-1">Interval (seconds)</label>
+              <input type="number" id="interval" min="10" value="60"
+                class="w-full bg-tertiary-bg text-text-primary placeholder-gray-400 p-2 rounded-md focus:outline-none focus:ring-1 focus:ring-highlight-green text-sm">
+              <p class="mt-1 text-xs text-gray-400">Minimum 10 seconds recommended</p>
+            </div>
+
+            <div class="flex-1 min-w-[200px]">
+              <label for="order-type" class="block text-xs font-medium text-gray-400 mb-1">Message Order</label>
+              <select id="order-type"
+                class="w-full bg-tertiary-bg text-text-primary p-2 rounded-md focus:outline-none focus:ring-1 focus:ring-highlight-green text-sm">
+                <option value="sequential">Sequential</option>
+                <option value="random">Random</option>
+              </select>
+              <p class="mt-1 text-xs text-gray-400">How messages will be rotated</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-secondary-bg rounded-md shadow p-4 sticky bottom-0">
+        <div class="grid grid-cols-2 gap-2 sm:gap-4">
+          <!-- Save/Load buttons in first column -->
+          <div class="flex gap-2">
+            <button id="save-btn"
+              class="flex-1 px-3 py-2 bg-tertiary-bg hover:bg-sidebar-hover text-text-primary rounded-md transition text-sm flex items-center justify-center">
+              <i class="fas fa-save mr-1"></i> Save
+            </button>
+            <button id="load-btn"
+              class="flex-1 px-3 py-2 bg-tertiary-bg hover:bg-sidebar-hover text-text-primary rounded-md transition text-sm flex items-center justify-center">
+              <i class="fas fa-folder-open mr-1"></i> Load
+            </button>
+          </div>
+
+          <!-- Start/Stop buttons in second column - always visible -->
+          <div class="flex gap-2">
+            <button id="start-btn"
+              class="flex-1 px-3 py-2 bg-highlight-green/20 hover:bg-highlight-green/30 text-highlight-green rounded-md transition text-sm flex items-center justify-center">
+              <i class="fas fa-play mr-1"></i> Start
+            </button>
+            <button id="stop-btn" disabled
+              class="flex-1 px-3 py-2 bg-error-red/20 hover:bg-error-red/30 text-error-red rounded-md transition text-sm flex items-center justify-center">
+              <i class="fas fa-stop mr-1"></i> Stop
+            </button>
+          </div>
         </div>
       </div>
     </div>
 
-    <div class="flex-1 overflow-y-auto mb-4 pr-1" style="max-height: calc(100% - 180px)">
-      <div class="bg-secondary-bg rounded-md shadow p-4 space-y-4 mb-4">
+    <div id="toast-container" class="fixed bottom-4 right-4 z-50"></div>
+
+    <input type="file" id="file-input" accept=".json" class="hidden">
+
+    <template id="message-template">
+      <div class="message-input bg-tertiary-bg/30 p-3 rounded-md border border-sidebar-border hover:border-highlight-green transition-colors">
         <div class="flex items-center justify-between mb-2">
-          <h2 class="text-base font-medium text-text-primary">Message Rotation</h2>
-          <div class="text-xs text-gray-400">
+          <label class="text-xs font-medium text-gray-400 message-label">Message</label>
+          <div class="flex items-center gap-2">
+            <button class="text-xs text-gray-400 hover:text-highlight-green transition-colors px-2 py-1 rounded hover:bg-tertiary-bg/50 preview-btn">
+              <i class="fas fa-eye mr-1"></i> Preview
+            </button>
+            <button class="text-xs text-error-red hover:text-error-red/80 transition-colors px-2 py-1 rounded hover:bg-tertiary-bg/50 remove-btn">
+              <i class="fas fa-trash mr-1"></i> Remove
+            </button>
           </div>
         </div>
-
-        <div id="messages-container" class="space-y-3">
-        </div>
-
-        <div class="flex justify-center mt-4">
-          <button id="add-message-btn"
-            class="px-4 py-2 bg-tertiary-bg hover:bg-sidebar-hover text-text-primary rounded-md transition text-sm">
-            <i class="fas fa-plus mr-2"></i> Add Message
-          </button>
-        </div>
+        <textarea class="w-full bg-tertiary-bg text-text-primary placeholder-gray-400 p-2 rounded-md focus:outline-none focus:ring-1 resize-y min-h-[60px] text-sm message-content" placeholder="Enter your advertisement message here..."></textarea>
       </div>
-
-      <div class="bg-secondary-bg rounded-md shadow p-4 space-y-4 mb-4">
-        <h2 class="text-base font-medium text-text-primary mb-3">Settings</h2>
-
-        <div class="flex flex-wrap gap-4">
-          <div class="flex-1 min-w-[200px]">
-            <label for="interval" class="block text-xs font-medium text-gray-400 mb-1">Interval (seconds)</label>
-            <input type="number" id="interval" min="10" value="60"
-              class="w-full bg-tertiary-bg text-text-primary placeholder-gray-400 p-2 rounded-md focus:outline-none focus:ring-1 focus:ring-highlight-green text-sm">
-            <p class="mt-1 text-xs text-gray-400">Minimum 10 seconds recommended</p>
-          </div>
-
-          <div class="flex-1 min-w-[200px]">
-            <label for="order-type" class="block text-xs font-medium text-gray-400 mb-1">Message Order</label>
-            <select id="order-type"
-              class="w-full bg-tertiary-bg text-text-primary p-2 rounded-md focus:outline-none focus:ring-1 focus:ring-highlight-green text-sm">
-              <option value="sequential">Sequential</option>
-              <option value="random">Random</option>
-            </select>
-            <p class="mt-1 text-xs text-gray-400">How messages will be rotated</p>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="bg-secondary-bg rounded-md shadow p-4 sticky bottom-0">
-      <div class="grid grid-cols-2 gap-2 sm:gap-4">
-        <!-- Save/Load buttons in first column -->
-        <div class="flex gap-2">
-          <button id="save-btn"
-            class="flex-1 px-3 py-2 bg-tertiary-bg hover:bg-sidebar-hover text-text-primary rounded-md transition text-sm flex items-center justify-center">
-            <i class="fas fa-save mr-1"></i> Save
-          </button>
-          <button id="load-btn"
-            class="flex-1 px-3 py-2 bg-tertiary-bg hover:bg-sidebar-hover text-text-primary rounded-md transition text-sm flex items-center justify-center">
-            <i class="fas fa-folder-open mr-1"></i> Load
-          </button>
-        </div>
-
-        <!-- Start/Stop buttons in second column - always visible -->
-        <div class="flex gap-2">
-          <button id="start-btn"
-            class="flex-1 px-3 py-2 bg-highlight-green/20 hover:bg-highlight-green/30 text-highlight-green rounded-md transition text-sm flex items-center justify-center">
-            <i class="fas fa-play mr-1"></i> Start
-          </button>
-          <button id="stop-btn" disabled
-            class="flex-1 px-3 py-2 bg-error-red/20 hover:bg-error-red/30 text-error-red rounded-md transition text-sm flex items-center justify-center">
-            <i class="fas fa-stop mr-1"></i> Stop
-          </button>
-        </div>
-      </div>
-    </div>
+    </template>
   </div>
 
-  <div id="toast-container" class="fixed bottom-4 right-4 z-50"></div>
-
-  <input type="file" id="file-input" accept=".json" class="hidden">
-
-  <template id="message-template">
-    <div class="message-input bg-tertiary-bg/30 p-3 rounded-md border border-sidebar-border hover:border-highlight-green transition-colors">
-      <div class="flex items-center justify-between mb-2">
-        <label class="text-xs font-medium text-gray-400 message-label">Message</label>
-        <div class="flex items-center gap-2">
-          <button class="text-xs text-gray-400 hover:text-highlight-green transition-colors px-2 py-1 rounded hover:bg-tertiary-bg/50 preview-btn">
-            <i class="fas fa-eye mr-1"></i> Preview
-          </button>
-          <button class="text-xs text-error-red hover:text-error-red/80 transition-colors px-2 py-1 rounded hover:bg-tertiary-bg/50 remove-btn">
-            <i class="fas fa-trash mr-1"></i> Remove
-          </button>
-        </div>
-      </div>
-      <textarea class="w-full bg-tertiary-bg text-text-primary placeholder-gray-400 p-2 rounded-md focus:outline-none focus:ring-1 resize-y min-h-[60px] text-sm message-content" placeholder="Enter your advertisement message here..."></textarea>
-    </div>
-  </template>
-
+  <!-- Import Plugin Utilities -->
+  <script src="../../assets/javascript/plugin-utils.js"></script>
+  <!-- Page-specific script -->
   <script>
     // -- Global Variables ---
     const IS_DEV = true; // Set to false for production builds to disable logs
@@ -133,6 +147,11 @@
     let isActive = false;
     let messageTimerId = null;
     let messageIndex = 0;
+
+    // Initialize the standardized UI components when the document is ready
+    document.addEventListener('DOMContentLoaded', function() {
+      initializePluginUI();
+    });
 
     // --- Utility Functions ---
 
@@ -546,57 +565,6 @@
 
       $('#file-input').val("");
     }
-
-    // --- Initialization ---
-    function waitForDispatch() {
-      if (typeof window.jam === 'undefined' || typeof window.jam.dispatch === 'undefined') {
-        if (IS_DEV) console.log("Advertising Plugin: Waiting for window.jam.dispatch...");
-        setTimeout(waitForDispatch, 100); // Check again in 100ms
-        return;
-      }
-      
-      if (IS_DEV) console.log("Advertising Plugin: Dispatch ready, initializing.");
-      advertisingDispatch = window.jam.dispatch; // Store dispatch globally for use in functions
-      
-      // Initialize the UI - add first message box
-      addMessageBox();
-
-      // Attach event listeners
-      $(document).ready(function() {
-        $('#add-message-btn').on('click', addMessageBox);
-        $('#start-btn').on('click', startAdvertising);
-        $('#stop-btn').on('click', stopAdvertising);
-        $('#save-btn').on('click', saveConfig);
-        $('#load-btn').on('click', loadConfig);
-        $('#file-input').on('change', handleFileInput);
-        
-        // Clean up on window close
-        $(window).on('beforeunload', stopAdvertising);
-      });
-    }
-
-    // Set up the minimize button functionality with DOM-ready check
-    document.addEventListener('DOMContentLoaded', function() {
-      const minimizeBtn = document.getElementById('minimize-btn');
-      if (minimizeBtn) {
-        minimizeBtn.addEventListener('click', () => {
-          if (window.jam && window.jam.application) {
-            window.jam.application.minimize();
-          } else {
-            // Fallback if jam.application is not available
-            try {
-              const { ipcRenderer } = require('electron');
-              ipcRenderer.send('window-minimize');
-            } catch (e) {
-              console.error("[Advertising] Error minimizing window:", e);
-            }
-          }
-        });
-      }
-    });
-
-    // Start the initialization check
-    waitForDispatch();
   </script>
 </body>
 </html>

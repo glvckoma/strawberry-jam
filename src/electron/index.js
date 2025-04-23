@@ -161,6 +161,23 @@ class Electron {
 
     ipcMain.on('window-close', () => this._window.close())
     ipcMain.on('window-minimize', () => this._window.minimize())
+    
+    // Handle plugin window minimize requests
+    ipcMain.on('plugin-window-minimize', (event) => {
+      // Find the BrowserWindow that sent this event
+      const allWindows = BrowserWindow.getAllWindows();
+      const senderWindow = allWindows.find(win => 
+        win.webContents && win.webContents.id === event.sender.id
+      );
+      
+      if (senderWindow && !senderWindow.isDestroyed()) {
+        devLog(`[IPC plugin-window-minimize] Minimizing plugin window`);
+        senderWindow.minimize();
+      } else {
+        console.error('[IPC plugin-window-minimize] Could not find sender window or window was destroyed');
+      }
+    })
+    
     ipcMain.on('open-settings', (_, url) => shell.openExternal(url))
     // Removed application-relaunch handler
 
