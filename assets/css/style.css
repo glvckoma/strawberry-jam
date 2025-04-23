@@ -2200,6 +2200,25 @@ input:focus-visible {
   box-shadow: var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow);
 }
 
+.group:hover .group-hover\:text-\[\#0dcaf0\]{
+  --tw-text-opacity: 1;
+  color: rgb(13 202 240 / var(--tw-text-opacity, 1));
+}
+
+.group:hover .group-hover\:text-\[\#ffc107\]{
+  --tw-text-opacity: 1;
+  color: rgb(255 193 7 / var(--tw-text-opacity, 1));
+}
+
+.group:hover .group-hover\:text-\[var\(--theme-primary\)\]{
+  color: var(--theme-primary);
+}
+
+.group:hover .group-hover\:text-highlight-green{
+  --tw-text-opacity: 1;
+  color: rgb(56 176 0 / var(--tw-text-opacity, 1));
+}
+
 .group:hover .group-hover\:opacity-100{
   opacity: 1;
 }
