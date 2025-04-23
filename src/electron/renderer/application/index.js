@@ -855,13 +855,7 @@ module.exports = class Application extends EventEmitter {
       this._appMessageCount = newCount;
     }
 
-    // Add a notification message about the cleaning
-    this.consoleMessage({
-        message: `Cleaned ${numberToRemove} oldest log entries to maintain performance.`,
-        type: 'notify',
-        isPacket: false // Ensure this notification goes to the app messages log
-    });
-
+    // Developer log about the cleaning (kept)
     devLog(`Cleaned ${numberToRemove} old log entries from ${isPacketLog ? 'packet log' : 'app messages'}. New count: ${newCount}`);
   }
 

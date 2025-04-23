@@ -46,16 +46,8 @@ const initializeApp = async () => {
   // Start session timer
   sessionStartTime = new Date();
   
-  // Simple startup message with unique ID
-  const initialStartupMessageId = `initial-startup-message-${Date.now()}`;
-  application.consoleMessage({
-    message: 'Starting Strawberry Jam...',
-    type: 'wait',
-    details: { messageId: initialStartupMessageId }
-  })
-  
-  // Store this ID in the application instance so it can be removed later
-  application.initialStartupMessageId = initialStartupMessageId;
+  // Removed the initial "Starting Strawberry Jam..." message from here.
+  // It's now logged within application.instantiate()
 
   // No need for startup delay - our messages are stored with IDs for later removal
 

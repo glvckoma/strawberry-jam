@@ -38,7 +38,7 @@ class CommandHandlers {
     this.handleTrimProcessedCommand = this.handleTrimProcessedCommand.bind(this);
     this.handleSetApiKeyCommand = this.handleSetApiKeyCommand.bind(this);
     // this.handleTestApiKeyCommand = this.handleTestApiKeyCommand.bind(this); // Removed
-    this.handleSetIndexCommand = this.handleSetIndexCommand.bind(this);
+    // Removed handleSetIndexCommand binding
   }
 
   /**
@@ -466,48 +466,7 @@ class CommandHandlers {
 
   // Removed handleTestApiKeyCommand method
 
-  /**
-   * Sets the leak check index directly to a specific value.
-   * @param {Object} params - Command parameters.
-   * @param {string[]} params.parameters - Command arguments.
-   */
-  handleSetIndexCommand({ parameters }) {
-    try {
-      if (parameters.length === 0) {
-        this.application.consoleMessage({
-          type: 'warn',
-          message: `[Username Logger] Please specify an index number. Usage: !setindex 1234`
-        });
-        return;
-      }
-      
-      const newIndex = parseInt(parameters[0], 10);
-      if (isNaN(newIndex) || newIndex < 0) {
-        this.application.consoleMessage({
-          type: 'error',
-          message: `[Username Logger] Invalid index. Please provide a non-negative number.`
-        });
-        return;
-      }
-      
-      // Set the index
-      this.configModel.setLeakCheckIndex(newIndex);
-      
-      // Save configuration to persist the change
-      this.configModel.saveConfig();
-      
-      this.application.consoleMessage({
-        type: 'success',
-        message: `[Username Logger] Index set to ${newIndex}. Next leak check will start from index ${newIndex + 1}.`
-      });
-    } catch (error) {
-      // Silent error handling
-      this.application.consoleMessage({
-        type: 'error',
-        message: `[Username Logger] Error setting index: ${error.message}`
-      });
-    }
-  }
+  // Removed handleSetIndexCommand method
 
   /**
    * Registers all command handlers with the dispatch system
@@ -547,11 +506,7 @@ class CommandHandlers {
  
        // Removed testapikey command registration
  
-       dispatch.onCommand({
-         name: 'setindex',
-         description: 'Sets the leak check index to a specific position. Usage: !setindex 1234',
-        callback: this.handleSetIndexCommand
-      });
+       // Removed setindex command registration
       
       dispatch.onCommand({
         name: 'trimprocessed',

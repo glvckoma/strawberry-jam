@@ -71,7 +71,6 @@ This plugin follows the "One File, One Function" architecture principle to impro
 - `!leakcheckstop` - Stop a running leak check
 - `!setapikey YOUR_API_KEY` - Set the LeakCheck API key
 - `!testapikey` - Test if the current API key is valid
-- `!setindex INDEX` - Set the leak check index manually
 - `!trimprocessed` - Remove processed usernames from the collected list and reset index
 
 ## Configuration

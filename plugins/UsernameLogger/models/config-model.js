@@ -3,7 +3,7 @@
  * @author glvckoma
  */
 
-const fs = require('fs');
+const fs = require('fs').promises; // Use promises API
 const path = require('path');
 const { DEFAULT_CONFIG } = require('../constants/constants');
 
@@ -79,24 +79,24 @@ class ConfigModel {
   }
   
   /**
-   * Saves the current configuration to disk
+   * Saves the current configuration to disk asynchronously
    * @returns {Promise<boolean>} True if saved successfully
    */
   async saveConfig() {
     try {
       // Don't save API key to config file for security
-      const configToSave = { 
-        ...this.config, 
+      const configToSave = {
+        ...this.config,
         leakCheckLastProcessedIndex: this.leakCheckLastProcessedIndex // Add index to save data
       };
       delete configToSave.leakCheckApiKey;
-      
+
       const configDir = path.dirname(this.configFilePath);
-      if (!fs.existsSync(configDir)) {
-        fs.mkdirSync(configDir, { recursive: true });
-      }
-      
-      fs.writeFileSync(this.configFilePath, JSON.stringify(configToSave, null, 2));
+      // Ensure directory exists asynchronously
+      await fs.mkdir(configDir, { recursive: true });
+
+      // Write file asynchronously
+      await fs.writeFile(this.configFilePath, JSON.stringify(configToSave, null, 2));
       
       return true;
     } catch (error) {
@@ -138,17 +138,7 @@ class ConfigModel {
     return this.leakCheckLastProcessedIndex;
   }
 
-  /**
-   * Sets the leak check index
-   * @param {number} index - The new index value
-   */
-  setLeakCheckIndex(index) {
-    if (typeof index === 'number' && index >= -1) {
-      this.leakCheckLastProcessedIndex = index;
-      return true;
-    }
-    return false;
-  }
+  // Removed setLeakCheckIndex method
 
   /**
    * Resets configuration to defaults
