@@ -304,12 +304,19 @@ module.exports = class Dispatch {
         return a.configuration.name.localeCompare(b.configuration.name); // Alphabetical sort within types
       });
 
+      // --- Filter out game plugins if setting is enabled --- 
+      const hideGamePlugins = await this._application.settings.get('ui.hideGamePlugins', false);
+      const finalConfigurations = hideGamePlugins 
+        ? pluginConfigurations.filter(p => p.configuration.type !== 'game') 
+        : pluginConfigurations;
+      // --- End filtering --- 
+
       // Clear the plugin list in the UI
       this._application.$pluginList.empty();
       this.plugins.clear(); // Clear internal plugin map before re-populating
 
-      // Process and render sorted plugins
-      await Promise.all(pluginConfigurations.map(configData => 
+      // Process and render FILTERED plugins
+      await Promise.all(finalConfigurations.map(configData => 
         this._processAndRenderPlugin(configData)
       ));
 

@@ -1162,14 +1162,13 @@ video {
   border-top-width: 1px;
 }
 
+.border-\[var\(--theme-primary\)\]{
+  border-color: var(--theme-primary);
+}
+
 .border-blue-500{
   --tw-border-opacity: 1;
   border-color: rgb(59 130 246 / var(--tw-border-opacity, 1));
-}
-
-.border-custom-pink{
-  --tw-border-opacity: 1;
-  border-color: rgb(241 0 72 / var(--tw-border-opacity, 1));
 }
 
 .border-error-red{
@@ -1242,6 +1241,10 @@ video {
   border-color: transparent;
 }
 
+.bg-\[var\(--theme-primary\)\]{
+  background-color: var(--theme-primary);
+}
+
 .bg-black{
   --tw-bg-opacity: 1;
   background-color: rgb(0 0 0 / var(--tw-bg-opacity, 1));
@@ -1266,11 +1269,6 @@ video {
 .bg-custom-blue{
   --tw-bg-opacity: 1;
   background-color: rgb(119 133 204 / var(--tw-bg-opacity, 1));
-}
-
-.bg-custom-pink{
-  --tw-bg-opacity: 1;
-  background-color: rgb(241 0 72 / var(--tw-bg-opacity, 1));
 }
 
 .bg-error-red{
@@ -1649,6 +1647,11 @@ video {
 .text-blue-400{
   --tw-text-opacity: 1;
   color: rgb(96 165 250 / var(--tw-text-opacity, 1));
+}
+
+.text-custom-pink{
+  --tw-text-opacity: 1;
+  color: rgb(241 0 72 / var(--tw-text-opacity, 1));
 }
 
 .text-error-red{
@@ -2033,10 +2036,6 @@ input:focus-visible {
   border-color: rgb(240 180 41 / 0.6);
 }
 
-.hover\:bg-custom-pink\/90:hover{
-  background-color: rgb(241 0 72 / 0.9);
-}
-
 .hover\:bg-error-red:hover{
   --tw-bg-opacity: 1;
   background-color: rgb(255 77 79 / var(--tw-bg-opacity, 1));
@@ -2145,6 +2144,10 @@ input:focus-visible {
 .hover\:text-yellow-500:hover{
   --tw-text-opacity: 1;
   color: rgb(234 179 8 / var(--tw-text-opacity, 1));
+}
+
+.hover\:opacity-90:hover{
+  opacity: 0.9;
 }
 
 .hover\:shadow-lg:hover{

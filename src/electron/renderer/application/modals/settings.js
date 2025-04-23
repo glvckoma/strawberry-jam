@@ -33,8 +33,11 @@ exports.render = function (app, data = {}) {
 
         <!-- Tab Bar -->
         <div class="flex border-b border-sidebar-border flex-shrink-0 px-2 pt-2">
-          <button type="button" class="settings-tab active-tab px-4 py-2 text-sm font-medium text-text-primary border-b-2 border-custom-pink focus:outline-none" data-tab="connection">
+          <button type="button" class="settings-tab active-tab px-4 py-2 text-sm font-medium text-text-primary border-b-2 border-[var(--theme-primary)] focus:outline-none" data-tab="connection">
             Connection
+          </button>
+          <button type="button" class="settings-tab px-4 py-2 text-sm font-medium text-sidebar-text border-b-2 border-transparent hover:text-text-primary hover:border-gray-500 focus:outline-none" data-tab="plugins">
+            Plugins
           </button>
           <button type="button" class="settings-tab px-4 py-2 text-sm font-medium text-sidebar-text border-b-2 border-transparent hover:text-text-primary hover:border-gray-500 focus:outline-none" data-tab="leakcheck">
             LeakCheck
@@ -70,6 +73,20 @@ exports.render = function (app, data = {}) {
             </div>
           </div>
           <!-- End Connection Tab Content -->
+
+          <!-- Plugins Tab Content -->
+          <div id="pluginsTabContent" class="settings-tab-content space-y-4 hidden">
+            <!-- Hide Game Plugins Option -->
+            <div class="flex items-center mt-4 bg-tertiary-bg/30 p-3 rounded">
+              <input id="hideGamePlugins" type="checkbox"
+                class="w-4 h-4 bg-tertiary-bg rounded focus:ring-custom-pink text-custom-pink">
+              <label for="hideGamePlugins" class="ml-2 text-sm text-text-primary">
+                Hide Game Plugins in Sidebar
+              </label>
+            </div>
+             <p class="mt-1 text-xs text-gray-400">If checked, plugins marked as 'game' type will not appear in the sidebar list.</p>
+          </div>
+          <!-- End Plugins Tab Content -->
 
           <!-- LeakCheck Tab Content -->
           <div id="leakcheckTabContent" class="settings-tab-content space-y-4 hidden">
@@ -124,7 +141,7 @@ exports.render = function (app, data = {}) {
           <button type="button" class="bg-sidebar-hover text-text-primary px-4 py-2 mr-2 rounded hover:bg-sidebar-hover/70 transition" id="cancelSettingsBtn">
             Cancel
           </button>
-          <button type="button" class="bg-custom-pink text-white px-4 py-2 rounded hover:bg-custom-pink/90 transition" id="saveSettingsBtn">
+          <button type="button" class="bg-[var(--theme-primary)] text-white px-4 py-2 rounded hover:opacity-90 transition" id="saveSettingsBtn">
             Save Changes
           </button>
         </div>
@@ -190,8 +207,8 @@ function setupEventHandlers ($modal, app) {
     const tabId = $this.data('tab')
 
     // Update tab appearance
-    $('.settings-tab').removeClass('active-tab border-custom-pink text-text-primary').addClass('text-sidebar-text border-transparent') // Remove active state from all
-    $this.addClass('active-tab border-custom-pink text-text-primary').removeClass('text-sidebar-text border-transparent') // Add active state to clicked tab
+    $('.settings-tab').removeClass('active-tab border-[var(--theme-primary)] text-text-primary').addClass('text-sidebar-text border-transparent') // Remove active state from all
+    $this.addClass('active-tab border-[var(--theme-primary)] text-text-primary').removeClass('text-sidebar-text border-transparent') // Add active state to clicked tab
 
     // Show/Hide content panes
     $('.settings-tab-content').addClass('hidden'); // Hide all content
@@ -291,47 +308,19 @@ function setupEventHandlers ($modal, app) {
 async function loadSettings ($modal, app) { // Made async
   console.log('[Settings] Loading settings...'); // Log added
   try {
-    // Load settings using ipcRenderer with individual 'get-setting' calls
-    // Check if ipcRenderer exists before using it
-    let smartfoxServer = 'lb-iss04-classic-prod.animaljam.com'; // Default
-    let secureConnection = false; // Default
-    let leakCheckApiKey = ''; // Default
-
-    if (typeof ipcRenderer !== 'undefined' && ipcRenderer) {
-      try {
-        const serverSetting = await ipcRenderer.invoke('get-setting', 'network.smartfoxServer');
-        if (serverSetting !== undefined) { 
-          smartfoxServer = serverSetting;
-        }
-      } catch (e) { console.error('[Settings Load] Error getting smartfoxServer:', e); }
-
-      try {
-        const secureSetting = await ipcRenderer.invoke('get-setting', 'network.secureConnection');
-        if (secureSetting === true || secureSetting === false) {
-          secureConnection = secureSetting;
-        }
-      } catch (e) { console.error('[Settings Load] Error getting secureConnection:', e); }
-
-      try {
-        const apiKeySetting = await ipcRenderer.invoke('get-setting', 'leakCheck.apiKey');
-         if (apiKeySetting !== undefined) {
-           leakCheckApiKey = apiKeySetting;
-         }
-      } catch (e) { console.error('[Settings Load] Error getting leakCheckApiKey:', e); }
-
-    } else {
-       console.warn('[Settings Load] ipcRenderer not available. Using defaults.');
-    }
-
-    // Store raw original values for restart check
-    app.originalSettings = { smartfoxServer, secureConnection };
-
-    // Apply loaded/default values to the UI
+    // Load Connection settings
+    const smartfoxServer = await app.settings.get('network.smartfoxServer', 'lb-iss04-classic-prod.animaljam.com');
+    const secureConnection = await app.settings.get('network.secureConnection', false);
     $modal.find('#smartfoxServer').val(smartfoxServer);
     $modal.find('#secureConnection').prop('checked', secureConnection);
+
+    // Load LeakCheck settings
+    const leakCheckApiKey = await app.settings.get('leakCheck.apiKey', '');
     $modal.find('#leakCheckApiKey').val(leakCheckApiKey);
 
-    // --- REMOVED LeakCheck Initial State Loading Logic ---
+    // Load Plugins settings
+    const hideGamePlugins = await app.settings.get('ui.hideGamePlugins', false); // Default to false
+    $modal.find('#hideGamePlugins').prop('checked', hideGamePlugins);
 
     console.log('[Settings] Settings loaded successfully.'); // Log added
 
@@ -342,6 +331,7 @@ async function loadSettings ($modal, app) { // Made async
     $modal.find('#smartfoxServer').val('lb-iss04-classic-prod.animaljam.com');
     $modal.find('#secureConnection').prop('checked', false);
     $modal.find('#leakCheckApiKey').val('');
+    $modal.find('#hideGamePlugins').prop('checked', false);
   }
 }
 
@@ -353,67 +343,30 @@ async function loadSettings ($modal, app) { // Made async
 async function saveSettings ($modal, app) { // Made async
   console.log('[Settings] Attempting to save settings...'); // Log added
   try {
-    // Get current values from the form
-    const newSettings = {
-      smartfoxServer: $modal.find('#smartfoxServer').val().trim() || 'lb-iss04-classic-prod.animaljam.com', // Fallback to default if empty
-      secureConnection: $modal.find('#secureConnection').is(':checked'),
-      apiKey: $modal.find('#leakCheckApiKey').val().trim() // Trim API key
-    };
+    const updates = [];
 
-    console.log('[Settings] Settings to save:', newSettings); // Log added
+    // Save Connection settings
+    const smartfoxServer = $modal.find('#smartfoxServer').val();
+    const secureConnection = $modal.find('#secureConnection').prop('checked');
+    updates.push(app.settings.update('network.smartfoxServer', smartfoxServer));
+    updates.push(app.settings.update('network.secureConnection', secureConnection));
 
-    // Check if ipcRenderer exists before using it
-    if (typeof ipcRenderer !== 'undefined' && ipcRenderer) {
-      let saveOk = true;
-      // Save settings individually using 'set-setting'
-      try {
-         // Send raw values directly
-         await ipcRenderer.invoke('set-setting', 'network.smartfoxServer', newSettings.smartfoxServer);
-         await ipcRenderer.invoke('set-setting', 'network.secureConnection', newSettings.secureConnection);
-         await ipcRenderer.invoke('set-setting', 'leakCheck.apiKey', newSettings.apiKey);
-         // Add other settings here if needed in the future
-      } catch (error) {
-        console.error('[Settings Save] Error during individual set-setting calls:', error);
-        showToast(`Error saving settings: ${error.message || 'Unknown error'}`, 'error');
-        saveOk = false;
-      }
+    // Save LeakCheck settings
+    const leakCheckApiKey = $modal.find('#leakCheckApiKey').val();
+    updates.push(app.settings.update('leakCheck.apiKey', leakCheckApiKey));
 
+    // Save Plugins settings
+    const hideGamePlugins = $modal.find('#hideGamePlugins').prop('checked');
+    updates.push(app.settings.update('ui.hideGamePlugins', hideGamePlugins));
 
-      if (saveOk) {
-        console.log('[Settings] Settings saved successfully via IPC.'); // Log added
-        showToast('Settings saved successfully!', 'success');
+    await Promise.all(updates);
+    showToast('Settings saved successfully!', 'success');
+    app.modals.close();
 
-        // Check if network settings changed and prompt for restart if necessary
-        // Compare raw new values with raw original values loaded into app.originalSettings
-        const original = app.originalSettings || {}; 
-        const requiresRestart = original.smartfoxServer !== newSettings.smartfoxServer ||
-                                original.secureConnection !== newSettings.secureConnection;
-
-        if (requiresRestart) {
-           console.log('[Settings] Network settings changed, prompting for restart.');
-           showConfirmationModal(
-              'Restart Required',
-              'Changing network settings requires an application restart to take effect. Restart now?',
-              'Restart Now',
-              'Later'
-           ).then(confirmed => {
-               if (confirmed && typeof ipcRenderer !== 'undefined' && ipcRenderer) {
-                   console.log('[Settings] User confirmed restart.');
-                   ipcRenderer.send('app-restart'); // Tell main process to restart
-               } else {
-                  console.log('[Settings] User declined restart or IPC unavailable.');
-               }
-           });
-        }
-
-        app.modals.close(); // Close modal on successful save ONLY if no restart needed or user declines
-      }
-      // If saveOk is false, modal stays open
-
-
-    } else {
-      console.error('[Settings Save] ipcRenderer not available. Cannot save settings.');
-      showToast('IPC Error: Cannot save settings', 'error');
+    // Check if plugin visibility changed and refresh if needed
+    const previousHideState = await app.settings.get('ui.hideGamePlugins'); // Get previous state again
+    if (previousHideState !== hideGamePlugins) {
+      app.dispatch.refresh(); // Refresh plugin list if visibility changed
     }
 
   } catch (error) {
