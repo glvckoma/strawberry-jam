@@ -52,9 +52,10 @@ module.exports = class Dispatch {
    * Constructor.
    * @param {Application} application
    * @param {string} dataPath - The data path from the main process
+   * @param {Function} boundConsoleMessage - The consoleMessage function bound to the application instance
    * @constructor
    */
-  constructor (application, dataPath) {
+  constructor (application, dataPath, boundConsoleMessage) {
     this._application = application
 
     /**
@@ -63,6 +64,13 @@ module.exports = class Dispatch {
      * @public
      */
     this.dataPath = dataPath;
+
+    /**
+     * The bound consoleMessage function from the Application instance.
+     * @type {Function}
+     * @private
+     */
+    this._consoleMessage = boundConsoleMessage;
 
     /**
      * Stores all of the plugins.
@@ -188,7 +196,7 @@ module.exports = class Dispatch {
         }
       }
     } else {
-      this._application.consoleMessage({
+      this._consoleMessage({
         type: 'error',
         message: `Plugin "${name}" not found.`
       })
@@ -266,23 +274,50 @@ module.exports = class Dispatch {
       }
       devLog(`[Dispatch] Loading plugins from BASE_PATH: ${BASE_PATH}`);
 
-      // Remove the logic ensuring dataPath/plugins exists, as it's not needed for loading.
-
       const filepaths = await this.constructor.readdirRecursive(BASE_PATH); // Use BASE_PATH
+
+      // Collect plugin configurations instead of storing immediately
+      const pluginConfigurations = []; 
 
       await Promise.all(filepaths.map(async filepath => {
         if (filter(filepath)) {
           try {
-            const configuration = require(filepath)
-            await this._storeAndValidate(path.dirname(filepath), configuration.default || configuration)
+            const configuration = require(filepath);
+            // Store the validated configuration along with its filepath temporarily
+            const validatedConfig = await this._validateAndPrepareConfig(path.dirname(filepath), configuration.default || configuration);
+            if (validatedConfig) {
+              pluginConfigurations.push(validatedConfig);
+            }
           } catch (error) {
-            this._application.consoleMessage({
+            this._consoleMessage({
               type: 'error',
-              message: `Error loading plugin ${filepath}: ${error.message}`
+              message: `Error initially processing plugin file ${filepath}: ${error.message}`
             })
           }
         }
-      }))
+      }));
+
+      // Sort configurations: UI plugins first, then alphabetically by name
+      pluginConfigurations.sort((a, b) => {
+        if (a.configuration.type === 'ui' && b.configuration.type !== 'ui') return -1;
+        if (a.configuration.type !== 'ui' && b.configuration.type === 'ui') return 1;
+        return a.configuration.name.localeCompare(b.configuration.name); // Alphabetical sort within types
+      });
+
+      // Clear the plugin list in the UI
+      this._application.$pluginList.empty();
+      this.plugins.clear(); // Clear internal plugin map before re-populating
+
+      // Process and render sorted plugins
+      await Promise.all(pluginConfigurations.map(configData => 
+        this._processAndRenderPlugin(configData)
+      ));
+
+      // Update autocomplete after all plugins are processed
+      this._application.refreshAutoComplete();
+
+      // Update the empty message status after rendering
+      this._application._updateEmptyPluginMessage(); 
 
       // --- Add Room State Hooks ---
       this.onMessage({
@@ -341,7 +376,7 @@ module.exports = class Dispatch {
       // --- End Room State Hooks ---
 
     } catch (error) {
-      this._application.consoleMessage({
+      this._consoleMessage({
         type: 'error',
         message: `Error loading plugins: ${error.message}`
       })
@@ -364,7 +399,7 @@ module.exports = class Dispatch {
       try {
         await hook({ client, type, dispatch: this, message })
       } catch (error) {
-        this._application.consoleMessage({
+        this._consoleMessage({
           type: 'error',
           message: `Failed hooking packet ${message.type}. ${error.message}`
         })
@@ -391,7 +426,7 @@ module.exports = class Dispatch {
     try {
       await Promise.all(messages.map(sendFunction))
     } catch (error) {
-      this._application.consoleMessage({
+      this._consoleMessage({
         type: 'error',
         message: `Error sending messages: ${error.message}`
       })
@@ -405,10 +440,13 @@ module.exports = class Dispatch {
    * @private
    */
   async _storeAndValidate (filepath, configuration) {
+    // This function is being replaced by _validateAndPrepareConfig and _processAndRenderPlugin
+    // We keep it temporarily for reference if needed, but it won't be called directly by load anymore.
+    // TODO: Remove this function after confirming new logic works.
     const validate = Ajv.compile(ConfigurationSchema)
 
     if (!validate(configuration)) {
-      this._application.consoleMessage({
+      this._consoleMessage({
         type: 'error',
         message: `Failed validating the configuration for the plugin ${filepath}. ${validate.errors[0].message}.`
       })
@@ -417,7 +455,7 @@ module.exports = class Dispatch {
 
     // Check if the plugin name already exists
     if (this.plugins.has(configuration.name)) {
-      this._application.consoleMessage({
+      this._consoleMessage({
         type: 'error',
         message: `Plugin with the name ${configuration.name} already exists.`
       })
@@ -454,7 +492,7 @@ module.exports = class Dispatch {
 
       this._application.renderPluginItems(configuration)
     } catch (error) {
-      this._application.consoleMessage({
+      this._consoleMessage({
         type: 'error',
         message: `Error processing the plugin ${filepath}: ${error.message}`
       })
@@ -487,9 +525,9 @@ module.exports = class Dispatch {
     await this.load()
 
     this._application.emit('refresh:plugins')
-    consoleMessage({
+    this._consoleMessage({
       type: 'success',
-      message: 'Successfully refreshed plugins.'
+      message: `Successfully refreshed ${this.plugins.size} plugins.`
     })
   }
 
@@ -693,7 +731,7 @@ module.exports = class Dispatch {
  */
   _registerHook (type, { message, callback }) {
     if (!this.hooks[type]) {
-      return this._application.consoleMessage({
+      return this._consoleMessage({
         type: 'error',
         message: `Invalid hook type: ${type}`
       })
@@ -743,5 +781,93 @@ module.exports = class Dispatch {
     connection.clear()
     aj.clear()
     any.clear()
+  }
+
+  /**
+   * Validates configuration and installs dependencies. Does not instantiate or render.
+   * @param {string} filepath - Directory path of the plugin
+   * @param {object} configuration - Raw configuration from plugin.json
+   * @returns {Promise<object|null>} - Object containing validated config and filepath, or null on error
+   * @private
+   */
+  async _validateAndPrepareConfig(filepath, configuration) {
+    const validate = Ajv.compile(ConfigurationSchema);
+    if (!validate(configuration)) {
+      this._consoleMessage({
+        type: 'error',
+        message: `Failed validating configuration for plugin in ${filepath}. ${validate.errors[0].message}.`
+      });
+      return null;
+    }
+
+    // Check for duplicate name before proceeding (although checked again later)
+    if (this.plugins.has(configuration.name)) {
+       this._consoleMessage({
+         type: 'warn', // Warning as it might be caught later during processing
+         message: `Duplicate plugin name found during validation: ${configuration.name}`
+       });
+       // Don't return null here yet, let the main processing handle final duplicate check
+    }
+
+    try {
+      await this.installDependencies(configuration);
+      return { filepath, configuration }; // Return validated config and path
+    } catch (error) {
+      this._consoleMessage({
+        type: 'error',
+        message: `Error installing dependencies for plugin in ${filepath}: ${error.message}`
+      });
+      return null;
+    }
+  }
+
+  /**
+   * Processes a single validated plugin config: instantiates/stores plugin and renders UI item.
+   * @param {object} configData - Object containing { filepath, configuration }
+   * @returns {Promise<void>}
+   * @private
+   */
+  async _processAndRenderPlugin(configData) {
+    const { filepath, configuration } = configData;
+
+    // Final duplicate check before storing
+    if (this.plugins.has(configuration.name)) {
+      this._consoleMessage({
+        type: 'error',
+        message: `Plugin with the name ${configuration.name} already exists. Skipping.`
+      });
+      return;
+    }
+
+    try {
+      let pluginInstance = null;
+      if (configuration.type === PluginTypes.game) {
+        const PluginClass = require(path.join(filepath, configuration.main));
+        pluginInstance = new PluginClass({
+          application: this._application,
+          dispatch: this,
+          dataPath: this.dataPath
+        });
+      }
+
+      // Store plugin data (instance is null for UI plugins here)
+      this.plugins.set(configuration.name, {
+        configuration,
+        filepath,
+        plugin: pluginInstance // Store instance for game plugins
+      });
+
+      // Render the item using Application method - this now returns the element
+      const $pluginElement = this._application.renderPluginItems(configuration); 
+
+      // Append the rendered element to the list
+      this._application.$pluginList.append($pluginElement);
+
+    } catch (error) {
+      this._consoleMessage({
+        type: 'error',
+        message: `Error processing/rendering plugin ${configuration.name}: ${error.message}`
+      });
+    }
   }
 }

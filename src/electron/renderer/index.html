@@ -18,28 +18,6 @@
   <div id="sidebar"
     class="w-64 h-full bg-sidebar-bg p-4 fixed top-0 left-0 transform -translate-x-full transition-transform duration-300 border-r border-sidebar-border z-30 flex flex-col shadow-lg">
 
-    <!-- Header Links (Moved from Main Header) -->
-    <div class="p-4 border-b border-sidebar-border/30 flex flex-col justify-center items-center mb-1">
-      <div id="headerLinksContainer" class="flex justify-center items-center space-x-4 transition-all duration-300 ease-in-out" style="max-height: 50px; opacity: 1;">
-        <a href="#" class="text-sidebar-text hover:text-indigo-400 p-2 rounded hover:bg-tertiary-bg transition-colors" onclick="jam.application.open('https://discord.gg/HzFe7XpuPs')" aria-label="Discord" data-tooltip="Discord">
-          <i class="fab fa-discord text-xl"></i>
-        </a>
-        <a href="#" class="text-sidebar-text hover:text-highlight-green p-2 rounded hover:bg-tertiary-bg transition-colors" onclick="jam.application.open('https://github.com/glvckoma/strawberry-jam')" aria-label="GitHub" data-tooltip="GitHub">
-          <i class="fab fa-github text-xl"></i>
-        </a>
-        <a href="#" class="text-sidebar-text hover:text-peachy-beige p-2 rounded hover:bg-tertiary-bg transition-colors" onclick="jam.application.open('https://jam.exposed')" aria-label="Masterpieces" data-tooltip="Masterpieces">
-          <i class="fas fa-palette text-xl"></i>
-        </a>
-        <a href="#" class="text-sidebar-text hover:text-blue-400 p-2 rounded hover:bg-tertiary-bg transition-colors" onclick="jam.application.open('https://github.com/glvckoma/AJC-Price-Checker')" aria-label="AJC Price Checker" data-tooltip="AJC Price Checker">
-          <i class="fas fa-tags text-xl"></i>
-        </a>
-      </div>
-      <!-- Changed icon, added transition-opacity, adjusted base text color, removed top margin -->
-      <button id="toggleHeaderLinksButton" class="text-sidebar-text hover:text-theme-primary text-xs mt-0 focus:outline-none p-1 transition-opacity duration-300" aria-label="Toggle Header Links">
-        <i class="fas fa-eye-slash"></i> <!-- Initial state: links visible, icon shows 'hide' action -->
-      </button>
-    </div>
-
     <!-- Main Navigation -->
     <div class="px-2 py-2">
       <div class="flex items-center px-2 mb-1">
@@ -57,7 +35,7 @@
             class="flex items-center space-x-3 text-sidebar-text hover:bg-tertiary-bg group px-3 py-2.5 rounded-md transition-all"
             onclick="jam.application.openAnimalJam()">
             <i class="fas fa-gamepad theme-icon text-xl"></i>
-            <span class="font-medium">Launch Strawberry Jam</span>
+            <span class="font-medium">Launch</span>
             <div class="ml-auto opacity-0 group-hover:opacity-100 transition-opacity">
               <i class="fas fa-external-link-alt text-xs" style="color: var(--theme-primary);"></i>
             </div>
@@ -72,6 +50,39 @@
             <span class="font-medium">Settings</span>
           </a>
         </li>
+        <!-- ADDED Links -->
+        <li class="relative">
+          <a href="#" id="openLinksSection"
+            class="flex items-center space-x-3 text-sidebar-text hover:bg-tertiary-bg group px-3 py-2.5 rounded-md transition-all">
+            <i class="fas fa-link text-sidebar-text/80 text-xl"></i>
+            <span class="font-medium">Links</span>
+          </a>
+          <div id="linksPanel" class="absolute left-full top-0 ml-2 p-3 bg-secondary-bg rounded-md shadow-lg border border-sidebar-border z-40 opacity-0 pointer-events-none transform -translate-x-2 transition-all duration-200 ease-out">
+            <div class="flex space-x-3">
+              <a href="#" class="text-sidebar-text hover:text-indigo-400 p-1.5 rounded hover:bg-tertiary-bg transition-colors" onclick="jam.application.open('https://discord.gg/HzFe7XpuPs')" aria-label="Discord" data-tooltip="Discord">
+                <i class="fab fa-discord text-lg"></i>
+              </a>
+              <a href="#" class="text-sidebar-text hover:text-highlight-green p-1.5 rounded hover:bg-tertiary-bg transition-colors" onclick="jam.application.open('https://github.com/glvckoma/strawberry-jam')" aria-label="GitHub" data-tooltip="GitHub">
+                <i class="fab fa-github text-lg"></i>
+              </a>
+              <a href="#" class="text-sidebar-text hover:text-peachy-beige p-1.5 rounded hover:bg-tertiary-bg transition-colors" onclick="jam.application.open('https://jam.exposed')" aria-label="Masterpieces" data-tooltip="Masterpieces">
+                <i class="fas fa-palette text-lg"></i>
+              </a>
+              <a href="#" class="text-sidebar-text hover:text-blue-400 p-1.5 rounded hover:bg-tertiary-bg transition-colors" onclick="jam.application.open('https://github.com/glvckoma/AJC-Price-Checker')" aria-label="AJC Price Checker" data-tooltip="AJC Price Checker">
+                <i class="fas fa-tags text-lg"></i>
+              </a>
+            </div>
+          </div>
+        </li>
+        <!-- ADDED Plugin Library -->
+        <li>
+          <a href="#"
+            class="flex items-center space-x-3 text-sidebar-text hover:bg-tertiary-bg group px-3 py-2.5 rounded-md transition-all"
+            onclick="jam.application.openPluginHub()">
+            <i class="fas fa-puzzle-piece text-sidebar-text/80 text-xl"></i>
+            <span class="font-medium">Plugin Library</span>
+          </a>
+        </li>
       </ul>
       </div>
     </div>
@@ -80,11 +91,8 @@
     <div class="flex-1 overflow-hidden flex flex-col min-h-0 px-3 pt-4 mt-2">
       <div class="flex items-center px-2 mb-1">
         <h2 class="sidebar-section-title flex items-center flex-grow">
-          <span>Plugins</span>
+          <span>Installed Plugins</span>
         </h2>
-        <button class="ml-2 text-sidebar-text hover:text-highlight-green p-1.5 rounded transition-all" onclick="jam.application.openPluginHub()" data-tooltip="Add plugins" aria-label="Open Plugin Library">
-          <i class="fas fa-puzzle-piece"></i>
-        </button>
         <button id="refreshPluginsSection" class="ml-2 text-sidebar-text hover:text-blue-400 p-1.5 rounded transition-all" aria-label="Refresh Plugins">
           <i class="fas fa-sync-alt"></i>
         </button>
@@ -359,6 +367,12 @@
         box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
       }
     }
+    /* ADDED Links Panel Active State */
+    #linksPanel.active {
+      opacity: 1;
+      pointer-events: auto;
+      transform: translateX(0);
+    }
   </style>
   <script>
     // REMOVED Vanilla JS fruit icon handler
@@ -408,47 +422,24 @@
         });
       }
 
-      // Header Links Toggle
-      const headerLinksContainer = document.getElementById("headerLinksContainer");
-      const toggleHeaderLinksButton = document.getElementById("toggleHeaderLinksButton");
-      const toggleIcon = toggleHeaderLinksButton.querySelector("i");
-      const storageKey = 'headerLinksVisible';
+      // ADDED Links Panel Toggle Logic
+      const openLinksButton = document.getElementById('openLinksSection');
+      const linksPanel = document.getElementById('linksPanel');
 
-      const setLinksVisibility = (visible) => {
-        if (visible) {
-          // Show links
-          headerLinksContainer.style.maxHeight = '50px';
-          headerLinksContainer.style.opacity = '1';
-          headerLinksContainer.style.overflow = 'visible';
-          // Update icon to 'hide' (eye-slash) and button to full opacity
-          toggleIcon.classList.remove('fa-eye');
-          toggleIcon.classList.add('fa-eye-slash');
-          toggleHeaderLinksButton.classList.remove('opacity-50');
-          // toggleHeaderLinksButton.classList.add('opacity-100'); // Opacity 100 is default, removing 50 is enough
-          localStorage.setItem(storageKey, 'true');
-        } else {
-          // Hide links
-          headerLinksContainer.style.maxHeight = '0px';
-          headerLinksContainer.style.opacity = '0';
-          headerLinksContainer.style.overflow = 'hidden';
-          // Update icon to 'show' (eye) and button to less opacity
-          toggleIcon.classList.remove('fa-eye-slash');
-          toggleIcon.classList.add('fa-eye');
-          toggleHeaderLinksButton.classList.add('opacity-50');
-          // toggleHeaderLinksButton.classList.remove('opacity-100');
-          localStorage.setItem(storageKey, 'false');
-        }
-      };
+      if (openLinksButton && linksPanel) {
+        openLinksButton.addEventListener('click', (event) => {
+          event.preventDefault(); // Prevent default anchor behavior
+          linksPanel.classList.toggle('active');
+        });
 
-      // Initial state from localStorage
-      const initialStateVisible = localStorage.getItem(storageKey) !== 'false'; // Default to true if not set or invalid
-      setLinksVisibility(initialStateVisible);
-
-      // Toggle button click listener
-      toggleHeaderLinksButton.addEventListener("click", function () {
-        const currentlyVisible = localStorage.getItem(storageKey) !== 'false';
-        setLinksVisibility(!currentlyVisible);
-      });
+        // Optional: Close panel when clicking outside
+        document.addEventListener('click', (event) => {
+          // Check if the click is outside the panel AND outside the button that opens it
+          if (!linksPanel.contains(event.target) && !openLinksButton.contains(event.target) && linksPanel.classList.contains('active')) {
+            linksPanel.classList.remove('active');
+          }
+        });
+      }
 
     });
   </script>
@@ -502,7 +493,6 @@
         // Create CSS rules for all themed elements
         styleEl.textContent = `
           /* Chevron and header link button hover colors */
-          #toggleHeaderLinksButton:hover, 
           .sidebar-chevron:hover {
             color: ${color} !important;
           }

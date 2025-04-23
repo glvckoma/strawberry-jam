@@ -957,102 +957,66 @@ module.exports = class Application extends EventEmitter {
   }
 
   /**
-   * Renders a plugin item
-   * @param {Object} plugin
-   * @returns {JQuery<HTMLElement>}
+   * Renders the plugin items within the list.
+   * @param {object} plugin - The plugin details
+   * @param {string} plugin.name - The name of the plugin.
+   * @param {string} plugin.type - The type of the plugin ('game' or 'ui').
+   * @param {string} plugin.description - The description of the plugin.
+   * @param {string} [plugin.author='Sxip'] - The author of the plugin.
+   * @public
    */
   renderPluginItems ({ name, type, description, author = 'Sxip' } = {}) {
-    const getIconClass = () => {
-      switch (type) {
-        case 'ui': return 'fa-window-restore'
-        case 'game': return 'fa-code'
-      }
+    // Determine status indicator color based on plugin type
+    // TODO: Enhance this later to check live activity status for UI plugins if possible
+    let statusColorClass = 'bg-red-500'; // Default to inactive/red
+    if (type === 'game') {
+      statusColorClass = 'bg-yellow-500'; // Game plugins are yellow
     }
+    // Future enhancement: Check if type === 'ui' and if its window is open/active -> bg-green-500
 
-    const getIconColorClass = () => {
-      switch (type) {
-        case 'ui': return 'text-highlight-green'
-        case 'game': return 'text-highlight-yellow'
-      }
-    }
+    // Generate the new simplified list item HTML (WITHOUT onclick attribute on the info icon)
+    const $plugin = $(`
+      <li class="flex items-center justify-between text-sidebar-text hover:bg-tertiary-bg px-3 py-2 rounded-md transition-all group plugin-list-item" data-plugin-name="${name}" data-plugin-type="${type}">
+        <div class="flex items-center flex-grow min-w-0"> <!-- Added flex-grow and min-w-0 for truncation -->
+          <span class="inline-block w-2 h-2 ${statusColorClass} rounded-full mr-2 flex-shrink-0 plugin-status-indicator"></span>
+          <span class="font-medium text-sm truncate mr-2">${name}</span> <!-- Added truncate -->
+        </div>
+        <a href="#" 
+           class="plugin-info-button text-gray-400 hover:text-theme-primary transition-colors opacity-0 group-hover:opacity-100 ml-auto pl-2 flex-shrink-0" 
+           aria-label="Plugin Info">
+          <i class="fas fa-info-circle"></i>
+        </a>
+      </li>
+    `);
 
-    const onClickEvent = type === 'ui' ? () => jam.application.dispatch.open(name) : null
-
-    const $listItem = $('<li>', { class: type === 'ui' ? 'group' : '' })
-    const $container = $('<div>', {
-      class: `flex items-center px-3 py-3.5 ${type === 'ui' ? 'hover:bg-tertiary-bg cursor-pointer' : ''} rounded-md transition-colors`,
-      click: onClickEvent
-    })
-
-    // Replace icon container with just the icon
-    const $icon = $('<i>', { 
-      class: `fas ${getIconClass()} ${getIconColorClass()} text-xl mr-3` 
-    })
-
-    const $contentContainer = $('<div>', { class: 'flex-1 min-w-0' })
-    const $titleRow = $('<div>', { class: 'flex items-center justify-between' })
-
-    const $titleText = $('<span>', {
-      class: 'text-sidebar-text font-medium whitespace-normal break-words text-[15px]', // Removed truncate, added wrapping
-      text: name
-    })
-
-    // Add info button with style matching chevron and headerlink icons
-    const $infoButton = $('<button>', {
-      class: 'ml-2 text-sidebar-text hover:text-theme-primary p-1.5 rounded transition-all',
-      'data-tooltip': 'Info',
-      'aria-label': `Learn about ${name}`
-    }).append(
-      $('<i>', { class: 'fas fa-info-circle text-sm' })
-    )
-
-    // Stop propagation to prevent opening plugin when clicking info button
-    $infoButton.on('click', (e) => {
-      e.stopPropagation();
+    // Attach click handler for the info button programmatically
+    $plugin.find('.plugin-info-button').on('click', (e) => {
+      e.preventDefault(); // Prevent default anchor action
+      e.stopPropagation(); // Prevent triggering potential parent click handlers (for UI plugins)
+      // Call _showPluginInfo with the original, unescaped data
       this._showPluginInfo(name, type, description, author);
     });
 
-    $titleRow.append($titleText, $infoButton)
+    // Add click handler to the entire list item if it's a UI plugin
+    if (type === 'ui') {
+      $plugin.addClass('cursor-pointer'); // Add pointer cursor for UI plugins
+      $plugin.on('click', (e) => {
+        // Check if the click target is NOT the info button or its icon
+        if (!$(e.target).closest('.plugin-info-button').length) {
+          this.dispatch.open(name);
+        }
+      });
+    }
 
-    const $metaRow = $('<div>', {
-      class: 'flex items-center text-[11px] text-gray-400 mt-1'
-    })
-
-    $metaRow.append($('<span>', {
-      class: 'flex items-center',
-      html: `<i class="fas fa-user mr-1 opacity-70"></i>${author}`
-    }))
-
-    $metaRow.append($('<span>', {
-      class: 'mx-1.5 opacity-50',
-      html: '•'
-    }))
-
-    $metaRow.append($('<span>', {
-      class: 'opacity-70',
-      text: type.charAt(0).toUpperCase() + type.slice(1)
-    }))
-
-    const $description = $('<p>', {
-      class: 'text-xs text-gray-400 whitespace-normal break-words mt-1.5', // Removed truncate, added wrapping
-      text: description || `${type.charAt(0).toUpperCase() + type.slice(1)} plugin for Animal Jam`
-    })
-
-    $contentContainer.append($titleRow, $metaRow, $description)
-    $container.append($icon, $contentContainer)
-    $listItem.append($container)
-
-    if (type === 'ui') this.$pluginList.prepend($listItem)
-    else this.$pluginList.append($listItem)
-    
-    // Check if we need to hide the empty plugin message
-    this._updateEmptyPluginMessage()
-    
-    return $listItem
+    // Return the created element instead of appending directly
+    // Appending will be handled after sorting
+    return $plugin; 
+    // this.$pluginList.append($plugin);
+    // this._updateEmptyPluginMessage(); // This will be called after appending all items
   }
-  
+
   /**
-   * Shows plugin information in a kid-friendly UI
+   * Shows the plugin info modal.
    * @param {string} name - Plugin name
    * @param {string} type - Plugin type
    * @param {string} description - Plugin description
@@ -1092,10 +1056,11 @@ module.exports = class Application extends EventEmitter {
       class: 'px-6 py-4 bg-gradient-to-r from-highlight-blue/20 to-highlight-blue/5 border-b border-highlight-blue/50 flex items-center justify-between'
     });
     
-    // Title with bouncy animation on hover
+    // Title with bouncy animation on hover - Now uses the actual name
     const $title = $('<h3>', {
       class: 'text-lg font-bold text-highlight-blue flex items-center transition-transform duration-200',
-      html: `<i class="fas ${type === 'ui' ? 'fa-window-restore' : 'fa-code'} mr-2 transform transition-all duration-300"></i> ${name}`
+      // Use the actual name passed as argument
+      html: `<i class="fas ${type === 'ui' ? 'fa-window-restore' : 'fa-code'} mr-2 transform transition-all duration-300"></i> ${name}` 
     });
     
     // Add bounce effect on hover
@@ -1209,7 +1174,7 @@ module.exports = class Application extends EventEmitter {
       }),
       $('<p>', {
         class: 'text-text-primary text-sm leading-relaxed flex items-center',
-        html: `<i class="fas fa-user mr-2"></i> ${author}${version ? ` <span class="ml-2 text-gray-400">(Version ${version})</span>` : ''}`
+        html: `<i class="fas fa-user mr-2"></i> ${author}${version ? ` <span class="ml-2 text-gray-400">(v${version})</span>` : ''}`
       })
     );
     
@@ -1736,8 +1701,12 @@ module.exports = class Application extends EventEmitter {
     await this.dataPathPromise;
     devLog(`[Renderer] Data path received: ${this.dataPath}`);
     
-    // Initialize Dispatch with the data path
-    this.dispatch = new Dispatch(this, this.dataPath);
+    // Initialize Dispatch with the data path and the bound consoleMessage function
+    this.dispatch = new Dispatch(
+      this,
+      this.dataPath,
+      this.consoleMessage.bind(this) // Pass bound function
+    );
     devLog('[Renderer] Dispatch initialized with data path');
     
     // Register core commands
