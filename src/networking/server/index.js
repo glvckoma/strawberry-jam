@@ -43,31 +43,37 @@ module.exports = class Server {
     }
 
     try {
-      // Define default networking settings
+      // Define default networking settings with proper nesting
       const defaultSettings = {
-        smartfoxServer: 'lb-iss04-classic-prod.animaljam.com',
-        secureConnection: true,
-        autoReconnect: true
+        network: {
+          smartfoxServer: 'lb-iss04-classic-prod.animaljam.com',
+          secureConnection: true,
+          autoReconnect: true
+        }
       };
 
-      // Check and apply defaults for each setting
-      for (const [key, defaultValue] of Object.entries(defaultSettings)) {
-        try {
-          // Get current value
-          const currentValue = this.application.settings.get(key);
-          
-          // If value is missing or invalid, set default
-          if (key === 'smartfoxServer') {
-            if (!currentValue || typeof currentValue !== 'string' || !currentValue.includes('animaljam')) {
-              this.application.settings.update(key, defaultValue);
+      // Check and apply defaults for nested settings
+      for (const [topKey, topValue] of Object.entries(defaultSettings)) {
+        for (const [key, defaultValue] of Object.entries(topValue)) {
+          try {
+            // Get current value using nested path
+            const fullKey = `${topKey}.${key}`;
+            const currentValue = this.application.settings.get(fullKey);
+            
+            // If value is missing or invalid, set default
+            if (key === 'smartfoxServer') {
+              if (!currentValue || typeof currentValue !== 'string' || !currentValue.includes('animaljam')) {
+                this.application.settings.update(fullKey, defaultValue);
+              }
+            } else if (typeof defaultValue === 'boolean' && typeof currentValue !== 'boolean') {
+              // Handle boolean settings
+              this.application.settings.update(fullKey, defaultValue);
             }
-          } else if (typeof defaultValue === 'boolean' && typeof currentValue !== 'boolean') {
-            // Handle boolean settings
-            this.application.settings.update(key, defaultValue);
+          } catch (settingError) {
+            // If getting setting fails, set the default
+            const fullKey = `${topKey}.${key}`;
+            this.application.settings.update(fullKey, defaultValue);
           }
-        } catch (settingError) {
-          // If getting setting fails, set the default
-          this.application.settings.update(key, defaultValue);
         }
       }
     } catch (error) {

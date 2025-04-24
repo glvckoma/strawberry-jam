@@ -312,7 +312,7 @@ function setupEventHandlers ($modal, app) {
  * @param {Application} app - The application instance
  */
 async function loadSettings ($modal, app) { // Made async
-  console.log('[Settings] Loading settings...'); // Log added
+  // console.log('[Settings] Loading settings...'); // Log removed
   try {
     // Load Connection settings
     const smartfoxServer = await app.settings.get('network.smartfoxServer', 'lb-iss04-classic-prod.animaljam.com');
@@ -328,7 +328,7 @@ async function loadSettings ($modal, app) { // Made async
     const hideGamePlugins = await app.settings.get('ui.hideGamePlugins', false); // Default to false
     $modal.find('#hideGamePlugins').prop('checked', hideGamePlugins);
 
-    console.log('[Settings] Settings loaded successfully.'); // Log added
+    // console.log('[Settings] Settings loaded successfully.'); // Log removed
 
   } catch (error) {
     console.error('[Settings] Error loading settings:', error);
@@ -347,7 +347,7 @@ async function loadSettings ($modal, app) { // Made async
  * @param {Application} app - The application instance
  */
 async function saveSettings ($modal, app) { // Made async
-  console.log('[Settings] Attempting to save settings...'); // Log added
+  // console.log('[Settings] Attempting to save settings...'); // Log removed
   try {
     const updates = [];
 

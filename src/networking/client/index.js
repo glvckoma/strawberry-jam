@@ -42,7 +42,7 @@ module.exports = class Client {
      * @type {TLSSocket | Socket}
      * @private
      */
-    const secureConnection = this._server.application.settings.get('secureConnection')
+    const secureConnection = this._server.application.settings.get('network.secureConnection')
     this._aj = secureConnection ? new TLSSocket() : new Socket()
 
     /**
@@ -84,15 +84,15 @@ module.exports = class Client {
         this._server.application &&
         this._server.application.settings &&
         typeof this._server.application.settings.get === 'function'
-        ? this._server.application.settings.get('secureConnection')
+        ? this._server.application.settings.get('network.secureConnection')
         : false
 
       this._aj = secureConnection ? new TLSSocket() : new Socket()
     }
 
     try {
-      // Ensure we have the correct server settings
-      let smartfoxServer = this._server?.application?.settings?.get('smartfoxServer');
+      // Ensure we have the correct server settings - use nested path
+      let smartfoxServer = this._server?.application?.settings?.get('network.smartfoxServer');
       
       // If server is empty, null, or not a valid string, use default
       if (!smartfoxServer || typeof smartfoxServer !== 'string' || !smartfoxServer.includes('animaljam')) {
