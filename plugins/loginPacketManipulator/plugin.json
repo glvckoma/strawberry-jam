@@ -1,9 +1,0 @@
-{
-  "name": "Login Packet Manipulator",
-  "description": "Allows viewing, intercepting, and modifying login response packets.",
-  "version": "2.0.0",
-  "author": "Glockoma",
-  "type": "ui",
-  "main": "index.html",
-  "tags": ["beta", "networking", "account"]
-}
