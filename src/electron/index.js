@@ -240,33 +240,37 @@ class Electron {
 
      // --- IPC Handler for saving working accounts ---
      ipcMain.on('tester-save-works', async (event, accountLine) => {
-       // Enhanced Logging & Correct Path Usage
-       console.log(`[IPC tester-save-works] Received request to save: ${accountLine}`); // Log reception regardless of dev mode
-       const dataDir = getDataPath(app); // Get Strawberry Jam data path
+       const sender = event.sender; // Capture sender early
+       console.log(`[IPC tester-save-works] Received request to save: ${accountLine}`);
+       const dataDir = getDataPath(app);
        if (!dataDir) {
-         console.error(`[IPC tester-save-works] CRITICAL ERROR: Could not determine Strawberry Jam data path via getDataPath(app). Cannot save.`);
-         return; // Stop if path is invalid
+         console.error(`[IPC tester-save-works] CRITICAL ERROR: Could not determine Strawberry Jam data path. Cannot save.`);
+         // Send error back to renderer if possible
+         if (sender && !sender.isDestroyed()) {
+           sender.send('tester-save-error', 'Could not determine data path.');
+         }
+         return;
        }
-       // Construct the correct path within the Strawberry Jam data directory
        const correctWorksFilePath = path.join(dataDir, 'working_accounts.txt');
-       console.log(`[IPC tester-save-works] Attempting to append to CORRECT path: ${correctWorksFilePath}`); // Log CORRECT target path
+       console.log(`[IPC tester-save-works] Attempting to append to: ${correctWorksFilePath}`);
 
        try {
-         // Ensure directory exists
          await fs.mkdir(path.dirname(correctWorksFilePath), { recursive: true });
-         // Append the line to the CORRECT path
          await fs.appendFile(correctWorksFilePath, accountLine + '\n', 'utf-8');
-         console.log(`[IPC tester-save-works] Successfully appended: ${accountLine} to ${correctWorksFilePath}`); // Log success with CORRECT path
+         console.log(`[IPC tester-save-works] Successfully appended: ${accountLine} to ${correctWorksFilePath}`);
+         // Optionally send success confirmation back?
+         // if (sender && !sender.isDestroyed()) {
+         //   sender.send('tester-save-success', accountLine);
+         // }
        } catch (error) {
-         // Log detailed error regardless of dev mode
          console.error(`[IPC tester-save-works] FAILED to append to ${correctWorksFilePath}. Account: ${accountLine}. Error:`, error);
-         // Optionally send an error back to the renderer? Could be useful.
-         if (event && event.sender && !event.sender.isDestroyed()) { // Check if sender exists and is not destroyed
-            try {
-              event.sender.send('tester-save-error', `Failed to save to working_accounts.txt: ${error.message}`);
-            } catch (sendError) {
-              console.error('[IPC tester-save-works] Failed to send error back to renderer:', sendError);
-            }
+         // Send specific error back to renderer
+         if (sender && !sender.isDestroyed()) {
+           try {
+             sender.send('tester-save-error', `Failed to save to working_accounts.txt: ${error.message}`);
+           } catch (sendError) {
+             console.error('[IPC tester-save-works] Failed to send error back to renderer:', sendError);
+           }
          }
        }
      });
@@ -516,6 +520,68 @@ class Electron {
     createLoadFileHandler('tester-load-works-accounts', 'working_accounts.txt'); // Remains the same
     // --- End New Handlers ---
 
+    // --- Handler to get the last used path ---
+    ipcMain.handle('tester-get-last-path', async (event) => {
+      devLog('[IPC] Handling tester-get-last-path');
+      try {
+        const lastPath = this._store.get('testerLastPath');
+        devLog(`[Store] Retrieved testerLastPath: ${lastPath}`);
+        return lastPath; // Return the path or undefined if not set
+      } catch (error) {
+        console.error('[Store] Error getting testerLastPath:', error);
+        return null; // Return null on error
+      }
+    });
+
+    // --- Handler to load a specific file path ---
+    ipcMain.handle('tester-load-specific-file', async (event, filePath) => {
+      devLog(`[IPC] Handling tester-load-specific-file for path: ${filePath}`);
+      if (!filePath || typeof filePath !== 'string') {
+        return { success: false, error: 'Invalid file path provided.' };
+      }
+
+      try {
+        devLog(`[IPC Load Specific] Attempting to read file: ${filePath}`);
+        const fileContent = await fs.readFile(filePath, 'utf-8');
+        devLog(`[IPC Load Specific] Successfully read file: ${filePath}`);
+        const lines = fileContent.split(/\r?\n/);
+        const accounts = lines
+          .map(line => line.trim())
+          .filter(line => line && line.includes(':'))
+          .map(line => {
+            const [username, ...passwordParts] = line.split(':');
+            const password = passwordParts.join(':');
+            return { username, password, status: 'pending' };
+          });
+
+        devLog(`[IPC Load Specific] Successfully parsed ${accounts.length} accounts from ${filePath}`);
+        this._store.set('testerLastPath', filePath); // Update last path on successful load
+        devLog(`[Store] Updated testerLastPath to: ${filePath}`);
+
+        return {
+          success: true,
+          accounts: accounts,
+          filePath: filePath
+        };
+      } catch (error) {
+        if (isDevelopment) console.error(`[IPC Load Specific] Error processing file ${filePath}:`, error);
+        let errorMessage = `Error loading file: ${error.message}`;
+        if (error.code === 'ENOENT') {
+          errorMessage = `File not found: ${path.basename(filePath)}`;
+          // If the last loaded file is not found, clear it from store?
+          // const storedPath = this._store.get('testerLastPath');
+          // if (storedPath === filePath) {
+          //   this._store.delete('testerLastPath');
+          //   devLog(`[Store] Cleared non-existent testerLastPath: ${filePath}`);
+          // }
+        }
+        return {
+          success: false,
+          error: errorMessage,
+          filePath: filePath
+        };
+      }
+    });
     // --- End Account Tester IPC Handlers ---
 
     // --- Renderer Ready Listener (for Auto-Resume) ---
