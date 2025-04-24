@@ -148,10 +148,10 @@
       // Define IS_DEV based on a potential global or assume production
       const IS_DEV = (typeof window !== 'undefined' && window.IS_DEV) || false;
       
-      let advertisingDispatch = null; // Global variable to hold the dispatch object
-      let isActive = false;
+    let advertisingDispatch = null; // Global variable to hold the dispatch object
+    let isActive = false;
       let currentInterval = null; // Use setInterval like original
-      let messageIndex = 0;
+    let messageIndex = 0;
 
       // Wait for jQuery, then initialize
       function initializeAdvertisingPlugin() {
@@ -208,100 +208,100 @@
 
         // --- Utility Functions (Mostly unchanged, ensure they use cached selectors) ---
 
-        /**
-         * Adds a new message input box to the container
-         */
-        function addMessageBox() {
-          const messageCount = $messagesContainer.children().length + 1;
-          const $newMessage = $($messageTemplate.html());
+    /**
+     * Adds a new message input box to the container
+     */
+    function addMessageBox() {
+      const messageCount = $messagesContainer.children().length + 1;
+      const $newMessage = $($messageTemplate.html());
 
-          $newMessage.find('.message-label').text(`Message ${messageCount}`);
+      $newMessage.find('.message-label').text(`Message ${messageCount}`);
 
-          $newMessage.find('.preview-btn').on('click', function() {
-            const message = $(this).closest('.message-input').find('.message-content').val();
-            previewMessage(message);
-          });
+      $newMessage.find('.preview-btn').on('click', function() {
+        const message = $(this).closest('.message-input').find('.message-content').val();
+        previewMessage(message);
+      });
 
-          $newMessage.find('.remove-btn').on('click', function() {
-            if ($messagesContainer.children().length <= 1) {
-              showToast("You must have at least one message", "warning");
-              return;
-            }
-            $(this).closest('.message-input').remove();
-            updateMessageLabels();
-          });
+      $newMessage.find('.remove-btn').on('click', function() {
+        if ($messagesContainer.children().length <= 1) {
+          showToast("You must have at least one message", "warning");
+          return;
+        }
+        $(this).closest('.message-input').remove();
+        updateMessageLabels();
+      });
 
-          $messagesContainer.append($newMessage);
+      $messagesContainer.append($newMessage);
           $messagesContainer.parent().parent().animate({ scrollTop: $messagesContainer.height() }, 300);
-        }
+    }
 
-        /**
+    /**
          * Updates the labels for all message boxes
-         */
-        function updateMessageLabels() {
-          $('.message-input').each(function(index) {
-            $(this).find('.message-label').text(`Message ${index + 1}`);
-          });
-        }
+     */
+    function updateMessageLabels() {
+      $('.message-input').each(function(index) {
+        $(this).find('.message-label').text(`Message ${index + 1}`);
+      });
+    }
 
-        /**
+    /**
          * Retrieves all message content
-         */
-        function getAllMessages() {
+     */
+    function getAllMessages() {
           return $('.message-content').map(function() { return $(this).val(); }).get();
-        }
+    }
 
-        /**
+    /**
          * Starts the advertising rotation (using setInterval)
-         */
-        function startAdvertising() {
-          if (isActive) return;
+     */
+    function startAdvertising() {
+      if (isActive) return;
 
           const messages = getAllMessages().filter(msg => msg.trim() !== "");
           if (messages.length === 0) {
-            showToast("Please enter at least one message", "error");
-            return;
-          }
+        showToast("Please enter at least one message", "error");
+        return;
+      }
 
           const interval = Math.max(10, parseInt($intervalInput.val()) || 60) * 1000; // Interval in ms
           $intervalInput.val(interval / 1000);
 
-          isActive = true;
-          messageIndex = 0;
+      isActive = true;
+      messageIndex = 0;
 
-          $startBtn.prop('disabled', true);
-          $stopBtn.prop('disabled', false);
+      $startBtn.prop('disabled', true);
+      $stopBtn.prop('disabled', false);
           $statusIndicator.removeClass('bg-error-red/20 text-error-red').addClass('bg-highlight-green/20 text-highlight-green').html('<i class="fas fa-circle mr-1"></i> Active');
 
           sendNextMessage(); // Send first immediately
           if (currentInterval) clearInterval(currentInterval); // Clear any existing interval
           currentInterval = setInterval(sendNextMessage, interval);
 
-          showToast("Auto advertising started", "success");
-        }
+      showToast("Auto advertising started", "success");
+    }
 
-        /**
-         * Stops the advertising rotation
-         */
-        function stopAdvertising() {
-          if (!isActive) return;
+    /**
+     * Stops the advertising rotation
+     */
+    function stopAdvertising() {
+      if (!isActive) return;
 
           if (currentInterval) {
             clearInterval(currentInterval);
             currentInterval = null;
-          }
-          isActive = false;
+      }
+      isActive = false;
 
-          $startBtn.prop('disabled', false);
-          $stopBtn.prop('disabled', true);
+      $startBtn.prop('disabled', false);
+      $stopBtn.prop('disabled', true);
           $statusIndicator.removeClass('bg-highlight-green/20 text-highlight-green').addClass('bg-error-red/20 text-error-red').html('<i class="fas fa-circle mr-1"></i> Inactive');
 
-          showToast("Auto advertising stopped", "warning");
-        }
+      showToast("Auto advertising stopped", "warning");
+    }
 
-        /**
+    /**
          * Sends the next message in the rotation
-         */
+     */
         function sendNextMessage() {
           if (!isActive) return;
 
@@ -310,29 +310,29 @@
             if (IS_DEV) console.error("Advertising: Dispatch system not available");
             stopAdvertising(); // Stop if dispatch isn't ready
             showToast("Error: Plugin system not ready", "error");
-            return;
-          }
-           
-          const messages = getAllMessages().filter(msg => msg.trim() !== "");
-          if (messages.length === 0) {
-            if (IS_DEV) console.warn("Advertising: No messages left to send. Stopping.");
-            stopAdvertising();
-            showToast("No messages to send. Stopped advertising.", "warning");
-            return;
-          }
+        return;
+      }
 
-          let messageToSend;
-          if ($orderType.val() === "random") {
-            const randomIndex = Math.floor(Math.random() * messages.length);
-            messageToSend = messages[randomIndex];
-          } else {
+      const messages = getAllMessages().filter(msg => msg.trim() !== "");
+      if (messages.length === 0) {
+            if (IS_DEV) console.warn("Advertising: No messages left to send. Stopping.");
+        stopAdvertising();
+            showToast("No messages to send. Stopped advertising.", "warning");
+        return;
+      }
+
+      let messageToSend;
+      if ($orderType.val() === "random") {
+        const randomIndex = Math.floor(Math.random() * messages.length);
+        messageToSend = messages[randomIndex];
+      } else {
             messageToSend = messages[messageIndex % messages.length]; // Use modulo for sequential
-            messageIndex++;
-          }
+        messageIndex++;
+      }
 
           // Get room synchronously for immediate feedback
-          let room;
-          try {
+      let room;
+      try {
             room = window.jam.dispatch.getStateSync('room');
             
             if (!room) {
@@ -378,17 +378,17 @@
           let room;
           try {
             room = window.jam.dispatch.getStateSync('room');
-            
-            if (!room) {
+      
+      if (!room) {
               showToast("You must be in a room to preview messages", "error");
               return;
             }
           } catch (err) {
             showToast("Error: Cannot determine current room", "error");
             if (IS_DEV) console.error("Preview message error:", err);
-            return;
-          }
-          
+        return;
+      }
+      
           // Construct packet exactly as specified
           const packet = `<msg t="sys"><body action="pubMsg" r="${room}"><txt><![CDATA[${message}%9]]></txt></body></msg>`;
           
@@ -397,38 +397,38 @@
             // Use direct window.jam reference to avoid any potential issues
             window.jam.dispatch.sendRemoteMessage(packet);
             showToast("Preview message sent", "success");
-          } catch (error) {
+      } catch (error) {
             showToast("Error sending message", "error");
             if (IS_DEV) console.error("Error sending preview:", error);
-          }
-        }
+      }
+    }
 
-        /**
+    /**
          * Saves the current configuration
-         */
-        function saveConfig() {
-          const config = {
-            interval: parseInt($intervalInput.val()),
-            orderType: $orderType.val(),
-            messages: getAllMessages()
-          };
-          const blob = new Blob([JSON.stringify(config, null, 2)], { type: 'application/json' });
-          const url = URL.createObjectURL(blob);
+     */
+    function saveConfig() {
+      const config = {
+        interval: parseInt($intervalInput.val()),
+        orderType: $orderType.val(),
+        messages: getAllMessages()
+      };
+      const blob = new Blob([JSON.stringify(config, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
           const $a = $('<a>').attr({ href: url, download: `advertising-config-${new Date().toISOString().slice(0, 10)}.json` }).appendTo('body');
-          $a[0].click();
-          $a.remove();
-          URL.revokeObjectURL(url);
-          showToast("Configuration saved", "success");
-        }
+      $a[0].click();
+      $a.remove();
+      URL.revokeObjectURL(url);
+      showToast("Configuration saved", "success");
+    }
 
-        /**
+    /**
          * Triggers file selection for loading config
-         */
-        function loadConfig() {
-          $fileInput.trigger('click');
-        }
+     */
+    function loadConfig() {
+      $fileInput.trigger('click');
+    }
 
-        /**
+    /**
          * Handles file input change for loading config
          */
         function handleFileInput(event) {
@@ -457,24 +457,24 @@
               }
             };
             reader.readAsText(file);
-          } catch (error) {
+      } catch (error) {
             if (IS_DEV) console.error("Error reading configuration file:", error);
             showToast("Error reading configuration file", "error");
-          }
+      }
           $fileInput.val(""); // Reset file input
-        }
-        
-        /**
-         * Displays a toast notification
-         */
-        function showToast(message, type = 'success') {
-          const $toastContainer = $('#toast-container');
-          const toastClasses = {
-            success: 'bg-highlight-green text-white',
-            error: 'bg-error-red text-white',
-            warning: 'bg-highlight-yellow text-white',
-            info: 'bg-blue-400 text-white'
-          };
+    }
+
+    /**
+     * Displays a toast notification
+     */
+    function showToast(message, type = 'success') {
+      const $toastContainer = $('#toast-container');
+      const toastClasses = {
+        success: 'bg-highlight-green text-white',
+        error: 'bg-error-red text-white',
+        warning: 'bg-highlight-yellow text-white',
+        info: 'bg-blue-400 text-white'
+      };
           const iconClasses = {
             success: 'fa-check-circle',
             error: 'fa-times-circle',
@@ -483,12 +483,12 @@
           };
           const $toast = $('<div>').addClass(`px-4 py-2 rounded shadow-lg mb-2 flex items-center ${toastClasses[type] || toastClasses.info}`)
             .html(`<i class="fas ${iconClasses[type] || iconClasses.info} mr-2"></i> ${message}`);
-          $toastContainer.append($toast);
-          setTimeout(() => {
+      $toastContainer.append($toast);
+      setTimeout(() => {
             $toast.css({ opacity: '0', transition: 'opacity 0.5s' });
-            setTimeout(() => $toast.remove(), 500);
-          }, 3000);
-        }
+        setTimeout(() => $toast.remove(), 500);
+      }, 3000);
+    }
 
       } // End of initializeAdvertisingPlugin
 
@@ -499,7 +499,7 @@
       } else {
          // Fallback if jQuery isn't immediately ready (less likely with require)
          document.addEventListener('DOMContentLoaded', initializeAdvertisingPlugin);
-      }
+          }
       
     } // End of Electron environment check
   </script>

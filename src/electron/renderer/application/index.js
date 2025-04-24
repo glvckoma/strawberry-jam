@@ -527,13 +527,13 @@ module.exports = class Application extends EventEmitter {
             padding: 8px;
             backdrop-filter: blur(8px);
             scrollbar-width: thin;
-            scrollbar-color: #3A3D4D #1C1E26;
+            scrollbar-color: #3A3D4D #121212;
           }
           .ui-autocomplete::-webkit-scrollbar {
             width: 8px;
           }
           .ui-autocomplete::-webkit-scrollbar-track {
-            background: #1C1E26;
+            background: #121212;
           }
           .ui-autocomplete::-webkit-scrollbar-thumb {
             background: #3A3D4D;

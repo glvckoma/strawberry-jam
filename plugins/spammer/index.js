@@ -27,6 +27,39 @@ let runner
 let runnerType
 let runnerRow
 let activeRow = null
+let continueRunning = false // Flag to continue running background tasks
+
+// Create a background worker for off-focus processing
+const backgroundWorkerCode = `
+  let intervalId = null;
+  
+  self.onmessage = function(e) {
+    const { command, delay } = e.data;
+    
+    if (command === 'start') {
+      // Start the timer that will post messages back at the specified interval
+      clearInterval(intervalId); // Clear any existing interval
+      intervalId = setInterval(() => {
+        self.postMessage({ type: 'tick' });
+      }, delay);
+    } 
+    else if (command === 'stop') {
+      clearInterval(intervalId);
+      intervalId = null;
+    }
+  };
+`;
+
+// Create blob and worker
+const blob = new Blob([backgroundWorkerCode], { type: 'application/javascript' });
+const backgroundWorker = new Worker(URL.createObjectURL(blob));
+
+// Set up message handler for worker
+backgroundWorker.onmessage = function(e) {
+  if (e.data.type === 'tick' && continueRunning) {
+    executeNextPacket();
+  }
+};
 
 class Spammer {
   constructor () {
@@ -231,8 +264,26 @@ class Spammer {
     runButton.disabled = true
     runnerRow = 0
     runnerType = inputRunType.value
+    continueRunning = true
 
-    this.runNext()
+    // Get feedback area and update status
+    const feedbackArea = document.getElementById('statusFeedback');
+    if (feedbackArea) {
+      feedbackArea.innerText = "Spammer is running in background mode";
+      feedbackArea.style.color = "#38b000"; // Green color for success
+    }
+
+    // Start the background worker with the first packet's delay
+    const firstRow = table.rows[0];
+    const delay = firstRow ? parseInt(firstRow.cells[2].innerText) || 1000 : 1000;
+    
+    backgroundWorker.postMessage({ 
+      command: 'start', 
+      delay: delay 
+    });
+    
+    // Also run the first packet immediately
+    this.runNext();
   }
 
   /**
@@ -248,43 +299,70 @@ class Spammer {
     if (!row) {
       if (runnerType === 'loop') {
         runnerRow = 0
-        this.runNext()
+        // Continue in background mode - worker will trigger executeNextPacket()
+        return
       } else {
+        // If not looping, stop the background worker
         this.stopClick()
+        return
       }
-      return
     }
 
+    // Highlight the current row
+    row.classList.add('bg-tertiary-bg/40')
+    activeRow = row
+
+    // Get data from current row
     const type = row.cells[0].innerText
     const content = row.cells[1].innerText
-    const delay = parseFloat(row.cells[2].innerText)
+    const delay = parseInt(row.cells[2].innerText) || 1000
 
-    activeRow = row
-    row.classList.add('bg-tertiary-bg/40')
-
+    // Send the packet
     try {
-      this.sendPacket(content, type)
+      const packets = content.match(/[^\r\n]+/g)
+      if (packets && packets.length > 1) {
+        this.sendPacket(packets, type)
+      } else {
+        this.sendPacket(content, type)
+      }
     } catch (error) {
-      console.error('Error in packet execution:', error)
+      console.error('Error sending packet:', error)
     }
 
-    runner = setTimeout(() => {
-      this.runNext()
-    }, delay * 1000)
+    // Update the worker with the current delay
+    backgroundWorker.postMessage({ 
+      command: 'start', 
+      delay: delay 
+    });
   }
 
   /**
-   * Stops the queue execution
+   * Stop running the queue
    */
   stopClick () {
-    runButton.disabled = false
-    stopButton.disabled = true
-
-    if (runner) clearTimeout(runner)
-
+    continueRunning = false
+    
+    // Stop the background worker
+    backgroundWorker.postMessage({ command: 'stop' });
+    
     if (activeRow) {
       activeRow.classList.remove('bg-tertiary-bg/40')
       activeRow = null
+    }
+
+    stopButton.disabled = true
+    runButton.disabled = false
+
+    // Update status feedback
+    const feedbackArea = document.getElementById('statusFeedback');
+    if (feedbackArea) {
+      feedbackArea.innerText = "Spammer stopped";
+      feedbackArea.style.color = "orange";
+      
+      // Clear the message after 3 seconds
+      setTimeout(() => {
+        feedbackArea.innerText = "";
+      }, 3000);
     }
   }
 
@@ -412,27 +490,37 @@ class Spammer {
   }
 }
 
-  const spammer = new Spammer();
-  window.spammer = spammer;
-
-  // Ensure the spammer stops when the window is closed
-  window.addEventListener('beforeunload', spammer.stopClick);
+// Function to execute the next packet in the queue (called by the worker)
+function executeNextPacket() {
+  if (!continueRunning) return;
   
-  // Set up the minimize button functionality
-  const minimizeBtn = document.getElementById('minimize-btn');
-  if (minimizeBtn) {
-    minimizeBtn.addEventListener('click', () => {
-      if (window.jam && window.jam.application) {
-        window.jam.application.minimize();
-      } else {
-        // Fallback if jam.application is not available
-        try {
-          const { ipcRenderer } = require('electron');
-          ipcRenderer.send('window-minimize');
-        } catch (e) {
-          console.error("[Spammer] Error minimizing window:", e);
-        }
-      }
-    });
+  // Only proceed if we have a valid spammer instance
+  if (window.spammer && typeof window.spammer.runNext === 'function') {
+    window.spammer.runNext();
   }
+}
+
+// Global instance
+window.spammer = new Spammer()
+
+// Ensure the spammer stops when the window is closed
+window.addEventListener('beforeunload', spammer.stopClick);
+  
+// Set up the minimize button functionality
+const minimizeBtn = document.getElementById('minimize-btn');
+if (minimizeBtn) {
+  minimizeBtn.addEventListener('click', () => {
+    if (window.jam && window.jam.application) {
+      window.jam.application.minimize();
+    } else {
+      // Fallback if jam.application is not available
+      try {
+        const { ipcRenderer } = require('electron');
+        ipcRenderer.send('window-minimize');
+      } catch (e) {
+        console.error("[Spammer] Error minimizing window:", e);
+      }
+    }
+  });
+}
 });

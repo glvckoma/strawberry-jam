@@ -142,7 +142,17 @@ class ConfigModel {
     return this.leakCheckLastProcessedIndex;
   }
 
-  // Removed setLeakCheckIndex method
+  /**
+   * Sets the last processed leak check index
+   * @param {number} index - The index to set
+   */
+  setLeakCheckIndex(index) {
+    if (typeof index === 'number' && !isNaN(index)) {
+      this.leakCheckLastProcessedIndex = index;
+      return true;
+    }
+    return false;
+  }
 
   /**
    * Resets configuration to defaults

@@ -136,6 +136,11 @@ class UsernameLogger {
       // Register command handlers
       this.commandHandlers.registerHandlers(this.dispatch);
       
+      // Refresh autocomplete to include our commands
+      if (this.application && typeof this.application.refreshAutoComplete === 'function') {
+        this.application.refreshAutoComplete();
+      }
+      
       // Log status
       this.application.consoleMessage({
         type: 'success',

@@ -3,13 +3,18 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        'primary-bg': '#181A20',
-        'secondary-bg': '#1C1E26',
+        'primary-bg': '#121212',
+        'primary-bg-purple': '#1E1A29',
+        'primary-bg-blue': '#162029',
+        'primary-bg-green': '#1A2420',
+        'primary-bg-red': '#291A1A',
+        'primary-bg-neutral': '#1E1E1E',
+        'secondary-bg': '#121212',
         'tertiary-bg': '#3A3D4D',
         'text-primary': '#C3C3C3',
         'highlight-yellow': '#f0b429',
         'highlight-green': '#38b000',
-        'sidebar-bg': '#1C1E26',
+        'sidebar-bg': '#121212',
         'sidebar-border': '#3A3D4D',
         'custom-pink': '#F10048',
         'sidebar-text': '#C3C3C3',
