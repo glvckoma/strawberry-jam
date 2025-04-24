@@ -141,430 +141,367 @@
   <script src="../../assets/javascript/plugin-utils.js"></script>
   <!-- Page-specific script -->
   <script>
-    // -- Global Variables ---
-    const IS_DEV = true; // Set to false for production builds to disable logs
-    let advertisingDispatch = null; // Global variable to hold the dispatch object
-    let isActive = false;
-    let messageTimerId = null;
-    let messageIndex = 0;
-
-    // Initialize the standardized UI components when the document is ready
-    document.addEventListener('DOMContentLoaded', function() {
-      initializePluginUI();
-    });
-
-    // --- Utility Functions ---
-
-    /**
-     * Adds a new message input box to the container
-     */
-    function addMessageBox() {
-      const $messagesContainer = $('#messages-container');
-      const $messageTemplate = $('#message-template');
-      const messageCount = $messagesContainer.children().length + 1;
-      const $newMessage = $($messageTemplate.html());
-
-      $newMessage.find('.message-label').text(`Message ${messageCount}`);
-
-      $newMessage.find('.preview-btn').on('click', function() {
-        const message = $(this).closest('.message-input').find('.message-content').val();
-        previewMessage(message);
-      });
-
-      $newMessage.find('.remove-btn').on('click', function() {
-        if ($messagesContainer.children().length <= 1) {
-          showToast("You must have at least one message", "warning");
-          return;
-        }
-
-        $(this).closest('.message-input').remove();
-        updateMessageLabels();
-      });
-
-      $messagesContainer.append($newMessage);
+    // Check if running in Electron, otherwise skip initialization
+    if (typeof require === 'function') {
+      const { ipcRenderer } = require('electron');
       
-      $messagesContainer.parent().parent().animate({
-        scrollTop: $messagesContainer.height()
-      }, 300);
-    }
-
-    /**
-     * Updates the labels for all message boxes to show the correct sequence
-     */
-    function updateMessageLabels() {
-      $('.message-input').each(function(index) {
-        $(this).find('.message-label').text(`Message ${index + 1}`);
-      });
-    }
-
-    /**
-     * Retrieves all message content from the UI
-     * @returns {Array<string>} Array of all message texts
-     */
-    function getAllMessages() {
-      const messages = [];
-      $('.message-content').each(function() {
-        messages.push($(this).val());
-      });
-      return messages;
-    }
-
-    /**
-     * Starts the advertising rotation
-     */
-    function startAdvertising() {
-      if (isActive) return;
-
-      const $startBtn = $('#start-btn');
-      const $stopBtn = $('#stop-btn');
-      const $statusIndicator = $('#status-indicator');
-      const $intervalInput = $('#interval');
-
-      const messages = getAllMessages();
-
-      const hasMessage = messages.some(msg => msg.trim() !== "");
-      if (!hasMessage) {
-        showToast("Please enter at least one message", "error");
-        return;
-      }
-
-      const interval = Math.max(10, parseInt($intervalInput.val()) || 60);
-      $intervalInput.val(interval);
-
-      isActive = true;
-      messageIndex = 0;
-
-      $startBtn.prop('disabled', true);
-      $stopBtn.prop('disabled', false);
-      $statusIndicator
-        .removeClass('bg-error-red/20 text-error-red')
-        .addClass('bg-highlight-green/20 text-highlight-green')
-        .html('<i class="fas fa-circle mr-1"></i> Active');
-
-      // Start the first message send immediately, then schedule subsequent ones
-      sendNextMessage(); 
-
-      showToast("Auto advertising started", "success");
-    }
-
-    /**
-     * Stops the advertising rotation
-     */
-    function stopAdvertising() {
-      if (!isActive) return;
-
-      const $startBtn = $('#start-btn');
-      const $stopBtn = $('#stop-btn');
-      const $statusIndicator = $('#status-indicator');
-
-      if (messageTimerId) {
-          clearTimeout(messageTimerId); // Use clearTimeout
-          messageTimerId = null;
-      }
-      isActive = false;
-
-      $startBtn.prop('disabled', false);
-      $stopBtn.prop('disabled', true);
-      $statusIndicator
-        .removeClass('bg-highlight-green/20 text-highlight-green')
-        .addClass('bg-error-red/20 text-error-red')
-        .html('<i class="fas fa-circle mr-1"></i> Inactive');
-
-      showToast("Auto advertising stopped", "warning");
-    }
-
-    /**
-     * Sends the next message in the rotation and schedules the next one
-     */
-    async function sendNextMessage() {
-      // Check if still active before sending
-      if (!isActive || !advertisingDispatch) {
-        if (IS_DEV) console.error("Advertising: Cannot send message - inactive or dispatch not ready");
-        return;
-      }
-
-      const $orderType = $('#order-type');
-      const $intervalInput = $('#interval');
-
-      if (IS_DEV) console.log("Advertising: sendNextMessage called");
-      const messages = getAllMessages().filter(msg => msg.trim() !== "");
-      const interval = Math.max(10, parseInt($intervalInput.val()) || 60); // Get interval
-
-      // Define function to schedule next send
-      const scheduleNext = () => {
-        if (IS_DEV) console.log("Advertising: Scheduling next message in " + interval + " seconds");
-        if (isActive) { // Double-check isActive before scheduling
-          messageTimerId = setTimeout(sendNextMessage, interval * 1000);
-        }
-      };
-
-      if (messages.length === 0) {
-        if (IS_DEV) console.warn("Advertising: No messages to send. Stopping.");
-        showToast("No messages to send. Stopping.", "warning");
-        stopAdvertising();
-        return;
-      }
-
-      let messageToSend;
-      if ($orderType.val() === "random") {
-        const randomIndex = Math.floor(Math.random() * messages.length);
-        messageToSend = messages[randomIndex];
-      } else {
-        if (messageIndex >= messages.length) {
-          messageIndex = 0;
-        }
-        messageToSend = messages[messageIndex];
-        messageIndex++;
-      }
-
-      if (IS_DEV) console.log("Advertising: About to check room state...");
+      // Define IS_DEV based on a potential global or assume production
+      const IS_DEV = (typeof window !== 'undefined' && window.IS_DEV) || false;
       
-      // Use multiple methods to try to get room info
-      let room;
-      try {
-        // Try using window.jam.state first (most reliable)
-        if (window.jam && window.jam.state && window.jam.state.room) {
-          room = window.jam.state.room;
-          if (IS_DEV) console.log("Advertising: Room from window.jam.state:", room);
-        }
+      let advertisingDispatch = null; // Global variable to hold the dispatch object
+      let isActive = false;
+      let currentInterval = null; // Use setInterval like original
+      let messageIndex = 0;
+
+      // Wait for jQuery, then initialize
+      function initializeAdvertisingPlugin() {
+        // Cache jQuery selectors (original pattern)
+        const $messagesContainer = $('#messages-container');
+        const $addMessageBtn = $('#add-message-btn');
+        const $startBtn = $('#start-btn');
+        const $stopBtn = $('#stop-btn');
+        const $saveBtn = $('#save-btn');
+        const $loadBtn = $('#load-btn');
+        const $intervalInput = $('#interval');
+        const $orderType = $('#order-type');
+        const $statusIndicator = $('#status-indicator');
+        const $fileInput = $('#file-input');
+        const $messageTemplate = $('#message-template');
         
-        // If that didn't work, try dispatch.getState
-        if (!room && advertisingDispatch.getState) {
-          room = await advertisingDispatch.getState('room');
-          if (IS_DEV) console.log("Advertising: Room from getState:", room);
-        }
-        
-        // If that didn't work, try getStateSync
-        if (!room && typeof advertisingDispatch.getStateSync === 'function') {
-          room = advertisingDispatch.getStateSync('room');
-          if (IS_DEV) console.log("Advertising: Room from getStateSync:", room);
-        }
-      } catch (err) {
-        if (IS_DEV) console.error("Advertising: Error getting room state:", err);
-      }
-      
-      if (!room) {
-        if (IS_DEV) console.warn("Advertising: Not in a room, can't send message");
-        showToast("You must be in a room to send messages", "error");
-        scheduleNext(); // Schedule next attempt even if not in room
-        return;
-      }
-      
-      if (IS_DEV) console.log(`Advertising: About to send message in room: ${room}`);
-
-      try {
-        // Use %9 as the suffix for chat messages as per game protocol
-        const packet = `<msg t="sys"><body action="pubMsg" r="${room}"><txt><![CDATA[${messageToSend}%9]]></txt></body></msg>`;
-        if (IS_DEV) console.log(`Advertising: Sending packet: ${packet}`);
-        
-        // Try to send message
-        const result = await advertisingDispatch.sendRemoteMessage(packet);
-        if (IS_DEV) console.log("Advertising: Message sent successfully, result:", result);
-        showToast("Message sent successfully", "success");
-      } catch (error) {
-        if (IS_DEV) console.error("Advertising: Error sending message:", error);
-        showToast("Error sending message. Will retry.", "error");
-      } finally {
-         // Always schedule the next message send in the finally block if still active
-         scheduleNext();
-      }
-    }
-
-    /**
-     * Saves the current configuration to a JSON file
-     */
-    function saveConfig() {
-      const $intervalInput = $('#interval');
-      const $orderType = $('#order-type');
-
-      const config = {
-        interval: parseInt($intervalInput.val()),
-        orderType: $orderType.val(),
-        messages: getAllMessages()
-      };
-
-      const blob = new Blob([JSON.stringify(config, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-
-      const $a = $('<a>')
-        .attr({
-          href: url,
-          download: `advertising-config-${new Date().toISOString().slice(0, 10)}.json`
-        })
-        .appendTo('body');
-
-      $a[0].click();
-      $a.remove();
-      URL.revokeObjectURL(url);
-
-      showToast("Configuration saved", "success");
-    }
-
-    /**
-     * Triggers file selection dialog to load a configuration file
-     */
-    function loadConfig() {
-      const $fileInput = $('#file-input');
-      $fileInput.trigger('click');
-    }
-
-    /**
-     * Sends a preview message to the current room
-     * @param {string} message - The message to preview/send
-     */
-    async function previewMessage(message) {
-      if (!advertisingDispatch) {
-        if (IS_DEV) console.error("Advertising: Cannot preview - dispatch not ready");
-        showToast("System not ready. Try again in a moment.", "error");
-        return;
-      }
-
-      if (IS_DEV) console.log("Advertising: previewMessage called with:", message);
-      
-      if (!message || message.trim() === "") {
-        if (IS_DEV) console.warn("Advertising: No message content to preview");
-        showToast("No message to preview", "error");
-        return;
-      }
-
-      if (IS_DEV) console.log("Advertising: About to check room state for preview...");
-      
-      // Use multiple methods to try to get room info
-      let room;
-      try {
-        // Try using window.jam.state first (most reliable)
-        if (window.jam && window.jam.state && window.jam.state.room) {
-          room = window.jam.state.room;
-          if (IS_DEV) console.log("Advertising: Preview - Room from window.jam.state:", room);
-        }
-        
-        // If that didn't work, try dispatch.getState
-        if (!room && advertisingDispatch.getState) {
-          room = await advertisingDispatch.getState('room');
-          if (IS_DEV) console.log("Advertising: Preview - Room from getState:", room);
-        }
-        
-        // If that didn't work, try getStateSync
-        if (!room && typeof advertisingDispatch.getStateSync === 'function') {
-          room = advertisingDispatch.getStateSync('room');
-          if (IS_DEV) console.log("Advertising: Preview - Room from getStateSync:", room);
-        }
-      } catch (err) {
-        if (IS_DEV) console.error("Advertising: Preview - Error getting room state:", err);
-      }
-      
-      if (!room) {
-        if (IS_DEV) console.warn("Advertising: Preview - Not in a room, can't send message");
-        showToast("You must be in a room to send a preview message", "error");
-        return;
-      }
-      
-      if (IS_DEV) console.log(`Advertising: Preview - About to send message in room: ${room}`);
-
-      try {
-        // Construct and send the packet
-        const packet = `<msg t="sys"><body action="pubMsg" r="${room}"><txt><![CDATA[${message}%9]]></txt></body></msg>`;
-        if (IS_DEV) console.log(`Advertising: Preview - Sending packet: ${packet}`);
-        
-        // Try to send message
-        const result = await advertisingDispatch.sendRemoteMessage(packet);
-        if (IS_DEV) console.log("Advertising: Preview - Message sent successfully, result:", result);
-        showToast("Preview message sent!", "success");
-      } catch (error) {
-        if (IS_DEV) console.error("Advertising: Preview - Error sending preview message:", error);
-        showToast("Error sending preview message", "error");
-      }
-    }
-
-    /**
-     * Displays a toast notification
-     * @param {string} message - The message to display
-     * @param {string} type - The notification type: 'success', 'error', 'warning', or 'info'
-     */
-    function showToast(message, type = 'success') {
-      const $toastContainer = $('#toast-container');
-
-      const toastClasses = {
-        success: 'bg-highlight-green text-white',
-        error: 'bg-error-red text-white',
-        warning: 'bg-highlight-yellow text-white',
-        info: 'bg-blue-400 text-white'
-      };
-
-      const $toast = $('<div>')
-        .addClass(`px-4 py-2 rounded shadow-lg mb-2 flex items-center ${toastClasses[type] || toastClasses.info}`)
-        .html(`
-          <i class="fas fa-${
-            type === 'success' ? 'check-circle' :
-            type === 'error' ? 'times-circle' :
-            type === 'warning' ? 'exclamation-circle' :
-            'info-circle'
-          } mr-2"></i>
-          ${message}
-        `);
-
-      $toastContainer.append($toast);
-
-      setTimeout(() => {
-        $toast.css({
-          'opacity': '0',
-          'transition': 'opacity 0.5s'
-        });
-        setTimeout(() => $toast.remove(), 500);
-      }, 3000);
-    }
-
-    // --- File Input Handler ---
-    function handleFileInput(event) {
-      try {
-        const file = event.target.files[0];
-        if (!file) return;
-
-        const reader = new FileReader();
-        reader.onload = function(e) {
+        // Attempt to get dispatch object (Combine original and fallback)
+        if (window.jam && window.jam.dispatch) {
+          advertisingDispatch = window.jam.dispatch;
+          if (IS_DEV) console.log("Advertising: Dispatch object initialized via window.jam.dispatch");
+        } else {
           try {
-            const text = e.target.result;
-            const config = JSON.parse(text);
-
-            const $intervalInput = $('#interval');
-            const $orderType = $('#order-type');
-            const $messagesContainer = $('#messages-container');
-
-            $intervalInput.val(config.interval || 60);
-            $orderType.val(config.orderType || "sequential");
-
-            if (Array.isArray(config.messages)) {
-              $messagesContainer.empty();
-
-              config.messages.forEach(() => {
-                addMessageBox();
-              });
-
-              $('.message-content').each((index, element) => {
-                if (index < config.messages.length) {
-                  $(element).val(config.messages[index]);
-                }
-              });
-
-              if (config.messages.length === 0) {
-                addMessageBox();
-              }
-            }
-
-            showToast("Configuration loaded", "success");
-          } catch (error) {
-            if (IS_DEV) console.error("Error processing file:", error);
-            showToast("Error loading configuration", "error");
+            // Create a proxy dispatch object using IPC as fallback
+            advertisingDispatch = {
+              sendRemoteMessage: (packet) => ipcRenderer.invoke('plugin-send-remote-message', packet),
+              getState: (key) => ipcRenderer.invoke('plugin-get-state', key),
+              getStateSync: (key) => ipcRenderer.sendSync('plugin-get-state-sync', key)
+              // Add other necessary dispatch methods here if needed
+            };
+            if (IS_DEV) console.log("Advertising: Created proxy dispatch object via IPC");
+          } catch (err) {
+             if (IS_DEV) console.error("Advertising: Failed to create proxy dispatch object.", err);
           }
-        };
-        reader.readAsText(file);
-      } catch (error) {
-        if (IS_DEV) console.error("Error loading configuration:", error);
-        showToast("Error loading configuration", "error");
-      }
+        }
+        
+        if (!advertisingDispatch) {
+            if (IS_DEV) console.error("Advertising: CRITICAL - Dispatch object could not be initialized.");
+            showToast("Plugin system error. Cannot send messages.", "error");
+        }
 
-      $('#file-input').val("");
-    }
+        // Add one message box by default
+        addMessageBox();
+
+        // Attach event listeners (original pattern)
+        $addMessageBtn.on('click', addMessageBox);
+        $startBtn.on('click', startAdvertising);
+        $stopBtn.on('click', stopAdvertising);
+        $saveBtn.on('click', saveConfig);
+        $loadBtn.on('click', loadConfig);
+        $fileInput.on('change', handleFileInput);
+        
+        // Initialize standard plugin UI elements AFTER primary init
+        initializePluginUI();
+
+        // --- Utility Functions (Mostly unchanged, ensure they use cached selectors) ---
+
+        /**
+         * Adds a new message input box to the container
+         */
+        function addMessageBox() {
+          const messageCount = $messagesContainer.children().length + 1;
+          const $newMessage = $($messageTemplate.html());
+
+          $newMessage.find('.message-label').text(`Message ${messageCount}`);
+
+          $newMessage.find('.preview-btn').on('click', function() {
+            const message = $(this).closest('.message-input').find('.message-content').val();
+            previewMessage(message);
+          });
+
+          $newMessage.find('.remove-btn').on('click', function() {
+            if ($messagesContainer.children().length <= 1) {
+              showToast("You must have at least one message", "warning");
+              return;
+            }
+            $(this).closest('.message-input').remove();
+            updateMessageLabels();
+          });
+
+          $messagesContainer.append($newMessage);
+          $messagesContainer.parent().parent().animate({ scrollTop: $messagesContainer.height() }, 300);
+        }
+
+        /**
+         * Updates the labels for all message boxes
+         */
+        function updateMessageLabels() {
+          $('.message-input').each(function(index) {
+            $(this).find('.message-label').text(`Message ${index + 1}`);
+          });
+        }
+
+        /**
+         * Retrieves all message content
+         */
+        function getAllMessages() {
+          return $('.message-content').map(function() { return $(this).val(); }).get();
+        }
+
+        /**
+         * Starts the advertising rotation (using setInterval)
+         */
+        function startAdvertising() {
+          if (isActive) return;
+
+          const messages = getAllMessages().filter(msg => msg.trim() !== "");
+          if (messages.length === 0) {
+            showToast("Please enter at least one message", "error");
+            return;
+          }
+
+          const interval = Math.max(10, parseInt($intervalInput.val()) || 60) * 1000; // Interval in ms
+          $intervalInput.val(interval / 1000);
+
+          isActive = true;
+          messageIndex = 0;
+
+          $startBtn.prop('disabled', true);
+          $stopBtn.prop('disabled', false);
+          $statusIndicator.removeClass('bg-error-red/20 text-error-red').addClass('bg-highlight-green/20 text-highlight-green').html('<i class="fas fa-circle mr-1"></i> Active');
+
+          sendNextMessage(); // Send first immediately
+          if (currentInterval) clearInterval(currentInterval); // Clear any existing interval
+          currentInterval = setInterval(sendNextMessage, interval);
+
+          showToast("Auto advertising started", "success");
+        }
+
+        /**
+         * Stops the advertising rotation
+         */
+        function stopAdvertising() {
+          if (!isActive) return;
+
+          if (currentInterval) {
+            clearInterval(currentInterval);
+            currentInterval = null;
+          }
+          isActive = false;
+
+          $startBtn.prop('disabled', false);
+          $stopBtn.prop('disabled', true);
+          $statusIndicator.removeClass('bg-highlight-green/20 text-highlight-green').addClass('bg-error-red/20 text-error-red').html('<i class="fas fa-circle mr-1"></i> Inactive');
+
+          showToast("Auto advertising stopped", "warning");
+        }
+
+        /**
+         * Sends the next message in the rotation
+         */
+        function sendNextMessage() {
+          if (!isActive) return;
+
+          // First check if we have a valid dispatcher
+          if (!window.jam || !window.jam.dispatch) {
+            if (IS_DEV) console.error("Advertising: Dispatch system not available");
+            stopAdvertising(); // Stop if dispatch isn't ready
+            showToast("Error: Plugin system not ready", "error");
+            return;
+          }
+           
+          const messages = getAllMessages().filter(msg => msg.trim() !== "");
+          if (messages.length === 0) {
+            if (IS_DEV) console.warn("Advertising: No messages left to send. Stopping.");
+            stopAdvertising();
+            showToast("No messages to send. Stopped advertising.", "warning");
+            return;
+          }
+
+          let messageToSend;
+          if ($orderType.val() === "random") {
+            const randomIndex = Math.floor(Math.random() * messages.length);
+            messageToSend = messages[randomIndex];
+          } else {
+            messageToSend = messages[messageIndex % messages.length]; // Use modulo for sequential
+            messageIndex++;
+          }
+
+          // Get room synchronously for immediate feedback
+          let room;
+          try {
+            room = window.jam.dispatch.getStateSync('room');
+            
+            if (!room) {
+              if (IS_DEV) console.warn("Advertising: Not in a room, skipping message send.");
+              // Don't show toast every interval, just skip this cycle
+              return;
+            }
+          } catch (err) {
+            if (IS_DEV) console.error("Error getting room:", err);
+            return; // Skip this message cycle if we hit an error
+          }
+
+          // Construct packet exactly as specified
+          const packet = `<msg t="sys"><body action="pubMsg" r="${room}"><txt><![CDATA[${messageToSend}%9]]></txt></body></msg>`;
+          
+          // Send message directly using window.jam
+          try {
+            window.jam.dispatch.sendRemoteMessage(packet);
+            if (IS_DEV) console.log(`Advertising: Sent message to room ${room}: ${messageToSend}`);
+          } catch (error) {
+            if (IS_DEV) console.error("Error sending message:", error);
+            // Don't show toast for every failed message as it could be spammy
+            // Don't stop on error, just continue to next cycle
+          }
+        }
+        
+        /**
+         * Sends a single message immediately for preview
+         */
+        function previewMessage(message) {
+          if (!message || message.trim() === "") {
+            showToast("Cannot preview an empty message", "warning");
+            return;
+          }
+          
+          // First check if we have a valid dispatcher
+          if (!window.jam || !window.jam.dispatch) {
+            showToast("Plugin system not ready", "error");
+            return;
+          }
+          
+          // Get room synchronously for immediate feedback
+          let room;
+          try {
+            room = window.jam.dispatch.getStateSync('room');
+            
+            if (!room) {
+              showToast("You must be in a room to preview messages", "error");
+              return;
+            }
+          } catch (err) {
+            showToast("Error: Cannot determine current room", "error");
+            if (IS_DEV) console.error("Preview message error:", err);
+            return;
+          }
+          
+          // Construct packet exactly as specified
+          const packet = `<msg t="sys"><body action="pubMsg" r="${room}"><txt><![CDATA[${message}%9]]></txt></body></msg>`;
+          
+          // Send synchronously to avoid freezes from unresolved promises
+          try {
+            // Use direct window.jam reference to avoid any potential issues
+            window.jam.dispatch.sendRemoteMessage(packet);
+            showToast("Preview message sent", "success");
+          } catch (error) {
+            showToast("Error sending message", "error");
+            if (IS_DEV) console.error("Error sending preview:", error);
+          }
+        }
+
+        /**
+         * Saves the current configuration
+         */
+        function saveConfig() {
+          const config = {
+            interval: parseInt($intervalInput.val()),
+            orderType: $orderType.val(),
+            messages: getAllMessages()
+          };
+          const blob = new Blob([JSON.stringify(config, null, 2)], { type: 'application/json' });
+          const url = URL.createObjectURL(blob);
+          const $a = $('<a>').attr({ href: url, download: `advertising-config-${new Date().toISOString().slice(0, 10)}.json` }).appendTo('body');
+          $a[0].click();
+          $a.remove();
+          URL.revokeObjectURL(url);
+          showToast("Configuration saved", "success");
+        }
+
+        /**
+         * Triggers file selection for loading config
+         */
+        function loadConfig() {
+          $fileInput.trigger('click');
+        }
+
+        /**
+         * Handles file input change for loading config
+         */
+        function handleFileInput(event) {
+          try {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+              try {
+                const config = JSON.parse(e.target.result);
+                $intervalInput.val(config.interval || 60);
+                $orderType.val(config.orderType || "sequential");
+                if (Array.isArray(config.messages)) {
+                  $messagesContainer.empty();
+                  config.messages.forEach((msg) => {
+                    addMessageBox();
+                    $('.message-content').last().val(msg);
+                  });
+                  if (config.messages.length === 0) addMessageBox(); // Add one if loaded config was empty
+                  updateMessageLabels(); // Update labels after loading
+                }
+                showToast("Configuration loaded", "success");
+              } catch (error) {
+                if (IS_DEV) console.error("Error processing loaded file:", error);
+                showToast("Error loading configuration file", "error");
+              }
+            };
+            reader.readAsText(file);
+          } catch (error) {
+            if (IS_DEV) console.error("Error reading configuration file:", error);
+            showToast("Error reading configuration file", "error");
+          }
+          $fileInput.val(""); // Reset file input
+        }
+        
+        /**
+         * Displays a toast notification
+         */
+        function showToast(message, type = 'success') {
+          const $toastContainer = $('#toast-container');
+          const toastClasses = {
+            success: 'bg-highlight-green text-white',
+            error: 'bg-error-red text-white',
+            warning: 'bg-highlight-yellow text-white',
+            info: 'bg-blue-400 text-white'
+          };
+          const iconClasses = {
+            success: 'fa-check-circle',
+            error: 'fa-times-circle',
+            warning: 'fa-exclamation-circle',
+            info: 'fa-info-circle'
+          };
+          const $toast = $('<div>').addClass(`px-4 py-2 rounded shadow-lg mb-2 flex items-center ${toastClasses[type] || toastClasses.info}`)
+            .html(`<i class="fas ${iconClasses[type] || iconClasses.info} mr-2"></i> ${message}`);
+          $toastContainer.append($toast);
+          setTimeout(() => {
+            $toast.css({ opacity: '0', transition: 'opacity 0.5s' });
+            setTimeout(() => $toast.remove(), 500);
+          }, 3000);
+        }
+
+      } // End of initializeAdvertisingPlugin
+
+      // --- Initialization Trigger --- 
+      // Use a simple ready check or $(document).ready if waitForJQuery isn't available
+      if (typeof $ === 'function') {
+         initializeAdvertisingPlugin();
+      } else {
+         // Fallback if jQuery isn't immediately ready (less likely with require)
+         document.addEventListener('DOMContentLoaded', initializeAdvertisingPlugin);
+      }
+      
+    } // End of Electron environment check
   </script>
 </body>
 </html>

@@ -46,31 +46,31 @@ module.exports = class Server {
       // Define default networking settings with proper nesting
       const defaultSettings = {
         network: {
-          smartfoxServer: 'lb-iss04-classic-prod.animaljam.com',
-          secureConnection: true,
-          autoReconnect: true
+        smartfoxServer: 'lb-iss04-classic-prod.animaljam.com',
+        secureConnection: true,
+        autoReconnect: true
         }
       };
 
       // Check and apply defaults for nested settings
       for (const [topKey, topValue] of Object.entries(defaultSettings)) {
         for (const [key, defaultValue] of Object.entries(topValue)) {
-          try {
+        try {
             // Get current value using nested path
             const fullKey = `${topKey}.${key}`;
             const currentValue = this.application.settings.get(fullKey);
-            
-            // If value is missing or invalid, set default
-            if (key === 'smartfoxServer') {
-              if (!currentValue || typeof currentValue !== 'string' || !currentValue.includes('animaljam')) {
+          
+          // If value is missing or invalid, set default
+          if (key === 'smartfoxServer') {
+            if (!currentValue || typeof currentValue !== 'string' || !currentValue.includes('animaljam')) {
                 this.application.settings.update(fullKey, defaultValue);
-              }
-            } else if (typeof defaultValue === 'boolean' && typeof currentValue !== 'boolean') {
-              // Handle boolean settings
-              this.application.settings.update(fullKey, defaultValue);
             }
-          } catch (settingError) {
-            // If getting setting fails, set the default
+          } else if (typeof defaultValue === 'boolean' && typeof currentValue !== 'boolean') {
+            // Handle boolean settings
+              this.application.settings.update(fullKey, defaultValue);
+          }
+        } catch (settingError) {
+          // If getting setting fails, set the default
             const fullKey = `${topKey}.${key}`;
             this.application.settings.update(fullKey, defaultValue);
           }
