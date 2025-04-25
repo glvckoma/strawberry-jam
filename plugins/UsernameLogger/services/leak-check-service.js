@@ -234,11 +234,18 @@ class LeakCheckService {
             //     type: 'logger',
             //     message: `[Username Logger] Saving config with index: ${lastCompletedIndex}` // Adjusted log message if kept
             // }
-            const saveSuccess = await this.configModel.saveConfig();
-            if (!saveSuccess) {
+            try {
+              const saveSuccess = await this.configModel.saveConfig();
+              if (!saveSuccess) {
+                this.application.consoleMessage({
+                  type: 'error',
+                  message: `[Username Logger] CRITICAL: Failed to save config after stopping/pausing at index ${lastCompletedIndex}. Index may not persist.`
+                });
+              }
+            } catch (saveError) {
               this.application.consoleMessage({
                 type: 'error',
-                message: `[Username Logger] CRITICAL: Failed to save config after stopping/pausing at index ${lastCompletedIndex}. Index may not persist.`
+                message: `[Username Logger] Error in leak check: Failed to save config - ${saveError.message}`
               });
             }
 
@@ -451,26 +458,40 @@ class LeakCheckService {
               type: 'logger',
               message: `[Username Logger] Saving config with index: ${currentOverallIndex}`
            });
-           await this.configModel.saveConfig();
+           try {
+               const saveSuccess = await this.configModel.saveConfig();
+               if (!saveSuccess) {
+                   this.application.consoleMessage({
+                       type: 'error',
+                       message: `[Username Logger] CRITICAL: Failed to save config after completing run at index ${currentOverallIndex}. Index may not persist.`
+                   });
+               }
+           } catch (saveError) {
+               this.application.consoleMessage({
+                   type: 'error',
+                   message: `[Username Logger] Error in leak check: Failed to save config - ${saveError.message}`
+               });
+           }
            // Verify saved index
            const verifiedIndex = this.configModel.getLeakCheckIndex();
            this.application.consoleMessage({
              type: 'logger',
               message: `[Username Logger] Verified saved index in config: ${verifiedIndex}`
             });
-            if (!saveSuccess) {
-              this.application.consoleMessage({
-                type: 'error',
-                message: `[Username Logger] CRITICAL: Failed to save config after completing run at index ${currentOverallIndex}. Index may not persist.`
-              });
-            }
          } else {
-             const saveSuccess = await this.configModel.saveConfig(); // Save without logging steps
-             if (!saveSuccess) {
-               this.application.consoleMessage({
-                 type: 'error',
-                 message: `[Username Logger] CRITICAL: Failed to save config after completing run at index ${currentOverallIndex}. Index may not persist.`
-               });
+             try {
+                 const saveSuccess = await this.configModel.saveConfig(); // Save without logging steps
+                 if (!saveSuccess) {
+                     this.application.consoleMessage({
+                         type: 'error',
+                         message: `[Username Logger] CRITICAL: Failed to save config after completing run at index ${currentOverallIndex}. Index may not persist.`
+                     });
+                 }
+             } catch (saveError) {
+                 this.application.consoleMessage({
+                     type: 'error',
+                     message: `[Username Logger] Error in leak check: Failed to save config - ${saveError.message}`
+                 });
              }
          }
 
@@ -512,17 +533,24 @@ class LeakCheckService {
               
               // Reset index to -1 for next run to start from beginning
               this.configModel.setLeakCheckIndex(-1);
-              const resetSaveSuccess = await this.configModel.saveConfig();
-              if (!resetSaveSuccess) {
-                this.application.consoleMessage({
-                  type: 'error',
-                  message: `[Username Logger] CRITICAL: Failed to save config after resetting index for auto-trim. Index may not persist.`
-                });
-              } else if (isDevMode) {
-                 this.application.consoleMessage({
-                   type: 'logger',
-                   message: `[Username Logger] Index successfully reset to -1 after auto-trim.`
-                 });
+              try {
+                  const resetSaveSuccess = await this.configModel.saveConfig();
+                  if (!resetSaveSuccess) {
+                      this.application.consoleMessage({
+                          type: 'error',
+                          message: `[Username Logger] CRITICAL: Failed to save config after resetting index for auto-trim. Index may not persist.`
+                      });
+                  } else if (isDevMode) {
+                      this.application.consoleMessage({
+                          type: 'logger',
+                          message: `[Username Logger] Index successfully reset to -1 after auto-trim.`
+                      });
+                  }
+              } catch (saveError) {
+                  this.application.consoleMessage({
+                      type: 'error',
+                      message: `[Username Logger] Error in leak check: Failed to save config after auto-trim - ${saveError.message}`
+                  });
               }
             } else {
               // trimProcessedUsernames should log its own errors, but add a general one here
