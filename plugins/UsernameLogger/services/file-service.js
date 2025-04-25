@@ -219,21 +219,36 @@ class FileService {
    * Trims processed usernames from a log file
    * @param {string} logFilePath - Path to the log file
    * @param {number} processedIndex - Index up to which usernames have been processed
+   * @param {Object} [options] - Additional options for trimming
+   * @param {number} [options.chunkSize=5000] - Number of usernames to process at once
+   * @param {boolean} [options.safeMode=true] - Whether to use safe processing mode for large files
    * @returns {Promise<boolean>} True if successful
    */
-  async trimProcessedUsernames(logFilePath, processedIndex) {
+  async trimProcessedUsernames(logFilePath, processedIndex, options = {}) {
+    const chunkSize = options.chunkSize || 5000;
+    const safeMode = options.safeMode !== false;
+    const isDevMode = process.env.NODE_ENV === 'development';
+    let startTime;
+    
+    if (isDevMode) {
+      startTime = Date.now();
+      this.application.consoleMessage({
+        type: 'logger',
+        message: `[Username Logger] Starting trim operation for ${logFilePath} up to index ${processedIndex}`
+      });
+    }
+    
     try {
-      const entries = await this.readUsernameEntriesFromLog(logFilePath);
-      
-      if (entries.length === 0) {
+      // Check if file exists first
+      if (!(await this.fileExists(logFilePath))) {
         this.application.consoleMessage({
           type: 'warn',
-          message: `[Username Logger] No usernames found in collected file.`
+          message: `[Username Logger] File not found: ${logFilePath}`
         });
         return false;
       }
-
-      // Keep only the entries beyond the processed index
+      
+      // For small indexes, use the traditional method
       if (processedIndex < 0) {
         this.application.consoleMessage({
           type: 'warn',
@@ -241,23 +256,209 @@ class FileService {
         });
         return false;
       }
-
-      if (processedIndex >= entries.length) {
-        // Clear the file completely
-        await fs.writeFile(logFilePath, '');
-        return true;
-      } else {
-        // Keep only the non-processed usernames
-        const keepEntries = entries.slice(processedIndex + 1);
-        const keepLines = keepEntries.map(entry => entry.line);
+      
+      // Create a backup file first in safe mode
+      if (safeMode) {
+        const backupFilePath = `${logFilePath}.bak`;
+        try {
+          const content = await fs.readFile(logFilePath, 'utf8');
+          await fs.writeFile(backupFilePath, content);
+          if (isDevMode) {
+            this.application.consoleMessage({
+              type: 'logger',
+              message: `[Username Logger] Created backup file: ${backupFilePath}`
+            });
+          }
+        } catch (backupError) {
+          this.application.consoleMessage({
+            type: 'error',
+            message: `[Username Logger] Failed to create backup before trim: ${backupError.message}`
+          });
+          // Continue anyway, but log the error
+        }
+      }
+      
+      // Get file stats to decide on processing method
+      const stats = await fs.stat(logFilePath);
+      const fileSizeInMB = stats.size / (1024 * 1024);
+      
+      // For large files, use line-by-line processing
+      if (fileSizeInMB > 1 || safeMode) {
+        if (isDevMode) {
+          this.application.consoleMessage({
+            type: 'logger',
+            message: `[Username Logger] Using chunked processing for large file (${fileSizeInMB.toFixed(2)}MB)`
+          });
+        }
         
-        await fs.writeFile(logFilePath, keepLines.join('\n') + (keepLines.length > 0 ? '\n' : ''));
-        return true;
+        return await this._trimLargeFile(logFilePath, processedIndex, chunkSize);
+      } else {
+        // For small files, use in-memory processing
+        if (isDevMode && safeMode) {
+          this.application.consoleMessage({
+            type: 'logger',
+            message: `[Username Logger] Using standard processing for small file (${fileSizeInMB.toFixed(2)}MB)`
+          });
+        }
+        
+        const entries = await this.readUsernameEntriesFromLog(logFilePath);
+        
+        if (entries.length === 0) {
+          this.application.consoleMessage({
+            type: 'warn',
+            message: `[Username Logger] No usernames found in collected file.`
+          });
+          return false;
+        }
+
+        if (processedIndex >= entries.length) {
+          // Clear the file completely
+          await fs.writeFile(logFilePath, '');
+          if (isDevMode) {
+            this.application.consoleMessage({
+              type: 'logger',
+              message: `[Username Logger] Cleared file completely (all ${entries.length} entries processed)`
+            });
+          }
+          return true;
+        } else {
+          // Keep only the non-processed usernames
+          const keepEntries = entries.slice(processedIndex + 1);
+          const keepLines = keepEntries.map(entry => entry.line);
+          
+          await fs.writeFile(logFilePath, keepLines.join('\n') + (keepLines.length > 0 ? '\n' : ''));
+          
+          if (isDevMode) {
+            this.application.consoleMessage({
+              type: 'logger',
+              message: `[Username Logger] Kept ${keepEntries.length} of ${entries.length} usernames`
+            });
+          }
+          return true;
+        }
       }
     } catch (error) {
       this.application.consoleMessage({
         type: 'error',
-        message: `[Username Logger] Error trimming processed usernames: ${error.message}`
+        message: `[Username Logger] Error trimming processed usernames: ${error.message}, Stack: ${error.stack}`
+      });
+      return false;
+    } finally {
+      if (isDevMode) {
+        const duration = (Date.now() - startTime) / 1000;
+        this.application.consoleMessage({
+          type: 'logger',
+          message: `[Username Logger] Trim operation completed in ${duration.toFixed(2)}s`
+        });
+      }
+    }
+  }
+  
+  /**
+   * Trims a large file using chunked line-by-line processing
+   * @param {string} filePath - Path to the log file
+   * @param {number} processedIndex - Index up to which usernames have been processed
+   * @param {number} chunkSize - Size of chunks to process at once
+   * @returns {Promise<boolean>} True if successful
+   * @private
+   */
+  async _trimLargeFile(filePath, processedIndex, chunkSize) {
+    const isDevMode = process.env.NODE_ENV === 'development';
+    const outputFilePath = `${filePath}.new`;
+    let outputStream;
+    let lineCount = 0;
+    let keptCount = 0;
+    
+    try {
+      // Create the output file and stream
+      outputStream = fsSync.createWriteStream(outputFilePath);
+      
+      // Process input file in chunks
+      const content = await fs.readFile(filePath, 'utf8');
+      const lines = content.split(/\r?\n/);
+      const totalLines = lines.length;
+      
+      if (isDevMode) {
+        this.application.consoleMessage({
+          type: 'logger',
+          message: `[Username Logger] Processing ${totalLines} lines in chunks of ${chunkSize}`
+        });
+      }
+      
+      // If processedIndex is beyond the total lines, just clear the file
+      if (processedIndex >= totalLines) {
+        outputStream.end('');
+        await new Promise(resolve => outputStream.on('close', resolve));
+        
+        // Rename the empty file to replace the original
+        await fs.rename(outputFilePath, filePath);
+        
+        if (isDevMode) {
+          this.application.consoleMessage({
+            type: 'logger',
+            message: `[Username Logger] Cleared file completely (all ${totalLines} entries processed)`
+          });
+        }
+        return true;
+      }
+      
+      // Process chunks
+      for (let startIdx = 0; startIdx < totalLines; startIdx += chunkSize) {
+        const endIdx = Math.min(startIdx + chunkSize, totalLines);
+        const chunk = lines.slice(startIdx, endIdx);
+        
+        for (const line of chunk) {
+          // Skip this line if it's within the processed index
+          if (lineCount <= processedIndex) {
+            lineCount++;
+            continue;
+          }
+          
+          // Keep this line
+          outputStream.write(line + '\n');
+          lineCount++;
+          keptCount++;
+        }
+        
+        if (isDevMode && startIdx + chunkSize < totalLines) {
+          this.application.consoleMessage({
+            type: 'logger',
+            message: `[Username Logger] Processed ${endIdx}/${totalLines} lines`
+          });
+        }
+      }
+      
+      // Close the stream
+      outputStream.end();
+      await new Promise(resolve => outputStream.on('close', resolve));
+      
+      // Rename the new file to replace the original
+      await fs.rename(outputFilePath, filePath);
+      
+      if (isDevMode) {
+        this.application.consoleMessage({
+          type: 'logger',
+          message: `[Username Logger] Kept ${keptCount} of ${totalLines} usernames after processing`
+        });
+      }
+      
+      return true;
+    } catch (error) {
+      // Clean up on error
+      if (outputStream) {
+        outputStream.end();
+      }
+      
+      // Try to remove the temporary file
+      try {
+        await fs.unlink(outputFilePath);
+      } catch (unlinkError) {
+        // Ignore errors during cleanup
+      }
+      
+      this.application.consoleMessage({
+        type: 'error',
+        message: `[Username Logger] Error during large file trim: ${error.message}, Stack: ${error.stack}`
       });
       return false;
     }

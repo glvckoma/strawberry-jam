@@ -235,11 +235,11 @@ class LeakCheckService {
             //     message: `[Username Logger] Saving config with index: ${lastCompletedIndex}` // Adjusted log message if kept
             // }
             try {
-              const saveSuccess = await this.configModel.saveConfig();
-              if (!saveSuccess) {
-                this.application.consoleMessage({
-                  type: 'error',
-                  message: `[Username Logger] CRITICAL: Failed to save config after stopping/pausing at index ${lastCompletedIndex}. Index may not persist.`
+            const saveSuccess = await this.configModel.saveConfig();
+            if (!saveSuccess) {
+              this.application.consoleMessage({
+                type: 'error',
+                message: `[Username Logger] CRITICAL: Failed to save config after stopping/pausing at index ${lastCompletedIndex}. Index may not persist.`
                 });
               }
             } catch (saveError) {
@@ -480,18 +480,18 @@ class LeakCheckService {
             });
          } else {
              try {
-                 const saveSuccess = await this.configModel.saveConfig(); // Save without logging steps
-                 if (!saveSuccess) {
-                     this.application.consoleMessage({
-                         type: 'error',
-                         message: `[Username Logger] CRITICAL: Failed to save config after completing run at index ${currentOverallIndex}. Index may not persist.`
+             const saveSuccess = await this.configModel.saveConfig(); // Save without logging steps
+             if (!saveSuccess) {
+               this.application.consoleMessage({
+                 type: 'error',
+                 message: `[Username Logger] CRITICAL: Failed to save config after completing run at index ${currentOverallIndex}. Index may not persist.`
                      });
                  }
              } catch (saveError) {
                  this.application.consoleMessage({
                      type: 'error',
                      message: `[Username Logger] Error in leak check: Failed to save config - ${saveError.message}`
-                 });
+               });
              }
          }
 
@@ -520,9 +520,24 @@ class LeakCheckService {
               message: `[Username Logger] Attempting to automatically clear processed usernames...`
             });
             
+            // Configure options for large files
+            const trimOptions = {
+              chunkSize: 5000,
+              safeMode: true
+            };
+            
+            if (isDevMode) {
+              this.application.consoleMessage({
+                type: 'logger',
+                message: `[Username Logger] Auto-trim using chunked processing for ${currentOverallIndex + 1} usernames`
+              });
+            }
+            
+            // Use our optimized trimming with proper options for large files
             const trimSuccess = await this.fileService.trimProcessedUsernames(
               paths.collectedUsernamesPath,
-              currentOverallIndex // Trim up to the last processed index
+              currentOverallIndex, // Trim up to the last processed index
+              trimOptions
             );
 
             if (trimSuccess) {
@@ -534,36 +549,52 @@ class LeakCheckService {
               // Reset index to -1 for next run to start from beginning
               this.configModel.setLeakCheckIndex(-1);
               try {
-                  const resetSaveSuccess = await this.configModel.saveConfig();
-                  if (!resetSaveSuccess) {
-                      this.application.consoleMessage({
-                          type: 'error',
-                          message: `[Username Logger] CRITICAL: Failed to save config after resetting index for auto-trim. Index may not persist.`
-                      });
-                  } else if (isDevMode) {
-                      this.application.consoleMessage({
-                          type: 'logger',
-                          message: `[Username Logger] Index successfully reset to -1 after auto-trim.`
+              const resetSaveSuccess = await this.configModel.saveConfig();
+              if (!resetSaveSuccess) {
+                this.application.consoleMessage({
+                  type: 'error',
+                  message: `[Username Logger] CRITICAL: Failed to save config after resetting index for auto-trim. Index may not persist.`
+                });
+              } else if (isDevMode) {
+                 this.application.consoleMessage({
+                   type: 'logger',
+                   message: `[Username Logger] Index successfully reset to -1 after auto-trim.`
                       });
                   }
               } catch (saveError) {
                   this.application.consoleMessage({
                       type: 'error',
                       message: `[Username Logger] Error in leak check: Failed to save config after auto-trim - ${saveError.message}`
-                  });
+                 });
               }
             } else {
-              // trimProcessedUsernames should log its own errors, but add a general one here
+              // Handle the failure case more explicitly
                this.application.consoleMessage({
                  type: 'warn',
-                 message: `[Username Logger] Auto-clearing processed usernames failed. You may need to run !trimprocessed manually.`
+                message: `[Username Logger] Auto-clearing failed. This can happen with very large files. You may need to run !trimprocessed manually.`
                });
+              
+              // For large datasets, suggest using the manual command
+              if (currentOverallIndex > 5000) {
+                this.application.consoleMessage({
+                  type: 'notify',
+                  message: `[Username Logger] TIP: For large datasets (${currentOverallIndex} usernames), try the manual command: !trimprocessed`
+                });
+              }
             }
           } catch (trimError) {
+             // More detailed error logging
              this.application.consoleMessage({
                type: 'error',
                message: `[Username Logger] Error during automatic trimming: ${trimError.message}`
              });
+             
+             if (isDevMode) {
+               this.application.consoleMessage({
+                 type: 'error',
+                 message: `[Username Logger] Auto-trim stack trace: ${trimError.stack}`
+               });
+             }
           }
         }
         // --- END AUTO-TRIM LOGIC ---

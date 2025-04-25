@@ -4,5 +4,5 @@
   "collectBuddies": true,
   "autoLeakCheck": false,
   "autoLeakCheckThreshold": 50,
-  "leakCheckLastProcessedIndex": 9
+  "leakCheckLastProcessedIndex": -1
 }

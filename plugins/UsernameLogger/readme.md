@@ -72,6 +72,7 @@ This plugin follows the "One File, One Function" architecture principle to impro
 - `!setapikey YOUR_API_KEY` - Set the LeakCheck API key
 - `!testapikey` - Test if the current API key is valid
 - `!trimprocessed` - Remove processed usernames from the collected list and reset index
+- `!usercount` - Display the number of usernames in the collected username files
 
 ## Configuration
 
@@ -130,3 +131,4 @@ When using the plugin, it creates several data files:
 - `found_accounts.txt` - Accounts found in public data leaks
 - `ajc_accounts.txt` - Accounts specifically from Animal Jam data leaks
 - `potential_accounts.txt` - Usernames that might need manual verification
+- `working_accounts.txt` - Working accounts that have been verified

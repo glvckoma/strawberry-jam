@@ -11,7 +11,8 @@ const {
   POTENTIAL_ACCOUNTS_FILE,
   PROCESSED_FILE,
   FOUND_GENERAL_FILE,
-  FOUND_AJC_FILE
+  FOUND_AJC_FILE,
+  WORKING_ACCOUNTS_FILE
 } = require('../constants/constants');
 
 /**
@@ -45,7 +46,8 @@ function getFilePaths(appDataPath) {
     processedUsernamesPath: path.join(basePath, PROCESSED_FILE),
     potentialAccountsPath: path.join(basePath, POTENTIAL_ACCOUNTS_FILE),
     foundAccountsPath: path.join(basePath, FOUND_GENERAL_FILE),
-    ajcAccountsPath: path.join(basePath, FOUND_AJC_FILE)
+    ajcAccountsPath: path.join(basePath, FOUND_AJC_FILE),
+    workingAccountsPath: path.join(basePath, WORKING_ACCOUNTS_FILE)
   };
   
   return paths;

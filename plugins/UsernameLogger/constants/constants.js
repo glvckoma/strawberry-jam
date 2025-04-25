@@ -13,6 +13,7 @@ const POTENTIAL_ACCOUNTS_FILE = 'potential_accounts.txt';
 const PROCESSED_FILE = 'processed_usernames.txt';
 const FOUND_GENERAL_FILE = 'found_accounts.txt';
 const FOUND_AJC_FILE = 'ajc_accounts.txt';
+const WORKING_ACCOUNTS_FILE = 'working_accounts.txt';
 
 // Batch logging settings
 const DEFAULT_LOG_BATCH_INTERVAL = 5000; // How often to display batched logs (5 seconds)
@@ -38,6 +39,7 @@ module.exports = {
   PROCESSED_FILE,
   FOUND_GENERAL_FILE,
   FOUND_AJC_FILE,
+  WORKING_ACCOUNTS_FILE,
   
   // Logging settings
   DEFAULT_LOG_BATCH_INTERVAL,

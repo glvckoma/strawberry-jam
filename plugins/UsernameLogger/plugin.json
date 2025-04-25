@@ -1,6 +1,6 @@
 {
   "name": "Username Logger",
-  "version": "2.0.0",
+  "version": "3.0.0",
   "description": "Collects usernames from nearby players and buddies, with integrated leak checking functionality",
   "author": "glvckoma",
   "main": "index.js",
@@ -43,6 +43,10 @@
     {
       "name": "trimprocessed",
       "description": "Remove processed usernames from the collected list and reset index."
+    },
+    {
+      "name": "usercount",
+      "description": "Display the number of usernames in the collected username files."
     }
   ]
 }

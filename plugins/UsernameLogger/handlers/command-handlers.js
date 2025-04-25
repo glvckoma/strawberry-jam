@@ -37,6 +37,7 @@ class CommandHandlers {
     this.handleLeakCheckStopCommand = this.handleLeakCheckStopCommand.bind(this);
     this.handleTrimProcessedCommand = this.handleTrimProcessedCommand.bind(this);
     this.handleSetApiKeyCommand = this.handleSetApiKeyCommand.bind(this);
+    this.handleUserCountCommand = this.handleUserCountCommand.bind(this);
     // this.handleTestApiKeyCommand = this.handleTestApiKeyCommand.bind(this); // Removed
     // Removed handleSetIndexCommand binding
   }
@@ -353,6 +354,7 @@ class CommandHandlers {
     try {
       const { collectedUsernamesPath } = getFilePaths(this.dataPath);
       const processedIndex = this.configModel.getLeakCheckIndex();
+      const isDevMode = this._isDevMode();
       
       // Check if leak check is running
       if (this.stateModel.getLeakCheckState().isRunning) {
@@ -363,10 +365,30 @@ class CommandHandlers {
         return;
       }
       
-      // Trim processed usernames
+      // Show processing message
+      this.application.consoleMessage({
+        type: 'notify',
+        message: `[Username Logger] Processing usernames for trimming... This might take a moment for large files.`
+      });
+      
+      // Configure options for large files
+      const trimOptions = {
+        chunkSize: 5000,
+        safeMode: true
+      };
+      
+      if (isDevMode) {
+        this.application.consoleMessage({
+          type: 'logger',
+          message: `[Username Logger] Using optimized chunked processing for large files.`
+        });
+      }
+      
+      // Trim processed usernames with enhanced options
       const result = await this.fileService.trimProcessedUsernames(
         collectedUsernamesPath, 
-        processedIndex
+        processedIndex,
+        trimOptions
       );
       
       if (result) {
@@ -374,9 +396,15 @@ class CommandHandlers {
         this.configModel.setLeakCheckIndex(-1);
         
         // Save the config to persist the index change
-        await this.configModel.saveConfig();
+        const saveSuccess = await this.configModel.saveConfig();
         
-        const isDevMode = this._isDevMode();
+        if (!saveSuccess) {
+          this.application.consoleMessage({
+            type: 'error',
+            message: `[Username Logger] Warning: Index was reset but failed to save config. Changes may not persist.`
+          });
+        }
+        
         if (isDevMode) {
           this.application.consoleMessage({
             type: 'success',
@@ -388,13 +416,27 @@ class CommandHandlers {
             message: `[Username Logger] Processed usernames trimmed. Next check will start from the beginning.`
           });
         }
+      } else {
+        this.application.consoleMessage({
+          type: 'error',
+          message: `[Username Logger] Failed to trim processed usernames. Check logs for details.`
+        });
       }
     } catch (error) {
-      // Silent error handling
+      // More detailed error handling
       this.application.consoleMessage({
         type: 'error',
         message: `[Username Logger] Error trimming processed usernames: ${error.message}`
       });
+      
+      // Log stack trace in development mode
+      const isDevMode = this._isDevMode();
+      if (isDevMode) {
+        this.application.consoleMessage({
+          type: 'error',
+          message: `[Username Logger] Error stack trace: ${error.stack}`
+        });
+      }
     }
   }
 
@@ -469,6 +511,118 @@ class CommandHandlers {
   // Removed handleSetIndexCommand method
 
   /**
+   * Displays counts of usernames in various log files
+   */
+  async handleUserCountCommand() {
+    try {
+      const { collectedUsernamesPath, processedUsernamesPath, foundAccountsPath, ajcAccountsPath, potentialAccountsPath, workingAccountsPath } = getFilePaths(this.dataPath);
+      
+      // Show processing message
+      this.application.consoleMessage({
+        type: 'notify',
+        message: `[Username Logger] Counting usernames in files...`
+      });
+      
+      // Count usernames in each file
+      const counts = {};
+      
+      // Get collected usernames (not yet processed)
+      const collectedUsernames = await this.fileService.readUsernamesFromLog(collectedUsernamesPath);
+      counts.collected = collectedUsernames.length;
+      
+      // Get processed usernames
+      const processedUsernames = await this.fileService.readLinesFromFile(processedUsernamesPath);
+      counts.processed = processedUsernames.length;
+      
+      // Get found accounts
+      const foundAccounts = await this.fileService.readLinesFromFile(foundAccountsPath);
+      counts.found = foundAccounts.length;
+      
+      // Get AJC-specific accounts
+      const ajcAccounts = await this.fileService.readLinesFromFile(ajcAccountsPath);
+      counts.ajc = ajcAccounts.length;
+      
+      // Get potential/invalid accounts
+      const potentialAccounts = await this.fileService.readLinesFromFile(potentialAccountsPath);
+      counts.potential = potentialAccounts.length;
+      
+      // Get working accounts
+      const workingAccounts = await this.fileService.readLinesFromFile(workingAccountsPath);
+      counts.working = workingAccounts.length;
+      
+      // Calculate total unique usernames logged
+      const totalUnique = new Set([
+        ...collectedUsernames,
+        ...processedUsernames
+      ]).size;
+      
+      // Display results in a structured way
+      this.application.consoleMessage({
+        type: 'success',
+        message: `[Username Logger] Username Counts:`
+      });
+      
+      this.application.consoleMessage({
+        type: 'logger',
+        message: `- Collected (not yet processed): ${counts.collected}`
+      });
+      
+      this.application.consoleMessage({
+        type: 'logger',
+        message: `- Processed: ${counts.processed}`
+      });
+      
+      this.application.consoleMessage({
+        type: 'logger',
+        message: `- Total Unique Usernames: ${totalUnique}`
+      });
+      
+      this.application.consoleMessage({
+        type: 'logger',
+        message: `- Found Accounts (General): ${counts.found}`
+      });
+      
+      this.application.consoleMessage({
+        type: 'logger',
+        message: `- Found Accounts (AJC): ${counts.ajc}`
+      });
+      
+      this.application.consoleMessage({
+        type: 'logger',
+        message: `- Working Accounts: ${counts.working}`
+      });
+      
+      this.application.consoleMessage({
+        type: 'logger',
+        message: `- Potential Accounts (Invalid Characters): ${counts.potential}`
+      });
+      
+      // Show current index
+      const currentIndex = this.configModel.getLeakCheckIndex();
+      this.application.consoleMessage({
+        type: 'logger',
+        message: `- Current Leak Check Index: ${currentIndex}`
+      });
+      
+    } catch (error) {
+      // Error handling
+      this.application.consoleMessage({
+        type: 'error',
+        message: `[Username Logger] Error counting usernames: ${error.message}`
+      });
+      
+      // Log stack trace in development mode
+      const isDevMode = this._isDevMode();
+      if (isDevMode) {
+        this.application.consoleMessage({
+          type: 'error',
+          message: `[Username Logger] Error stack trace: ${error.stack}`
+        });
+      }
+    }
+  }
+
+  /**
    * Registers all command handlers with the dispatch system
    * @param {Object} dispatch - The dispatch system
    */
@@ -512,6 +666,12 @@ class CommandHandlers {
         name: 'trimprocessed',
         description: 'Remove processed usernames from the collected list and reset index.',
         callback: this.handleTrimProcessedCommand
+      });
+      
+      dispatch.onCommand({
+        name: 'usercount',
+        description: 'Display the number of usernames in the collected username files.',
+        callback: this.handleUserCountCommand
       });
     } catch (error) {
       // Silent error handling
