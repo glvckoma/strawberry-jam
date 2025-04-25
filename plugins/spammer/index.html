@@ -10,8 +10,35 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
   <!-- jQuery (for some plugins) -->
   <script>window.jQuery = window.$ = require('jquery');</script>
+  <style>
+    /* Fixed height layout */
+    body {
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+    .jam-plugin-header {
+      flex-shrink: 0;
+    }
+    .jam-plugin-content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .table-container {
+      flex: 1;
+      overflow-y: auto;
+      min-height: 150px;
+      max-height: calc(100vh - 300px);
+    }
+    .input-area, .controls-area {
+      flex-shrink: 0;
+    }
+  </style>
 </head>
-<body class="bg-primary-bg text-text-primary p-0 h-screen flex flex-col overflow-hidden">
+<body class="bg-primary-bg text-text-primary p-0">
   <!-- Standardized Draggable Header -->
   <div class="jam-plugin-header">
     <span class="jam-plugin-title">Packet Spammer</span>
@@ -28,7 +55,7 @@
   <!-- Main Content Area -->
   <div class="jam-plugin-content">
     <!-- Table Area - This will grow and scroll -->
-    <div class="bg-secondary-bg rounded-md shadow overflow-hidden flex-grow overflow-y-auto mb-4 m-4"> 
+    <div class="table-container bg-secondary-bg rounded-md shadow mb-4 m-4"> 
       <table class="w-full text-left">
         <thead class="bg-tertiary-bg sticky top-0 z-20"> <!-- Sticky relative to this container -->
           <tr>
@@ -44,10 +71,10 @@
       </table>
     </div>
 
-    <!-- Input Area -->
-    <div class="bg-secondary-bg rounded-md shadow p-4 space-y-4 flex-shrink-0 mb-4 mx-4">
+    <!-- Input Area - Fixed at bottom -->
+    <div class="input-area bg-secondary-bg rounded-md shadow p-4 space-y-4 mb-4 mx-4">
       <textarea id="inputTxt"
-        class="w-full bg-tertiary-bg text-text-primary placeholder-gray-400 p-3 rounded-md focus:outline-none resize-y min-h-[100px] text-base"
+        class="w-full bg-tertiary-bg text-text-primary placeholder-gray-400 p-3 rounded-md focus:outline-none resize-y min-h-[100px] max-h-[150px] text-base"
         placeholder="Enter packet content here..."></textarea>
 
       <div class="flex flex-wrap items-center gap-4">
@@ -74,8 +101,8 @@
       </div>
     </div>
 
-    <!-- Controls -->
-    <div class="bg-secondary-bg rounded-md shadow p-4 space-y-4 flex-shrink-0 mx-4 mb-4">
+    <!-- Controls - Fixed at bottom -->
+    <div class="controls-area bg-secondary-bg rounded-md shadow p-4 space-y-4 mx-4 mb-4">
       <div class="flex flex-wrap gap-4 items-center">
         <!-- File Operations -->
         <div class="flex gap-2">

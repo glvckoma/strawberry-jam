@@ -32,6 +32,7 @@ let continueRunning = false // Flag to continue running background tasks
 // Create a background worker for off-focus processing
 const backgroundWorkerCode = `
   let intervalId = null;
+  let keepAliveId = null;
   
   self.onmessage = function(e) {
     const { command, delay } = e.data;
@@ -39,13 +40,23 @@ const backgroundWorkerCode = `
     if (command === 'start') {
       // Start the timer that will post messages back at the specified interval
       clearInterval(intervalId); // Clear any existing interval
+      clearInterval(keepAliveId); // Clear any existing keep-alive interval
+      
       intervalId = setInterval(() => {
         self.postMessage({ type: 'tick' });
       }, delay);
+      
+      // Add a separate high-priority keep-alive timer that runs more frequently
+      // This helps ensure the worker doesn't get throttled in background
+      keepAliveId = setInterval(() => {
+        self.postMessage({ type: 'keepAlive' });
+      }, 500); // Run every 500ms regardless of packet delay
     } 
     else if (command === 'stop') {
       clearInterval(intervalId);
+      clearInterval(keepAliveId);
       intervalId = null;
+      keepAliveId = null;
     }
   };
 `;
@@ -58,8 +69,103 @@ const backgroundWorker = new Worker(URL.createObjectURL(blob));
 backgroundWorker.onmessage = function(e) {
   if (e.data.type === 'tick' && continueRunning) {
     executeNextPacket();
+  } else if (e.data.type === 'keepAlive' && continueRunning) {
+    // Keep the worker active, but don't execute packets on every keepAlive
+    // This just pings to prevent throttling
+    console.log('[Spammer] Background worker keep-alive ping');
   }
 };
+
+// Keep track of window visibility state
+let windowIsVisible = true;
+let lastActivity = Date.now();
+let activityCheckInterval;
+
+// Detect user activity to keep the worker alive
+function detectActivity() {
+  lastActivity = Date.now();
+  if (!activityCheckInterval && continueRunning) {
+    startActivityMonitoring();
+  }
+}
+
+// Start monitoring for inactivity
+function startActivityMonitoring() {
+  if (activityCheckInterval) {
+    clearInterval(activityCheckInterval);
+  }
+  
+  activityCheckInterval = setInterval(() => {
+    const inactiveTime = Date.now() - lastActivity;
+    
+    // If inactive for more than 10 seconds and packets should be running,
+    // send a ping to keep things alive
+    if (inactiveTime > 10000 && continueRunning) {
+      console.log('[Spammer] Sending keep-alive ping due to inactivity');
+      ping();
+    }
+  }, 5000); // Check every 5 seconds
+}
+
+// Ping function to keep connections alive
+function ping() {
+  // Try to use the dispatch to send a minimal "ping" message
+  try {
+    if (window.jam && window.jam.dispatch) {
+      // This is a minimal no-op that just ensures the connection is active
+      window.jam.dispatch.getStateSync('ping');
+    }
+  } catch(e) {
+    console.log('[Spammer] Ping error:', e);
+  }
+  
+  lastActivity = Date.now();
+}
+
+// Listen to various events to detect user activity
+document.addEventListener('mousemove', detectActivity);
+document.addEventListener('keydown', detectActivity);
+document.addEventListener('click', detectActivity);
+
+// Listen for visibility changes
+document.addEventListener('visibilitychange', function() {
+  windowIsVisible = !document.hidden;
+  console.log(`[Spammer] Window visibility changed to: ${windowIsVisible ? 'visible' : 'hidden'}`);
+  
+  detectActivity(); // Register this as an activity
+  
+  // Make sure the worker keeps running even when window is not visible
+  if (!windowIsVisible && continueRunning) {
+    console.log('[Spammer] Window hidden but spammer still running');
+    
+    // Update status feedback if window is still partially visible
+    const feedbackArea = document.getElementById('statusFeedback');
+    if (feedbackArea) {
+      feedbackArea.innerText = "Spammer running in background";
+      feedbackArea.style.color = "#38b000";
+    }
+    
+    // Force a ping to ensure connection stays active
+    ping();
+  }
+});
+
+// Additional event handler for when the window loses focus
+window.addEventListener('blur', function() {
+  if (continueRunning) {
+    console.log('[Spammer] Window lost focus but spammer still running');
+    // Force a ping to ensure connection stays active
+    ping();
+  }
+});
+
+// When the window regains focus, trigger an immediate packet if running
+window.addEventListener('focus', function() {
+  if (continueRunning) {
+    console.log('[Spammer] Window regained focus, ensuring packets continue');
+    executeNextPacket();
+  }
+});
 
 class Spammer {
   constructor () {
@@ -273,8 +379,12 @@ class Spammer {
       feedbackArea.style.color = "#38b000"; // Green color for success
     }
 
+    // Ensure we're detecting activity
+    detectActivity();
+    startActivityMonitoring();
+
     // Start the background worker with the first packet's delay
-    const firstRow = table.rows[0];
+    const firstRow = table.rows[1]; // Use the first actual row (index 1), not the header
     const delay = firstRow ? parseInt(firstRow.cells[2].innerText) || 1000 : 1000;
     
     backgroundWorker.postMessage({ 
@@ -300,6 +410,18 @@ class Spammer {
       if (runnerType === 'loop') {
         runnerRow = 0
         // Continue in background mode - worker will trigger executeNextPacket()
+        
+        // Force the packet sending to continue even if window is not focused
+        if (!windowIsVisible) {
+          console.log('[Spammer] Window not visible, continuing loop in background');
+          
+          // Use a small delay to ensure we don't overload the system
+          setTimeout(() => {
+            if (continueRunning) {
+              executeNextPacket();
+            }
+          }, 100);
+        }
         return
       } else {
         // If not looping, stop the background worker
@@ -344,6 +466,12 @@ class Spammer {
     
     // Stop the background worker
     backgroundWorker.postMessage({ command: 'stop' });
+    
+    // Stop the activity monitoring
+    if (activityCheckInterval) {
+      clearInterval(activityCheckInterval);
+      activityCheckInterval = null;
+    }
     
     if (activeRow) {
       activeRow.classList.remove('bg-tertiary-bg/40')
@@ -494,17 +622,46 @@ class Spammer {
 function executeNextPacket() {
   if (!continueRunning) return;
   
+  // Record this as activity
+  detectActivity();
+  
   // Only proceed if we have a valid spammer instance
   if (window.spammer && typeof window.spammer.runNext === 'function') {
-    window.spammer.runNext();
+    // Use requestAnimationFrame to ensure the function is called at a good time
+    // even when the window is in the background
+    requestAnimationFrame(() => {
+      try {
+        window.spammer.runNext();
+      } catch (error) {
+        console.error('[Spammer] Error in executeNextPacket:', error);
+        
+        // Ensure we don't stop the entire process if one packet fails
+        if (continueRunning) {
+          console.log('[Spammer] Continuing despite error');
+          setTimeout(() => {
+            if (continueRunning) {
+              backgroundWorker.postMessage({ 
+                command: 'start', 
+                delay: 1000 // Default to 1 second if we can't get the current delay
+              });
+            }
+          }, 1000);
+        }
+      }
+    });
   }
 }
 
 // Global instance
 window.spammer = new Spammer()
 
-// Ensure the spammer stops when the window is closed
-window.addEventListener('beforeunload', spammer.stopClick);
+// Only stop the spammer when the window is actually being closed, not just losing focus
+window.addEventListener('beforeunload', function(event) {
+  // Only stop if we're actually closing the window, not just switching focus
+  if (event.currentTarget.performance && event.currentTarget.performance.navigation.type !== 1) {
+    spammer.stopClick();
+  }
+});
   
 // Set up the minimize button functionality
 const minimizeBtn = document.getElementById('minimize-btn');
