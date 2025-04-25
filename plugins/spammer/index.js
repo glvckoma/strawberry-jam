@@ -29,50 +29,251 @@ let runnerRow
 let activeRow = null
 let continueRunning = false // Flag to continue running background tasks
 
+// Track if we're using Electron
+let isElectron = false;
+try {
+  isElectron = window && window.process && window.process.type === 'renderer';
+} catch (e) {
+  console.log('[Spammer] Not running in Electron environment');
+}
+
+// Try to get the electron modules if available
+let ipcRenderer;
+if (isElectron) {
+  try {
+    const electron = require('electron');
+    ipcRenderer = electron.ipcRenderer;
+    
+    // Set up an IPC channel for background packet sending
+    if (ipcRenderer) {
+      console.log('[Spammer] Setting up IPC communication for background processing');
+      
+      // Listen for signals from main process to continue packet execution
+      ipcRenderer.on('spammer-process-next-packet', () => {
+        if (continueRunning) {
+          console.log('[Spammer] Received IPC signal to process next packet');
+          executeNextPacket();
+        }
+      });
+      
+      // Register this plugin instance with the main process
+      ipcRenderer.send('spammer-register');
+    }
+  } catch (e) {
+    console.error('[Spammer] Error setting up Electron IPC:', e);
+  }
+}
+
+// Create a shared storage key for cross-window/tab communication
+const STORAGE_KEY = 'strawberry-jam-spammer-state';
+
+// Function to save state to localStorage for persistence
+function saveState() {
+  if (window.localStorage) {
+    try {
+      const state = {
+        running: continueRunning,
+        lastUpdate: Date.now()
+      };
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    } catch (e) {
+      console.error('[Spammer] Error saving state to localStorage:', e);
+    }
+  }
+}
+
+// Function to load state from localStorage
+function loadState() {
+  if (window.localStorage) {
+    try {
+      const stateStr = window.localStorage.getItem(STORAGE_KEY);
+      if (stateStr) {
+        const state = JSON.parse(stateStr);
+        
+        // If the state is relatively fresh (last updated in the past 5 minutes)
+        // and was running, we might need to restart
+        const stateAge = Date.now() - state.lastUpdate;
+        if (state.running && stateAge < 300000) { // 5 minutes in ms
+          console.log('[Spammer] Found saved running state, considering restart');
+          
+          // Only auto-restart if we have packets in the queue (will be loaded later)
+          // This just flags that we'll want to restart after UI is fully loaded
+          window._spammerShouldRestart = true;
+        }
+      }
+    } catch (e) {
+      console.error('[Spammer] Error loading state from localStorage:', e);
+    }
+  }
+}
+
+// Try to load the state as soon as possible
+loadState();
+
 // Create a background worker for off-focus processing
 const backgroundWorkerCode = `
   let intervalId = null;
   let keepAliveId = null;
+  let superKeepAliveId = null;
+  
+  // Add a timestamp function for logging
+  function timestamp() {
+    return new Date().toISOString().substring(11, 23);
+  }
   
   self.onmessage = function(e) {
     const { command, delay } = e.data;
     
     if (command === 'start') {
+      console.log('[Worker ' + timestamp() + '] Starting timers with delay ' + delay + 'ms');
+      
       // Start the timer that will post messages back at the specified interval
       clearInterval(intervalId); // Clear any existing interval
       clearInterval(keepAliveId); // Clear any existing keep-alive interval
+      clearInterval(superKeepAliveId); // Clear super keep-alive
       
       intervalId = setInterval(() => {
         self.postMessage({ type: 'tick' });
       }, delay);
       
-      // Add a separate high-priority keep-alive timer that runs more frequently
-      // This helps ensure the worker doesn't get throttled in background
+      // Add a separate high-priority keep-alive timer that runs frequently
       keepAliveId = setInterval(() => {
         self.postMessage({ type: 'keepAlive' });
       }, 500); // Run every 500ms regardless of packet delay
+      
+      // Add an ultra high-priority keep-alive that runs very frequently
+      // This is specifically to maintain activity during fullscreen mode
+      superKeepAliveId = setInterval(() => {
+        self.postMessage({ type: 'superKeepAlive' });
+      }, 100); // Run every 100ms to prevent throttling
     } 
     else if (command === 'stop') {
+      console.log('[Worker ' + timestamp() + '] Stopping all timers');
       clearInterval(intervalId);
       clearInterval(keepAliveId);
+      clearInterval(superKeepAliveId);
       intervalId = null;
       keepAliveId = null;
+      superKeepAliveId = null;
+    }
+    else if (command === 'ping') {
+      // Just send back a pong message to confirm worker is still alive
+      self.postMessage({ type: 'pong', timestamp: Date.now() });
     }
   };
+  
+  // Create a heartbeat to maintain activity, even if main thread is throttled
+  setInterval(() => {
+    self.postMessage({ type: 'heartbeat', timestamp: Date.now() });
+  }, 2000);
 `;
 
 // Create blob and worker
 const blob = new Blob([backgroundWorkerCode], { type: 'application/javascript' });
 const backgroundWorker = new Worker(URL.createObjectURL(blob));
 
+// Track worker responsiveness
+let lastWorkerResponse = Date.now();
+let workerMonitorInterval;
+
+// Function to monitor worker health and restart if needed
+function startWorkerMonitoring() {
+  if (workerMonitorInterval) {
+    clearInterval(workerMonitorInterval);
+  }
+  
+  workerMonitorInterval = setInterval(() => {
+    const workerSilentTime = Date.now() - lastWorkerResponse;
+    
+    // If worker hasn't responded in 5 seconds, it might be throttled
+    if (workerSilentTime > 5000 && continueRunning) {
+      console.log('[Spammer] Worker unresponsive for 5+ seconds, sending ping');
+      
+      // Ping the worker to see if it's still alive
+      backgroundWorker.postMessage({ command: 'ping' });
+      
+      // After 10 seconds of silence, try to restart the worker
+      if (workerSilentTime > 10000) {
+        console.log('[Spammer] Worker unresponsive for 10+ seconds, restarting worker');
+        
+        // Try to restart the worker with the current configuration
+        restartWorker();
+      }
+    }
+  }, 2000); // Check every 2 seconds
+}
+
+// Function to restart the worker
+function restartWorker() {
+  try {
+    // Terminate the old worker
+    backgroundWorker.terminate();
+    
+    // Create a new worker
+    const newBlob = new Blob([backgroundWorkerCode], { type: 'application/javascript' });
+    const newWorker = new Worker(URL.createObjectURL(newBlob));
+    
+    // Set up the message handler for the new worker
+    newWorker.onmessage = backgroundWorker.onmessage;
+    
+    // Replace the old worker reference
+    backgroundWorker = newWorker;
+    
+    // Start the timers again
+    const firstRow = table.rows[1];
+    const delay = firstRow ? parseInt(firstRow.cells[2].innerText) || 1000 : 1000;
+    
+    backgroundWorker.postMessage({ 
+      command: 'start', 
+      delay: delay 
+    });
+    
+    console.log('[Spammer] Worker successfully restarted');
+    
+    // Force an immediate packet execution
+    executeNextPacket();
+    
+  } catch (error) {
+    console.error('[Spammer] Error restarting worker:', error);
+  }
+}
+
 // Set up message handler for worker
 backgroundWorker.onmessage = function(e) {
+  // Update last response time for any message
+  lastWorkerResponse = Date.now();
+  
   if (e.data.type === 'tick' && continueRunning) {
+    // Execute the next packet in the queue
     executeNextPacket();
   } else if (e.data.type === 'keepAlive' && continueRunning) {
     // Keep the worker active, but don't execute packets on every keepAlive
-    // This just pings to prevent throttling
-    console.log('[Spammer] Background worker keep-alive ping');
+    // Just ensure connection is alive by accessing the dispatch object
+    if (window.jam && window.jam.dispatch) {
+      try {
+        // Use a no-op that just keeps things active
+        window.jam.dispatch.getStateSync('keepAlive');
+      } catch (error) {
+        // Ignore errors here
+      }
+    }
+  } else if (e.data.type === 'superKeepAlive' && continueRunning) {
+    // Ultra high frequency keep-alive for fullscreen situations
+    // This just keeps the thread alive, no actual operations
+  } else if (e.data.type === 'heartbeat' && continueRunning) {
+    // Regular heartbeat from worker, use this to update state and
+    // potentially sync with main process
+    saveState();
+    
+    // Use IPC if available to coordinate with main process
+    if (ipcRenderer) {
+      ipcRenderer.send('spammer-heartbeat', {
+        running: continueRunning,
+        timestamp: e.data.timestamp
+      });
+    }
+  } else if (e.data.type === 'pong') {
+    console.log('[Spammer] Received pong from worker, confirming it is alive');
   }
 };
 
@@ -80,6 +281,37 @@ backgroundWorker.onmessage = function(e) {
 let windowIsVisible = true;
 let lastActivity = Date.now();
 let activityCheckInterval;
+let fullscreenDetectionInterval;
+
+// Periodically check for fullscreen state
+function startFullscreenDetection() {
+  if (fullscreenDetectionInterval) {
+    clearInterval(fullscreenDetectionInterval);
+  }
+  
+  fullscreenDetectionInterval = setInterval(() => {
+    // Check if any element is in fullscreen mode
+    const isFullscreen = document.fullscreenElement || 
+                        document.webkitFullscreenElement || 
+                        document.mozFullScreenElement || 
+                        document.msFullscreenElement;
+    
+    if (isFullscreen && continueRunning) {
+      console.log('[Spammer] Detected fullscreen mode, ensuring packets continue');
+      
+      // If we have IPC available, ask main process to help maintain activity
+      if (ipcRenderer) {
+        ipcRenderer.send('spammer-fullscreen-detected', {
+          running: continueRunning
+        });
+      }
+      
+      // Force a ping and packet execution to keep things active
+      ping();
+      executeNextPacket();
+    }
+  }, 2000); // Check every 2 seconds
+}
 
 // Detect user activity to keep the worker alive
 function detectActivity() {
@@ -372,6 +604,9 @@ class Spammer {
     runnerType = inputRunType.value
     continueRunning = true
 
+    // Save state to localStorage for persistence
+    saveState();
+
     // Get feedback area and update status
     const feedbackArea = document.getElementById('statusFeedback');
     if (feedbackArea) {
@@ -382,6 +617,15 @@ class Spammer {
     // Ensure we're detecting activity
     detectActivity();
     startActivityMonitoring();
+    startWorkerMonitoring();
+    startFullscreenDetection();
+    
+    // Notify main process if we have IPC
+    if (ipcRenderer) {
+      ipcRenderer.send('spammer-started', {
+        timestamp: Date.now()
+      });
+    }
 
     // Start the background worker with the first packet's delay
     const firstRow = table.rows[1]; // Use the first actual row (index 1), not the header
@@ -464,13 +708,33 @@ class Spammer {
   stopClick () {
     continueRunning = false
     
+    // Update localStorage
+    saveState();
+    
     // Stop the background worker
     backgroundWorker.postMessage({ command: 'stop' });
     
-    // Stop the activity monitoring
+    // Stop all monitoring intervals
     if (activityCheckInterval) {
       clearInterval(activityCheckInterval);
       activityCheckInterval = null;
+    }
+    
+    if (workerMonitorInterval) {
+      clearInterval(workerMonitorInterval);
+      workerMonitorInterval = null;
+    }
+    
+    if (fullscreenDetectionInterval) {
+      clearInterval(fullscreenDetectionInterval);
+      fullscreenDetectionInterval = null;
+    }
+    
+    // Notify main process if we have IPC
+    if (ipcRenderer) {
+      ipcRenderer.send('spammer-stopped', {
+        timestamp: Date.now()
+      });
     }
     
     if (activeRow) {
@@ -627,9 +891,10 @@ function executeNextPacket() {
   
   // Only proceed if we have a valid spammer instance
   if (window.spammer && typeof window.spammer.runNext === 'function') {
-    // Use requestAnimationFrame to ensure the function is called at a good time
-    // even when the window is in the background
-    requestAnimationFrame(() => {
+    // For fullscreen mode, we need to be more aggressive about execution
+    // Instead of using requestAnimationFrame which might be throttled,
+    // execute directly with a small timeout to ensure it runs
+    setTimeout(() => {
       try {
         window.spammer.runNext();
       } catch (error) {
@@ -648,12 +913,21 @@ function executeNextPacket() {
           }, 1000);
         }
       }
-    });
+    }, 0);
   }
 }
 
 // Global instance
 window.spammer = new Spammer()
+
+// Check if we should automatically restart based on saved state
+setTimeout(() => {
+  if (window._spammerShouldRestart && table.rows.length > 1) {
+    console.log('[Spammer] Auto-restarting based on saved state');
+    window.spammer.runClick();
+    delete window._spammerShouldRestart;
+  }
+}, 1000); // Wait 1 second after initialization before auto-restarting
 
 // Only stop the spammer when the window is actually being closed, not just losing focus
 window.addEventListener('beforeunload', function(event) {
