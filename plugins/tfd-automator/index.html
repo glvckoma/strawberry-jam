@@ -1,0 +1,298 @@
+c<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Forgotten Desert Automator</title> <!-- Changed Title -->
+    <!-- Base Styles (Includes Tailwind) -->
+    <link href="../../assets/css/style.css" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <!-- jQuery (Required by plugin-utils.js) -->
+    <script>window.jQuery = window.$ = require('jquery');</script>
+    <style>
+        body {
+            overflow: hidden; display: flex; flex-direction: column; height: 100vh;
+        }
+        .jam-plugin-header { flex-shrink: 0; }
+        .jam-plugin-content {
+            flex-grow: 1; overflow-y: auto; padding: 1rem; display: flex; flex-direction: column; gap: 1rem; /* Added gap */
+        }
+        .section {
+            background-color: var(--color-secondary-bg);
+            padding: 1rem;
+            border-radius: 0.375rem; /* rounded-md */
+            box-shadow: var(--shadow-md);
+        }
+        .section-title {
+            font-weight: 600; /* semibold */
+            margin-bottom: 0.75rem;
+            color: var(--color-text-secondary);
+        }
+        .progress-row { 
+            display: flex; 
+            align-items: center; 
+            gap: 0.5rem; 
+            margin-bottom: 0.75rem; 
+            padding: 0.25rem;
+            border-radius: 0.375rem;
+            transition: background-color 0.2s;
+            position: relative;
+        }
+        .progress-row:hover {
+            background-color: var(--color-tertiary-bg);
+        }
+        /* Show percentage on hover */
+        .progress-bar-container { 
+            position: relative;
+        }
+        .progress-bar::before {
+            content: attr(data-percent);
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 0.75rem;
+            text-shadow: 0 0 2px rgba(0,0,0,0.5);
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s;
+            z-index: 1;
+        }
+        .progress-row:hover .progress-bar::before {
+            opacity: 1;
+        }
+        .crystal-icon { 
+            width: 1.25rem; 
+            height: 1.25rem; 
+            flex-shrink: 0;
+            border-radius: 0.25rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: rgba(0,0,0,0.4);
+            font-size: 0.75rem;
+            text-shadow: 0 1px 0px rgba(255,255,255,0.3);
+            transition: all 0.2s ease;
+        }
+        /* Crystal shape icons */
+        .crystal-rhombus {
+            transform: rotate(90deg);
+            font-size: 0.625rem;
+        }
+        .crystal-triangle {
+            transform: rotate(90deg);
+            font-size: 0.625rem;
+        }
+        /* Brighten icons on hover */
+        .progress-row:hover .crystal-icon {
+            color: rgba(0,0,0,0.6);
+            text-shadow: 0 1px 2px rgba(255,255,255,0.4);
+        }
+        .progress-bar-container { 
+            flex: 2;
+            background-color: var(--color-tertiary-bg); 
+            border-radius: 0.375rem; 
+            overflow: hidden; 
+            height: 0.875rem;
+            box-shadow: inset 0 1px 2px rgba(0,0,0,0.1);
+        }
+        @keyframes shimmer {
+            0% { opacity: 1; }
+            50% { opacity: 0.8; }
+            100% { opacity: 1; }
+        }
+        
+        .progress-bar { 
+            height: 100%; 
+            background-color: var(--color-highlight-blue); 
+            width: 0%; 
+            text-align: center; 
+            line-height: 0.875rem; 
+            color: white; 
+            font-size: 0.75rem; 
+            transition: width 0.3s ease-in-out;
+            position: relative;
+        }
+        
+        .progress-bar::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(
+                90deg,
+                rgba(255,255,255,0) 0%,
+                rgba(255,255,255,0.2) 50%,
+                rgba(255,255,255,0) 100%
+            );
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+        
+        .progress-bar.updating::after {
+            animation: shimmer 0.5s ease-in-out;
+        }
+        .progress-text { 
+            font-size: 0.875rem; 
+            color: var(--color-text-secondary); 
+            min-width: 48px; 
+            text-align: right;
+            font-variant-numeric: tabular-nums;
+        }
+        .controls-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.75rem; } /* Grid for buttons */
+        .activity-log {
+            flex-grow: 1; /* Allow log to take remaining space */
+            min-height: 100px; /* Minimum height */
+            background-color: var(--color-tertiary-bg);
+            color: var(--color-text-primary);
+            border: 1px solid var(--color-border);
+            border-radius: 0.375rem;
+            padding: 0.5rem;
+            font-family: monospace;
+            font-size: 0.875rem;
+            resize: none; /* Prevent manual resize */
+        }
+        /* Placeholder Icon Colors */
+        .icon-green { background-color: #4ade80; } /* green-400 */
+        .icon-yellow { background-color: #facc15; } /* yellow-400 */
+        .icon-blue { background-color: #60a5fa; } /* blue-400 */
+        .icon-grey { background-color: #9ca3af; } /* gray-400 */
+        .icon-red { color: var(--color-error-red); }
+
+        /* Slider styling */
+         input[type=range] {
+            height: 5px;
+            background: var(--color-tertiary-bg);
+            cursor: pointer;
+            width: 100%;
+            border-radius: 5px;
+        }
+        /* TODO: Add thumb styling for different browsers if needed */
+
+    </style>
+</head>
+<body class="bg-primary-bg text-text-primary p-0">
+
+    <!-- Standardized Draggable Header -->
+    <div class="jam-plugin-header">
+        <span class="jam-plugin-title">The Forgotten Desert</span> <!-- Changed Title -->
+        <div class="jam-plugin-controls">
+            <button class="jam-plugin-minimize" aria-label="Minimize"><i class="fas fa-minus"></i></button>
+            <button class="jam-plugin-close" aria-label="Close"><i class="fas fa-times"></i></button>
+        </div>
+    </div>
+
+    <!-- Main Content Area -->
+    <div class="jam-plugin-content">
+
+        <!-- Crystal Progress Section -->
+        <div class="section">
+            <div class="section-title">Gem Progress</div>
+            <!-- Row 1: Yellow Diamond Gems -->
+            <div class="progress-row">
+                <div class="crystal-icon icon-yellow rounded-md">
+                    <i class="fas fa-diamond"></i>
+                </div>
+                <div class="flex-1 ml-2 mr-3 text-sm text-text-secondary">Yellow Diamond</div>
+                <div class="progress-bar-container flex-2">
+                    <div id="progressYellow" class="progress-bar" style="background-color: #facc15" data-percent="0%">0%</div>
+                </div>
+                <div id="progressTextYellow" class="progress-text">0/0</div>
+            </div>
+            <!-- Row 2: Green Hexagon Gems -->
+            <div class="progress-row">
+                <div class="crystal-icon icon-green rounded-md">
+                    <i class="fas fa-vector-square"></i>
+                </div>
+                <div class="flex-1 ml-2 mr-3 text-sm text-text-secondary">Green Hexagon</div>
+                <div class="progress-bar-container flex-2">
+                    <div id="progressGreen" class="progress-bar" style="background-color: #4ade80" data-percent="0%">0%</div>
+                </div>
+                <div id="progressTextGreen" class="progress-text">0/0</div>
+            </div>
+            <!-- Row 3: White Triangle Gems -->
+            <div class="progress-row">
+                <div class="crystal-icon icon-grey rounded-md">
+                    <i class="fas fa-play crystal-triangle"></i>
+                </div>
+                <div class="flex-1 ml-2 mr-3 text-sm text-text-secondary">White Triangle</div>
+                <div class="progress-bar-container flex-2">
+                    <div id="progressGrey" class="progress-bar" style="background-color: #e5e7eb" data-percent="0%">0%</div>
+                </div>
+                <div id="progressTextGrey" class="progress-text">0/0</div>
+            </div>
+            <!-- Row 4: Blue Square Gems -->
+            <div class="progress-row">
+                <div class="crystal-icon icon-blue rounded-md">
+                    <i class="fas fa-square"></i>
+                </div>
+                <div class="flex-1 ml-2 mr-3 text-sm text-text-secondary">Blue Square</div>
+                <div class="progress-bar-container flex-2">
+                    <div id="progressBlue" class="progress-bar" style="background-color: #60a5fa" data-percent="0%">0%</div>
+                </div>
+                <div id="progressTextBlue" class="progress-text">0/0</div>
+            </div>
+        </div>
+
+        <!-- Controls Section -->
+        <div class="section">
+            <div class="section-title">Controls</div>
+            <div class="controls-grid mb-4">
+                <button id="startButton" class="jam-button jam-button-success"><i class="fas fa-play mr-2"></i>Start</button>
+                <button id="stopButton" class="jam-button jam-button-danger"><i class="fas fa-stop mr-2"></i>Stop</button>
+                <button id="loadButton" class="jam-button jam-button-primary"><i class="fas fa-sync mr-2"></i>Load TFD</button> <!-- Assuming Load means reload packets? -->
+                <button id="pauseButton" class="jam-button jam-button-primary"><i class="fas fa-pause mr-2"></i>Pause</button>
+            </div>
+            <div class="flex flex-col gap-4">
+                <div class="flex items-center gap-2">
+                    <label for="speedSlider" class="text-sm font-medium text-text-secondary">Speed:</label>
+                    <input type="range" id="speedSlider" min="100" max="2000" value="500" step="50" class="flex-grow">
+                    <span id="speedValue" class="text-sm text-text-secondary min-w-[50px] text-right">500ms</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <input type="checkbox" id="autoStartCheck" class="form-checkbox h-4 w-4 text-highlight-blue rounded border-border">
+                    <label for="autoStartCheck" class="text-sm font-medium text-text-secondary">Auto start when joining TFD</label>
+                </div>
+            </div>
+        </div>
+
+        <!-- Status Section -->
+        <div class="section">
+            <div class="section-title">Status</div>
+            <div class="flex items-center gap-2">
+                 <i id="statusIcon" class="fas fa-times-circle icon-red"></i> <!-- Placeholder Status Icon -->
+                 <span id="statusText1">Cannot load TFD</span>
+            </div>
+             <div id="statusText2" class="text-sm text-text-secondary ml-6">No packet loaded</div> <!-- Indented second line -->
+        </div>
+
+        <!-- Activity Log Section -->
+        <div class="section flex flex-col flex-grow"> <!-- Make section grow -->
+            <div class="section-title">Activity Log</div>
+            <textarea id="activityLog" class="activity-log" readonly></textarea>
+        </div>
+
+    </div>
+
+    <!-- Import Plugin Utilities -->
+    <script src="../../assets/javascript/plugin-utils.js"></script>
+    <!-- TFD Automator Script -->
+    <script src="./index.js"></script>
+    <!-- Initialize Standardized UI -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            initializePluginUI(); // Initialize standard header controls
+            // Add listener for slider value display
+            const slider = document.getElementById('speedSlider');
+            const display = document.getElementById('speedValue');
+            slider.addEventListener('input', () => {
+                display.textContent = `${slider.value}ms`;
+            });
+        });
+    </script>
+</body>
+</html>

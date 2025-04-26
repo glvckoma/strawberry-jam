@@ -1,0 +1,10 @@
+{
+  "name": "TFD Automator",
+  "author": "Glockoma",
+  "version": "1.0.0",
+  "description": "Automates The Forgotten Treasure adventure with visual feedback.",
+  "type": "ui",
+  "tags": ["automation", "adventure", "tfd"],
+  "main": "index.html",
+  "game": "*"
+}
