@@ -20,7 +20,7 @@ tag-plugin.js
 process_logs.js
 pack-and-run.js
 SECURITY-OPTIONS.md
-memory-bank/
+docs/memory-bank/
 assets/memory-bank/
 .clinerules
 data/*

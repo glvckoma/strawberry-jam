@@ -1,0 +1,79 @@
+# Strawberry Jam: src/ Development Rules
+
+## 1. Purpose
+
+This document defines the scope, goals, architecture, and development standards for all code residing within the `src/` directory of the Strawberry Jam project. It serves as the primary guideline for developing and maintaining the core proxy application, networking layer, Electron integration, and related utilities.
+
+## 2. Project Overview (Concise)
+
+Strawberry Jam is an Electron-based Man-in-the-Middle (MITM) proxy designed for Animal Jam Classic (AJC). The `src/` directory houses the core Node.js and Electron application code responsible for:
+
+*   Intercepting and proxying game network traffic.
+*   Parsing and handling game packets (XML, XT, JSON).
+*   Managing the Electron main and renderer processes.
+*   Providing the main user interface (UI).
+*   Loading and communicating with plugins (`plugins/`).
+*   Handling the standalone game client installation and patching (`Patcher`).
+*   Running an internal API (`src/api/`).
+
+## 3. Key Concepts & Architecture within `src/`
+
+*   **Electron Main Process (`src/electron/index.js`):**
+    *   Entry point for the Electron application.
+    *   Manages application lifecycle (`app`), window creation (`BrowserWindow`), and system integration.
+    *   Initializes the core proxy server (`src/networking/server/`).
+    *   Sets up Inter-Process Communication (IPC) handlers (`ipcMain`).
+    *   Handles auto-updates (`electron-updater`).
+    *   Instantiates and manages the plugin dispatch system (`Dispatch`).
+    *   Manages the `Patcher` for the standalone game installation.
+    *   Provides secure access points for renderer/plugins (e.g., settings).
+*   **Electron Renderer Process (`src/electron/renderer/`):**
+    *   Controls the main application window's UI (HTML/CSS/JS).
+    *   Defined in `index.html`, styled by `src/styles/app.css` (Tailwind).
+    *   JavaScript logic in `index.js` and `application/`.
+    *   Communicates with the main process via IPC exposed through `src/electron/preload.js` (`contextBridge`).
+    *   Displays proxy status, network logs, plugin interfaces, and settings.
+*   **Networking Layer (`src/networking/`):**
+    *   `server/`: Listens for the game client connection.
+    *   `client/`: Connects to the official AJC servers, performing the MITM TLS interception (Note: `rejectUnauthorized: false`).
+    *   `messages/`: Classes for parsing different packet types (`XmlMessage`, `XtMessage`, `JsonMessage`).
+    *   `transform/`: Logic for potentially modifying packets (if any).
+*   **Internal API (`src/api/`):**
+    *   An Express.js server, likely for serving specific assets or internal communication needs. (Further details may be needed).
+*   **Plugin Integration (`Dispatch` - likely initialized in main process):**
+    *   Loads plugins from the `plugins/` directory.
+    *   Manages plugin lifecycle and communication (IPC).
+    *   Provides APIs for plugins to interact with network traffic and application state (`dispatch.state`).
+*   **Standalone Patcher (`src/electron/renderer/application/patcher/`):**
+    *   Handles the "Copied Installation Pattern": Ensures a separate copy of AJC exists, copies the modified `app.asar` (from `assets/`) into it, and launches this copy.
+*   **Utilities (`src/utils/`), Services (`src/services/`), Constants (`src/Constants.js`):**
+    *   Shared helper functions, classes (e.g., `HttpClient`), and project-wide constants.
+*   **IPC:** The backbone of communication between Main, Renderer, and Plugin processes. Follow established patterns for secure data/state transfer.
+*   **Security Context:** Be aware of the insecure Electron settings (`nodeIntegration: true`, `webSecurity: false`, etc.) and disabled TLS validation. Code defensively.
+
+## 4. Development Workflow
+
+*   **Branching:** Use feature branches based off the `main` branch.
+*   **Running:** Use `npm run dev` for local development with `nodemon` for auto-restarts.
+*   **Code Reviews:** Submit Pull Requests (PRs) on GitHub for review before merging to `main`.
+*   **Building:** The `src/` code is automatically packaged by `electron-builder` when running build scripts (`npm run build:*`). No separate compilation step is typically required for `src/`.
+*   **Testing:** (Specify project's testing strategy - e.g., manual testing, unit tests, integration tests). Aim for test coverage for critical logic (networking, patching, core utilities).
+
+## 5. Coding Standards & Best Practices (`src/`)
+
+*   **Core Principle:** Strictly adhere to the global `.clinerules` document (One File/One Function, Standard Directory Structure, SRP, DI, JSDoc, etc.).
+*   **Language:** JavaScript (ES6+). Use modern features appropriately.
+*   **Style & Formatting:** Follow `.eslintrc` rules. Ensure consistent formatting.
+*   **Naming Conventions:** `camelCase` for variables/functions, `PascalCase` for classes/constructors. Use descriptive names.
+*   **Asynchronous Code:** Use `async/await` and Promises for non-blocking I/O (networking, file system). Avoid blocking the main or renderer threads.
+*   **Error Handling:** Implement robust `try...catch` blocks, especially around I/O, networking, and IPC calls. Use specific `Error` subclasses where helpful. Log errors effectively.
+*   **State Management:** Primarily use `dispatch.state` for state shared with plugins. Use IPC for state synchronization between processes. Minimize mutable global state.
+*   **Dependencies:** Minimize external dependencies. Vet new dependencies carefully. Plan to replace deprecated ones (e.g., `request`). Be extremely cautious if interacting with `live-plugin-manager`.
+*   **Security:**
+    *   Assume renderer process code can be compromised due to `nodeIntegration: true`.
+    *   Validate and sanitize ALL data received via IPC from the renderer or plugins.
+    *   Limit the exposure of Node.js APIs to the renderer via `contextBridge` in `preload.js`.
+    *   Be mindful of disabled TLS validation (`rejectUnauthorized: false`) in `src/networking/client/`.
+*   **Documentation:**
+    *   Use JSDoc comments for all functions, classes, methods, and complex logic blocks.
+    *   Update relevant Memory Bank documents (`docs/memory-bank/`) when introducing significant changes or new patterns related to `src/`.

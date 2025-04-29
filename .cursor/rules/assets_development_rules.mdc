@@ -1,0 +1,63 @@
+# Strawberry Jam: assets/ Development Rules
+
+## 1. Purpose
+
+This document defines the scope, goals, and development standards for managing assets within the `assets/` directory, with a specific focus on the modified Animal Jam Classic (AJC) client source code located in `assets/extracted-winapp-dev/` and `assets/extracted-winapp-public/`. It details the workflow for modifying the game client and packaging it for use with Strawberry Jam.
+
+## 2. Project Overview (Concise)
+
+Strawberry Jam is an Electron-based Man-in-the-Middle (MITM) proxy for AJC. The `assets/` directory serves two main purposes:
+
+1.  Storing static assets for the Strawberry Jam application itself (e.g., icons, logos).
+2.  Housing the *modified source code* of the AJC client (`extracted-winapp-*` folders), which gets packaged into `.asar` archives (`winapp.asar`, `osxapp.asar`). These archives are then used to patch a standalone copy of the game, enabling it to work with the proxy.
+
+This document focuses primarily on the second purpose – managing the modified game client code.
+
+## 3. Key Concepts for Assets (`extracted-winapp-*` & ASAR)
+
+*   **`assets/extracted-winapp-dev/`:**
+    *   **Purpose:** Contains the **development/unstable** version of the modified AJC client source code.
+    *   **Use Case:** Modify files here when working on new, experimental, or unreleased changes to the game client itself. This is the primary working directory for game client modifications.
+*   **`assets/extracted-winapp-public/`:**
+    *   **Purpose:** Contains the **stable/release candidate** version of the modified AJC client source code.
+    *   **Use Case:** Files here should represent a tested and stable state, ready to be included in a public release of Strawberry Jam. Changes are typically merged/copied from `-dev` after testing.
+*   **ASAR Packaging Process:**
+    *   **What:** An `.asar` archive is a simple archive format (like tar) used by Electron to bundle application source code into a single file.
+    *   **How:** The contents of *either* `extracted-winapp-dev` OR `extracted-winapp-public` are packaged into an archive file (e.g., `assets/winapp.asar` for Windows).
+    *   **Trigger:** This packaging is done using npm scripts (`npm run pack:asar:dev`, `npm run pack:asar:public`), the `node pack-and-run.js` script, or potentially buttons in the Developer GUI (`dev/`). These likely invoke the `asar` command-line tool.
+*   **Integration with Strawberry Jam & Standalone Game:**
+    1.  **Packing:** Developer packs `extracted-winapp-dev` (for testing) or `extracted-winapp-public` (for release) into `assets/winapp.asar` (or `osxapp.asar`).
+    2.  **Patching:** When Strawberry Jam starts (or when triggered), the `Patcher` class (`src/electron/.../patcher/`) copies the relevant `.asar` file (e.g., `assets/winapp.asar`) from the Strawberry Jam installation into the *standalone game installation's* `resources/` directory, renaming it to `app.asar`. This replaces the original game code *within that copied installation*.
+    3.  **Launching:** Strawberry Jam launches the executable from the standalone game installation.
+    4.  **Loading:** The launched game client (now running the code from the modified `app.asar`) loads its resources (HTML, JS, CSS, images) from within that archive. Modifications made in `extracted-winapp-*` take effect here.
+*   **Game Client Asset Specifics ("Gameclient Side"):**
+    *   **Content:** These folders (`extracted-winapp-*`) contain the web-based source code (HTML, CSS, JavaScript - e.g., `gui/index.html`, `gui/components/`, `config.js`) and resources (images, SWF - e.g., `gui/images/`) that constitute the *modified AJC client*.
+    *   **Execution Context:** This code runs within the AJC client's own Electron process, *not* within the main Strawberry Jam proxy process.
+    *   **Workflow:** Development involves directly editing these files. Testing requires packing the changes into an `.asar` and launching the standalone game via Strawberry Jam.
+    *   **Distinction:** Changes here affect the *game itself*, whereas changes in `src/` affect the *proxy application*. Assets like `assets/icons/` or `assets/strawberry-jam.png` are used by the proxy UI, not the game client.
+
+## 4. Development Workflow (`extracted-winapp-*`)
+
+1.  **Identify Target:** Decide if the change is for development (`-dev`) or a release candidate (`-public`). Usually, work in `-dev` first.
+2.  **Modify Files:** Add or edit HTML, CSS, JavaScript, images, or other resources directly within the chosen `extracted-winapp-*` directory.
+3.  **Pack ASAR:** Run the appropriate script to package the modified directory into the corresponding `.asar` file in `assets/`.
+    *   Development: `npm run pack:asar:dev` (or use Dev GUI / `pack-and-run.js`) -> creates `assets/winapp.asar` from `-dev`.
+    *   Release: `npm run pack:asar:public` (or use Dev GUI) -> creates `assets/winapp.asar` from `-public`.
+4.  **Test:**
+    *   Run Strawberry Jam (`npm run dev`).
+    *   Ensure the `Patcher` runs and copies the new `.asar`.
+    *   Click "Launch Strawberry Jam Classic".
+    *   Verify the changes within the running game client.
+5.  **Merge to Public (If Applicable):** Once changes in `-dev` are stable and tested, manually copy/merge them into `extracted-winapp-public/` before packing the public ASAR for a release build.
+
+## 5. Asset Standards & Best Practices (`extracted-winapp-*`)
+
+*   **File Naming:** Use descriptive, consistent names (e.g., `kebab-case.js`, `PascalCaseComponent.js`, `some-image.png`).
+*   **Directory Structure:** Maintain the existing logical structure (e.g., `gui/components`, `gui/images`). Create new subdirectories logically if needed.
+*   **File Formats:** Use standard web formats (UTF-8 encoded HTML, CSS, JS; PNG, JPG, GIF, SVG for images). Ensure compatibility with the AJC client's Electron environment.
+*   **Optimization (for `-public`):**
+    *   Consider minifying JavaScript and CSS before packing the public ASAR.
+    *   Optimize images (e.g., using tools like TinyPNG or imageoptim) to reduce file size. (Automation for this may need to be added to build scripts).
+*   **Code Quality (JS/CSS/HTML):** Write clean, readable, and maintainable code. Add comments for complex logic.
+*   **Versioning:** Treat `extracted-winapp-public/` as corresponding to release versions. Use `extracted-winapp-dev/` for ongoing development between releases.
+*   **Documentation:** Document significant changes, architectural decisions, or complex modifications related to the game client within the *assets* memory bank (`assets/memory-bank/`, if used, or contribute to the main one if more appropriate).
