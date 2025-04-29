@@ -1,8 +1,0 @@
-{
-  "isLoggingEnabled": true,
-  "collectNearbyPlayers": true,
-  "collectBuddies": true,
-  "autoLeakCheck": false,
-  "autoLeakCheckThreshold": 50,
-  "leakCheckLastProcessedIndex": -1
-}
