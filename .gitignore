@@ -35,3 +35,4 @@ data/working_accounts.txt
 *.tmp
 *.swp
 jam-master
+src/data
