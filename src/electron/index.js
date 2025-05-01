@@ -49,7 +49,7 @@ const schema = {
       },
       secureConnection: {
         type: 'boolean',
-        default: false
+        default: true // Changed default to true
       }
     },
     default: {}

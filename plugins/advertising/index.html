@@ -302,7 +302,7 @@
     /**
          * Sends the next message in the rotation
      */
-        function sendNextMessage() {
+        async function sendNextMessage() { // Marked as async
           if (!isActive) return;
 
           // First check if we have a valid dispatcher
@@ -330,11 +330,11 @@
         messageIndex++;
       }
 
-          // Get room synchronously for immediate feedback
+          // Get room asynchronously
       let room;
       try {
-            room = window.jam.dispatch.getStateSync('room');
-            
+            room = await window.jam.dispatch.getState('room'); // Use await and getState
+
             if (!room) {
               if (IS_DEV) console.warn("Advertising: Not in a room, skipping message send.");
               // Don't show toast every interval, just skip this cycle
@@ -360,9 +360,9 @@
         }
         
         /**
-         * Sends a single message immediately for preview
-         */
-        function previewMessage(message) {
+     * Sends a single message immediately for preview
+     */
+        async function previewMessage(message) { // Marked as async
           if (!message || message.trim() === "") {
             showToast("Cannot preview an empty message", "warning");
             return;
@@ -374,12 +374,12 @@
             return;
           }
           
-          // Get room synchronously for immediate feedback
+          // Get room asynchronously
           let room;
           try {
-            room = window.jam.dispatch.getStateSync('room');
-      
-      if (!room) {
+            room = await window.jam.dispatch.getState('room'); // Use await and getState
+
+            if (!room) {
               showToast("You must be in a room to preview messages", "error");
               return;
             }
