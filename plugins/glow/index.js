@@ -7,8 +7,8 @@ module.exports = function ({ dispatch, application }) {
   /**
    * Handles glow command.
    */
-  const handleGlowCommnd = () => {
-    const room = dispatch.getState('room')
+  const handleGlowCommnd = async () => { // Added async
+    const room = await dispatch.getState('room') // Added await
 
     if (!room) {
       return application.consoleMessage({

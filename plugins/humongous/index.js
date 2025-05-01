@@ -6,10 +6,10 @@ module.exports = function ({ dispatch, application }) {
    * Handles the humongous command.
    * @returns
    */
-  const handleHumongousCommand = ({ parameters }) => {
+  const handleHumongousCommand = async ({ parameters }) => { // Added async
     active = !active
 
-    const room = dispatch.getState('room')
+    const room = await dispatch.getState('room') // Added await
     if (!room) {
       return application.consoleMessage({
         message: 'You must be in a room to use this plugin.',
@@ -30,10 +30,10 @@ module.exports = function ({ dispatch, application }) {
    * @param {Object} param.message The message object.
    * @returns
    */
-  const handleMovementUpdate = ({ message }) => {
+  const handleMovementUpdate = async ({ message }) => { // Added async
     if (!active) return
 
-    const room = dispatch.getState('room')
+    const room = await dispatch.getState('room') // Added await
 
     const x = message.value[6]
     const y = message.value[7]

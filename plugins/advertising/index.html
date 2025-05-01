@@ -346,7 +346,7 @@
           }
 
           // Construct packet exactly as specified
-          const packet = `<msg t="sys"><body action="pubMsg" r="${room}"><txt><![CDATA[${messageToSend}%9]]></txt></body></msg>`;
+          const packet = `<msg t="sys"><body action="pubMsg" r="${room}"><txt><![CDATA[${messageToSend}%0]]></txt></body></msg>`; // Changed %9 to %0
           
           // Send message directly using window.jam
           try {
@@ -390,7 +390,7 @@
       }
       
           // Construct packet exactly as specified
-          const packet = `<msg t="sys"><body action="pubMsg" r="${room}"><txt><![CDATA[${message}%9]]></txt></body></msg>`;
+          const packet = `<msg t="sys"><body action="pubMsg" r="${room}"><txt><![CDATA[${message}%0]]></txt></body></msg>`; // Changed %9 to %0
           
           // Send synchronously to avoid freezes from unresolved promises
           try {
