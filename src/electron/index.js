@@ -64,6 +64,11 @@ const schema = {
        // Removed outputDir from schema as it's implicitly app.dataPath
      },
      default: {}
+  },
+  // Added setting for exit prompt
+  promptOnExit: {
+    type: 'boolean',
+    default: true
   }
   // Add other top-level keys as needed
 };
@@ -159,7 +164,28 @@ class Electron {
       });
     })
 
-    ipcMain.on('window-close', () => this._window.close())
+    // Intercept window-close to potentially show confirmation
+    ipcMain.on('window-close', () => {
+      // Check the setting first
+      const promptUser = this._store.get('promptOnExit', true); // Default to true if not set
+
+      if (promptUser) {
+        // Send message to renderer to show the confirmation modal
+        if (this._window && this._window.webContents && !this._window.webContents.isDestroyed()) {
+          devLog('[IPC Main] Requesting exit confirmation from renderer.');
+          this._window.webContents.send('show-exit-confirmation');
+        } else {
+          // If window is somehow gone, just quit
+          devLog('[IPC Main] Window not available for exit confirmation, quitting directly.');
+          app.quit();
+        }
+      } else {
+        // If setting is false, quit directly
+        devLog('[IPC Main] promptOnExit is false, quitting directly.');
+        app.quit();
+      }
+    })
+    
     ipcMain.on('window-minimize', () => this._window.minimize())
     
     // Handle plugin window minimize requests
@@ -739,6 +765,33 @@ class Electron {
 
     // Bind the open plugin window handler
     ipcMain.on('open-plugin-window', this._handleOpenPluginWindow.bind(this));
+
+    // Listener for the exit confirmation response from the renderer
+    ipcMain.on('exit-confirmation-response', (event, { confirmed, dontAskAgain }) => {
+      devLog(`[IPC Main] Received exit-confirmation-response: confirmed=${confirmed}, dontAskAgain=${dontAskAgain}`);
+      
+      // If user chose not to be asked again, update the setting
+      if (dontAskAgain) {
+        try {
+          this._store.set('promptOnExit', false);
+          devLog('[Store] Set promptOnExit to false.');
+        } catch (error) {
+          devError(`[Store] Error saving promptOnExit setting: ${error.message}`);
+        }
+      }
+
+      // If user confirmed exit, quit the application
+      if (confirmed) {
+        devLog('[IPC Main] User confirmed exit, quitting application.');
+        // We need to bypass the 'will-quit' confirmation now, so we force quit.
+        // The cleanup logic in 'will-quit' will still run because we set _isQuitting=true earlier.
+        app.quit(); 
+      } else {
+        // If user cancelled, reset the quitting flag so they can try again later
+        this._isQuitting = false; 
+        devLog('[IPC Main] User cancelled exit, resetting quit flag.');
+      }
+    });
   }
 
   /**

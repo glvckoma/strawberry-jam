@@ -173,6 +173,7 @@ module.exports = class Application extends EventEmitter {
 
     this._setupPluginIPC(); // Moved from instantiate to ensure handlers are ready early
     this._setupStatusIndicatorIPC(); // Add call to setup new listeners
+    this._setupExitConfirmationIPC(); // Add listener for exit confirmation
   }
 
   /**
@@ -356,6 +357,24 @@ module.exports = class Application extends EventEmitter {
 
       } catch (e) {
         devError("[Renderer IPC] Error setting up status indicator listeners:", e);
+      }
+    }
+  }
+
+  /**
+   * Sets up IPC listener for exit confirmation request from main process.
+   * @private
+   */
+  _setupExitConfirmationIPC() {
+    if (typeof require === "function") {
+      try {
+        const { ipcRenderer } = require('electron');
+        ipcRenderer.on('show-exit-confirmation', () => {
+          devLog('[Renderer IPC] Received show-exit-confirmation request.');
+          this.modals.show('confirmExitModal'); // Show the modal we created
+        });
+      } catch (e) {
+        devError("[Renderer IPC] Error setting up exit confirmation listener:", e);
       }
     }
   }
@@ -1876,6 +1895,27 @@ module.exports = class Application extends EventEmitter {
       devLog('[Renderer] Close button listener attached.');
     } else {
       devError('[Renderer] Close button element (#closeButton) not found!');
+    }
+
+    // Attach listeners for new header buttons
+    const minimizeButton = document.getElementById('minimizeButton');
+    if (minimizeButton) {
+      minimizeButton.addEventListener('click', () => {
+        this.minimize(); 
+      });
+      devLog('[Renderer] Minimize button listener attached.');
+    } else {
+      devError('[Renderer] Minimize button element (#minimizeButton) not found!');
+    }
+
+    const mainCloseButton = document.getElementById('mainCloseButton');
+    if (mainCloseButton) {
+      mainCloseButton.addEventListener('click', () => {
+        this.close(); 
+      });
+      devLog('[Renderer] Main Close button listener attached.');
+    } else {
+      devError('[Renderer] Main Close button element (#mainCloseButton) not found!');
     }
   }
 }

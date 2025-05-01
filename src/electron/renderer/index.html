@@ -122,12 +122,18 @@
          <img id="fruitIcon" src="app://assets/strawberry.png" alt="Fruit Icon" class="h-11 w-11 cursor-pointer pointer-events-auto transition-transform" style="z-index: 10; -webkit-app-region: no-drag;">
       </div>
 
-      <!-- Fruit Icon Container remains, removed connection status indicator from header -->
-
-      <button id="closeButton"
-        class="p-2 rounded hover:bg-error-red hover:text-white transition-colors text-sidebar-text focus:outline-none" style="-webkit-app-region: no-drag;">
-        <i class="fas fa-times"></i>
-      </button>
+      <!-- Window Controls -->
+      <div class="flex items-center space-x-2" style="-webkit-app-region: no-drag;">
+         <button id="minimizeButton"
+           class="p-2 rounded hover:bg-tertiary-bg hover:text-white transition-colors text-sidebar-text focus:outline-none" aria-label="Minimize">
+           <i class="fas fa-minus"></i>
+         </button>
+         <button id="mainCloseButton"
+           class="p-2 rounded hover:bg-error-red hover:text-white transition-colors text-sidebar-text focus:outline-none" aria-label="Close">
+           <i class="fas fa-times"></i>
+         </button>
+      </div>
+      <!-- End Window Controls -->
     </header>
 
     <!-- Tab Navigation -->
