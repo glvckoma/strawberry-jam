@@ -263,6 +263,42 @@ class Electron {
     });
     // --- End Settings IPC Handlers ---
 
+    // --- Device Fingerprint (DF) / UUID Handlers ---
+    ipcMain.handle('get-df', async () => {
+      devLog('[IPC] Handling get-df');
+      try {
+        let deviceId = this._store.get('deviceId');
+        if (!deviceId) {
+          devLog('[DF] No stored deviceId found, generating a new one.');
+          deviceId = crypto.randomUUID();
+          this._store.set('deviceId', deviceId);
+          devLog(`[DF] Stored new deviceId: ${deviceId}`);
+        } else {
+          devLog(`[DF] Returning stored deviceId: ${deviceId}`);
+        }
+        return deviceId;
+      } catch (error) {
+        console.error('[DF] Error getting/generating deviceId:', error);
+        // Fallback: generate a temporary one if store fails, but don't save it
+        return crypto.randomUUID();
+      }
+    });
+
+    ipcMain.handle('refresh-df', async () => {
+      devLog('[IPC] Handling refresh-df (UUID Spoofing)');
+      try {
+        const newDeviceId = crypto.randomUUID();
+        this._store.set('deviceId', newDeviceId);
+        devLog(`[DF] Refreshed and stored new deviceId: ${newDeviceId}`);
+        return newDeviceId;
+      } catch (error) {
+        console.error('[DF] Error refreshing deviceId:', error);
+        // Fallback: generate a temporary one if store fails, but don't save it
+        return crypto.randomUUID();
+      }
+    });
+    // --- End Device Fingerprint Handlers ---
+
 
      // --- IPC Handler for saving working accounts ---
      ipcMain.on('tester-save-works', async (event, accountLine) => {
