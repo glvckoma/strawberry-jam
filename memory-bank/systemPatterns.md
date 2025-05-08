@@ -1,134 +1,175 @@
-# System Patterns *Optional*
+# System Patterns: Strawberry Jam
 
-This file documents recurring patterns and standards used in the project.
-It is optional, but recommended to be updated as the project evolves.
-2025-05-06 19:39:08 - Log of updates made.
+> **Note:** This project is a fork of the original Jam by sxip. All new work, documentation, and branding is under the name "Strawberry Jam".
 
-*
+---
 
-## Coding Patterns
+## Core Architectural Patterns
 
-*   **IPC for Main-Renderer Communication:** Extensive use of `ipcMain.on()` and `ipcMain.handle()` in the main process (`src/electron/index.js`) to communicate with renderer processes. Renderer processes use `ipcRenderer.send()` and `ipcRenderer.invoke()`.
-*   **Asynchronous Operations with Promises:** File system operations (`fs.promises`), dialogs (`dialog.showMessageBox`, `dialog.showOpenDialog`), and some IPC communications are handled asynchronously using Promises (`async/await`).
-*   **Class-based Structure for Main Process:** The core Electron logic in `src/electron/index.js` is encapsulated within an `Electron` class.
-*   **Helper Methods for IPC and State:** Internal helper methods (e.g., `getAppState`, `setAppState`, `_confirmNoOtherInstances`) are used within the `Electron` class to manage complex logic related to IPC and state persistence.
-*   **Conditional Logging:** `devLog` and `devWarn` functions are used for logging messages only when `process.env.NODE_ENV === 'development'`.
-*   **Error Handling:** `try/catch` blocks are used for error-prone operations, especially around file system access, IPC, and external modules (e.g., `leakChecker`).
-*   **Feature Flagging/Conditional Module Loading:** The `leakChecker` module is conditionally required in the main process, with a fallback dummy function if not available.
-*   **Global Namespace Object (`window.jam`):** The main renderer process (`src/electron/renderer/index.js`) exposes core application functionalities (application instance, dispatch, settings, server) through a global `window.jam` object, making them accessible to other scripts in that renderer context.
-*   **DOM Manipulation for UI Updates:** Direct DOM manipulation (e.g., `document.getElementById`, `classList.toggle`, `textContent`) is used in `src/electron/renderer/index.js` for updating UI elements like connection status, timers, and messages.
-*   **Console Override:** `console.log` is overridden in the main renderer to route messages through the application's custom console message system for display in the UI.
-*   **Message Class Inheritance:** Specific message type handlers (e.g., `XtMessage.js`, `XmlMessage.js`, `JsonMessage.js`) inherit from a base `Message` class (defined in `src/networking/messages/index.js`). This base class initializes `value`, `type` (null by default), and a `send` boolean (true by default), and defines abstract `parse()` and `toMessage()` methods that subclasses must implement.
-*   **String Manipulation for Protocol Parsing:** Simple string manipulation (e.g., `split('%')`, `join('%')`) is used in `XtMessage.js` for parsing and serializing the delimiter-based XT protocol.
-*   **JSON Message Parsing and Typing:** The `JsonMessage.js` class parses JSON strings using `JSON.parse()` and determines the message `type` by accessing a specific nested path (`value?.b?.o?._cmd`) within the parsed object. It serializes back using `JSON.stringify()`.
-*   **XML Message Parsing with Cheerio:** The `XmlMessage.js` class uses the `cheerio` library (with `xml: true` option) to parse XML message strings into a Cheerio object (providing a jQuery-like API). The message `type` is extracted from the `action` attribute of the `<body>` tag. It serializes back using the Cheerio object's `.xml()` method.
-*   **Standardized HTML Structure for UI Plugins:** `plugins/README.md` promotes a common HTML structure for UI plugin windows, including a standard header (`div.jam-plugin-header`), title (`span.jam-plugin-title`), controls (`div.jam-plugin-controls` with buttons), and content area (`div.jam-plugin-content`).
-*   **Shared CSS and JS Utilities for Plugins:** UI plugins are encouraged to use shared assets (`assets/css/style.css`, `assets/javascript/plugin-utils.js`) for consistent styling and behavior (e.g., `initializePluginUI()` for window controls).
-*   **Plugin-Specific Modularization (Models, Services, Handlers):** Complex plugins like `UsernameLogger` adopt an internal modular structure by separating concerns into models (for data and configuration), services (for business logic and external interactions), handlers (for events like messages and commands), and utilities.
-*   **Dependency Injection in Plugins:** The main plugin class (e.g., `UsernameLogger`) instantiates its internal components (models, services, handlers) and injects necessary dependencies (like the `application` object, `dispatch` object, or other instantiated components) into their constructors.
-*   **Plugin Lifecycle Hooks:** Plugins can implement an `unload()` method, which is presumably called by the application when the plugin is disabled or the application is shutting down, allowing for cleanup tasks (e.g., flushing log batches, stopping services).
-*   **Plugin-Specific Data Storage:** Plugins manage their own configuration and data within subdirectories of the application's `dataPath` (e.g., `dataPath/PluginName/config.json`).
-*   **NPM Scripts for Automation:** `package.json` defines a rich set of npm scripts for automating development tasks (`dev` with `nodemon`), building (`electron-builder` for Windows/Mac, `asar` packaging), versioning, linting, and publishing.
-*   **Environment Variables for Configuration:** `cross-env` is used in the `dev` script to set `NODE_ENV=development`, indicating use of environment variables for build/runtime configuration.
-*   **Linting with ESLint and StandardJS:** The project uses ESLint, extending `eslint:recommended` and `standard` (JavaScript Standard Style) for code quality and consistency. Configuration in `.eslintrc` defines globals (`$`, `twemoji`, `jam`), ECMAScript version, and environments (browser, commonjs, es2021). `.eslintignore` excludes `node_modules/`.
-*   **Automated Dev Workflow with Nodemon:** `nodemon` (configured via `nodemon.json`) is used during development (`npm run dev`) to watch for changes in `.html`, `.css`, and `.js` files. Upon change, it automatically rebuilds Tailwind CSS (`npx tailwindcss ...`) and restarts the Electron application (`npx electron .`), streamlining the development feedback loop. It ignores changes in `plugins/`, `node_modules/`, and `plugin_packages/`.
-*   **Tailwind CSS Configuration:** `tailwind.config.js` defines a custom color palette (e.g., `primary-bg`, `highlight-yellow`) and specifies content sources (`src/**/*.{html,js}`, plugin JS files) for Tailwind to scan and generate utility classes. This indicates Tailwind CSS is used for styling the main application and potentially plugins.
-*   **Referencing Decompiled Game Code:** The `dev/SVF_Decompiled/` directory contains decompiled ActionScript from the Animal Jam Classic client. This code is used as a reference by developers to understand game mechanics, packet structures, and client-side logic, aiding in the development of Strawberry Jam features and plugins. Game definition packs (e.g., item IDs) are also stored in `dev/1714-defPacks/`.
-*   **Comprehensive Git Ignore (`.gitignore`):** The `.gitignore` file specifies a wide range of files and directories to be excluded from version control. This includes standard exclusions like `node_modules/` and `build/`, but also project-specific generated files (ASAR archives, backups), development resources (`dev/`), user data (`data/`), local settings (`settings.json`), the Memory Bank itself, and various temporary/OS-specific files. This ensures a clean repository focused on source code and essential configuration.
-*   **Developer Utility Script (`pack-and-run.js`):** A Node.js script provides a command-line interface (using `inquirer` for prompts and `chalk` for colored output) for developers to easily pack either a development (`assets/extracted-winapp-dev/`) or public (`assets/extracted-winapp-public/`) version of the application into `assets/winapp.asar` (using `@electron/asar`) and then immediately launch it with Electron. This streamlines local testing of packaged versions.
-*   **CLI Script for Plugin Metadata (`tag-plugin.js`):** A Node.js script ([`src/utils/manage-plugin-tags.js`](src/utils/manage-plugin-tags.js:1)) provides a command-line interface to add, remove, or list tags for plugins by modifying their `plugin.json` files. It includes argument parsing and relies on helper functions from [`src/utils/plugin-tag-utils.js`](src/utils/plugin-tag-utils.js:1) for the core logic.
-*   **Local Settings Override (`settings.json` at root):** A `settings.json` file at the project root (ignored by Git) contains application-specific settings (e.g., SmartFox server, API keys). While `electron-store` is the primary settings mechanism, this root file might serve as a local override for developers or an initial seed, though its direct usage by the application code needs confirmation.
-*   **Renderer-Side Application Class (`src/electron/renderer/application/index.js`):** The main renderer process logic is encapsulated in an `Application` class that extends `EventEmitter`. This class manages instances of other key renderer-side modules (Server, Settings, Patcher, Dispatch, HttpClient, ModalSystem).
-*   **jQuery for DOM Manipulation:** jQuery is used extensively within the `Application` class for DOM selection and manipulation (e.g., input handling, console message display, autocomplete).
-*   **Dynamic UI Component Generation:** The `consoleMessage` method dynamically creates HTML elements (using jQuery) for displaying formatted log messages, including icons and interactive elements like copy/details buttons for packets.
-*   **Promise for Asynchronous Initialization (`dataPathPromise`):** A Promise (`this.dataPathPromise`) is used in the `Application` constructor to defer initialization of components like `Dispatch` until the `dataPath` is received from the main process via IPC.
-*   **Core Command Registration:** Built-in application commands (e.g., `clear` for console) are registered in `src/electron/renderer/application/core-commands/index.js`. This module exports a function that takes `dispatch` and `application` instances and uses `dispatch.onCommand()` to define command names, descriptions, and callback functions.
-*   **Plugin Dependency Management (`live-plugin-manager`):** The `Dispatch` class uses `live-plugin-manager` to install dependencies declared in a plugin's `plugin.json`. Plugins can then `require()` these dependencies.
-*   **Schema Validation for Plugin Configuration (`Ajv`):** Plugin `plugin.json` files are validated against a JSON schema using `Ajv` to ensure required fields and correct types.
-*   **Event-Driven Message Hooking (Renderer-Side):** The `Dispatch` class provides `onMessage` and `offMessage` methods for plugins to register and unregister callbacks for specific game server messages, connection messages, or any message. These hooks are stored in `Map`s and invoked by the `all()` method.
-*   **Renderer-Side State Management (`Dispatch.state`):** The `Dispatch` class maintains a simple key-value `state` object, accessible to plugins via `getState` and `setState`, for sharing data within the renderer process. Room state changes are also broadcast to the main process via IPC.
-*   **Renderer-Side Settings Management Class:** A dedicated `Settings` class (`src/electron/renderer/application/settings/index.js`) in the renderer process manages application settings. It loads settings from the main process (via IPC `get-setting`), merges them with local defaults, provides getter/setter methods (using `lodash.get` and `lodash.set` for dot notation), and uses a debounced function to save changes back to the main process (via IPC `set-setting`).
-*   **Dynamic Import for ESM Modules:** The `pack-and-run.js` and Plugin Library modal (`plugins.js`) use dynamic `import()` for ESM modules like `chalk` and `inquirer` within a CommonJS environment.
-*   **API Interaction with Caching (Plugin Library):** The Plugin Library modal fetches plugin data from GitHub APIs, implements `localStorage` caching for plugin lists and metadata to reduce API calls and handle rate limits.
-*   **Local File System Interaction for Plugin Management:** The Plugin Library modal interacts with the local file system (using `fs` and `path`) to check for installed plugins, create plugin directories, write downloaded plugin files, and delete plugin directories during uninstallation.
-*   **Dual Socket Management for Proxying:** The `Client` class (`src/networking/client/index.js`) manages two sockets: one for the local game client connection and one for the connection to the remote game server, forming the basis of the proxy.
-*   **Stream Transformation for Protocol Handling:** A custom `DelimiterTransform` class (extending `stream.Transform` from `src/networking/transform/index.js`) is used to process incoming socket data. It buffers data and splits it into messages based on a specified delimiter (e.g., null byte), pushing out complete UTF-8 string messages. It handles any remaining data in its buffer during the `_flush` stage.
-*   **Static Message Validation:** The `Client` class has a static `validate` method to identify message types (XML, XT, JSON) based on start/end characters and instantiate corresponding message parser classes.
-*   **Connection Timeout Handling:** Implements a `Promise.race` with a timeout for establishing connections to the remote game server.
-*   **Static Utility Class for HTTP Requests:** The `HttpClient` class (`src/services/HttpClient.js`) is a static utility class (constructor throws an error) providing methods for GET, POST, and proxying HTTP requests using `request-promise-native` and `request`. It defines default `baseHeaders` to mimic the AJ Classic client.
-*   **Plugin Metadata File Utilities:** The [`src/utils/plugin-tag-utils.js`](src/utils/plugin-tag-utils.js:1) module provides asynchronous functions (`addTagToPlugin`, `removeTagFromPlugin`, `pluginHasTag`, `getPluginsWithTag`) for reading, modifying (tags array), and writing `plugin.json` files within the `plugins/` directory.
+- **`.clinerules` Coding Standards:**
+    - **Purpose:** Define consistent coding practices and architectural guidelines for the entire project.
+    - **Location:** Root directory (`.clinerules`).
+    - **Key Principles:**
+        - **One File, One Function:** Each file should have a single, clear responsibility.
+        - **Standard Directory Structure:** Defines a consistent layout for plugins and components (`/constants`, `/models`, `/services`, `/handlers`, `/utils`).
+        - **Coding Standards:** Covers file organization, class/function design (SRP, DI), error handling, and documentation (JSDoc).
+        - **Plugin Guidelines:** Specific recommendations for user feedback, configuration, API access, and file operations within plugins.
+        - **Modularization Strategy:** Provides a step-by-step approach for refactoring monolithic code into the standard structure.
+    - **Usage:** This file serves as the primary reference for code style and architecture. All new code and refactoring efforts should adhere to these guidelines.
 
-## Architectural Patterns
+## April 2025: Patterns & Integration
 
-*   **Main Process Orchestration:** The Electron main process (`src/electron/index.js`) acts as a central orchestrator for the application, managing windows, global state, settings, lifecycle events, and communication between different parts of the application (renderer, plugins, child processes).
-*   **Modular Design via Electron Store & State Files:** Configuration is managed via `electron-store` with a defined schema. Application-specific runtime state (e.g., for LeakCheck, Account Tester) is persisted to a dedicated JSON file (`jam_state.json`).
-*   **Child Process for API (Express.js Server):** A separate Node.js process is forked for API functionalities (`src/api/index.js`). This process runs an Express.js server (listening on port 8080) with defined routes and middleware (`body-parser`), isolating API operations from the main Electron process.
-*   **Event-Driven Architecture:** The application heavily relies on Electron's event system (app lifecycle events, IPC events, window events).
-*   **Custom Protocol Handling:** An `app://` protocol is registered to serve local application resources.
-*   **Plugin Window Management:** The main process dynamically creates, manages, and communicates with separate `BrowserWindow` instances for UI plugins, injecting a `window.jam` object for interaction.
-*   **Renderer Process Application Class:** The main renderer process (`src/electron/renderer/index.js`) instantiates an `Application` class (from `./application/index.js`) which appears to encapsulate significant client-side logic including UI interactions, networking event handling, and plugin management within the renderer scope.
-*   **Plugin UI Templating:** A `plugins/template/` directory provides a starting point for new UI plugins, encouraging the adoption of standardized UI components.
-*   **Service-Oriented Architecture within Plugins:** The `UsernameLogger` plugin demonstrates a service-oriented approach, with dedicated classes for `FileService`, `ApiService`, `LeakCheckService`, etc., each responsible for a specific domain of operations.
-*   **Electron-Builder for Packaging:** `electron-builder` is the primary tool for packaging the application for distribution on Windows and MacOS. Mac builds are facilitated using Docker.
-*   **ASAR Packaging:** Application assets are packed into ASAR archives for potentially faster loading and to obscure source code, with specific scripts for development and public builds.
-*   **Dependency Management:** Project dependencies (runtime and development) are managed via `npm` and declared in `package.json`.
-*   **Declarative Build Configuration (`electron-builder.json`):** `electron-builder` uses a dedicated JSON file for configuring build targets (NSIS for Windows, DMG/ZIP for Mac), icons, ASAR packaging, file inclusion/exclusion rules (`files`, `extraFiles`, `extraResources`), and publishing settings (GitHub releases). This separates build configuration from `package.json` scripts.
-*   **Platform-Specific Build Targets:** The build system is configured to produce different artifacts for Windows (x64) and MacOS (x64, arm64), including platform-specific icons.
-*   **Selective File Packaging:** `electron-builder.json` employs detailed filtering patterns to include only necessary files in the final application package, excluding development artifacts, documentation, and temporary files, while explicitly including runtime essentials like plugins and assets.
-*   **Build Cleaning Script (`clean-public-build.js`):** A dedicated Node.js script is used to prepare a "public" build by removing development-specific files (e.g., tester components, `leakChecker.js`, data files, some documentation) and modifying code (e.g., `LoginScreen.js`) to disable development features. This script distinguishes between a development asset structure (`assets/extracted-winapp-dev/`) and a cleaned public one (`assets/extracted-winapp-public/`), ensuring a sanitized release.
-*   **Build Verification Script (`verify-build.js`):** A Node.js script used as a QA step in the release pipeline (callable via `npm run verify`). It extracts a packaged ASAR file and scans its contents for sensitive files (by name or pattern, e.g., tester files, source code) and sensitive strings within text-based files. This helps ensure no unintended development artifacts or sensitive data are included in public releases.
-*   **Development Auto-Update Configuration (`dev-app-update.yml`):** A minimal `dev-app-update.yml` file specifying `provider: github` is used, likely to prevent `electron-updater` errors during development by providing a basic configuration when a full release setup isn't present.
-*   **Controller-based API Routing:** The Express.js API uses a controller pattern (`FilesController`) to handle route logic. Routes defined in `src/api/routes/index.js` delegate requests to methods within this controller (e.g., for serving `ajclient.swf` or a default index).
-*   **API as Game Asset Proxy/Local Server:** The API's `FilesController` serves a local copy of `ajclient.swf` for specific versioned requests and acts as a reverse proxy for other game assets, fetching them from the official Animal Jam CDN (`ajcontent.akamaized.net`) using an `HTTPClient` service. This allows the application to control or intercept game asset loading.
-*   **Modular Renderer Components:** The main renderer `Application` class instantiates and coordinates several distinct modules for different aspects of its functionality (e.g., `Settings`, `Patcher`, `Dispatch`, `ModalSystem`), promoting separation of concerns within the renderer process.
-*   **Centralized Dispatch for Plugins/Commands/Messages (Renderer):** The `Dispatch` class (`src/electron/renderer/application/dispatch/index.js`) acts as a central hub in the renderer process for managing plugin loading (including dependency installation and validation), command registration, and message/packet hooking. This provides a consistent interface for plugins to interact with core application events and data.
-*   **Modular Modal System (`ModalSystem`):** UI modals are managed by a `ModalSystem` class (`src/electron/renderer/application/modals/index.js`). It dynamically loads modal modules (each with a `render` function) from its directory, registers them, and handles showing/closing them in a designated container. This promotes separation of modal logic.
-*   **Remote Plugin Discovery and Management:** The Plugin Library modal provides a user interface for discovering, installing, and uninstalling plugins directly from GitHub repositories, acting as a simple package manager.
-*   **Sandboxed Game Client Execution:** The `Patcher` class creates a separate copy of the Animal Jam Classic game installation ("Strawberry Jam Classic") and applies modifications (replacing `app.asar`) to this copy. The game is launched from this sandboxed installation, preserving the user's original game files.
-*   **Environment Variable for Data Path Injection:** The patched game client is launched with a `STRAWBERRY_JAM_DATA_PATH` environment variable, allowing the modified client to locate and use Strawberry Jam's specific data directory.
-*   **Platform-Specific File Operations:** The `Patcher` uses platform-specific commands (`xcopy` for Windows, `cp -R` for macOS) for copying the game installation directory, falling back to Node.js `fs.cp` for other platforms.
-*   **Settings Abstraction in Renderer:** The renderer-side `Settings` class abstracts the IPC communication for settings, providing a cleaner API for other renderer components to interact with settings while `electron-store` handles persistence in the main process.
-*   **Network Proxying with Message Interception:** The `Client` class intercepts messages between the local game client and the remote server, validates/parses them, and dispatches them through the `Dispatch` system, allowing plugins to react to or modify game traffic. It also handles specific cases like cross-domain policy requests.
-*   **Local TCP Proxy Server:** A `Server` class (`src/networking/server/index.js`) creates a `net.Server` that listens on `127.0.0.1:443`. For each incoming connection (from the local game client), it instantiates a `Client` object which then manages the onward connection to the actual game server.
-*   **Centralized HTTP Client for External Resources:** The `HttpClient` class serves as a centralized point for making external HTTP requests, such as fetching game `flashvars` or proxying assets from the CDN, ensuring consistent headers and request patterns.
+- **Plugin Settings Access Pattern:** Plugins (e.g., UsernameLogger) must fetch sensitive settings (like API keys) from the main process via IPC (`ipcRenderer.invoke('get-setting', ...)`) at the time the setting is needed (e.g., inside a command handler). Loading settings during plugin instantiation is unreliable.
+- **Plugin State Access Pattern (UI Plugins):** UI plugins (like advertising) must use `dispatch.getState(key)` to access core application state. The IPC bridge for this was refactored to use an asynchronous request/reply pattern between the main process and main renderer, supporting reliable cross-window communication.
+- **Room State Tracking:** The core dispatch system now hooks `j#jr` (join room) and `j#l` (leave room) packets to automatically update `dispatch.state.room`, ensuring plugins can always access the current room ID.
+- **Preview Button Pattern:** UI plugins can implement a "Preview" or "Send" button that sends a message to the game by constructing the appropriate packet and calling `dispatch.sendRemoteMessage(packet)`. The advertising plugin now uses this pattern for its preview button.
+- **Build Compatibility:** UI plugins that use only standard web technologies, jQuery (injected by the main app), and the `window.jam` object for IPC do not require any special build configuration or extra dependencies. The advertising plugin is confirmed to work in both development and packaged builds.
+- **Separation of Concerns:** process_logs.js is a standalone CLI script and is not used for leak checking logic inside UsernameLogger. All plugin logic is self-contained.
+- **Staged, Test-Driven Workflow:** Features are delivered in stages, starting with the easiest task. User tests after each stage before proceeding. All changes and findings are documented in the memory-bank.
+- **Robust Error Handling & State Reset for Long-Running Tasks:** Long-running plugin tasks (e.g., UsernameLogger leak check) must wrap their main processing loop in robust error handling (try/catch/finally or equivalent). A dedicated reset helper should always clear state flags (e.g., isLeakCheckRunning, isLeakCheckPaused) after completion, stop, pause, or error. This prevents plugins from getting "stuck" and ensures reliable stop/restart within the same session.
+- **Batch File Writes for Performance:** For loops involving frequent file appends (like UsernameLogger leak check results), collect data in temporary arrays/sets within the loop. Write the collected data to the target files in batches (e.g., every N iterations or at the end/pause/stop) using a helper function. This significantly reduces I/O overhead and prevents performance degradation on large datasets.
+- **Standalone CLI Scripts:** For tasks requiring independence from the Electron app (e.g., batch processing, long-running checks like `process_logs.js`), create standalone Node.js scripts.
+    - Use `yargs` for robust command-line argument parsing (API keys, paths, limits, flags) and provide clear usage instructions (`.usage()`, `.epilogue()`, `.help()`).
+    - Prioritize CLI arguments for configuration, potentially falling back to reading application config files (e.g., AppData `config.json`) or project files (`settings.json`) if appropriate. Clearly log the configuration source.
+    - For interactive use, employ `inquirer` (using dynamic `import()`) to prompt the user for confirmation before execution. Include a `--non-interactive` flag to bypass prompts.
+    - For long-running processes needing interruption, use `readline` to listen for specific keypresses (e.g., 's') or Ctrl+C to trigger a clean shutdown, ensuring final operations (like batch writes) are completed.
+- **Build & Release Pattern:**
+    - Use `electron-builder` for packaging Windows (`.exe`) and macOS (`.zip`) applications.
+    - Utilize Docker for building macOS versions on Windows (`npm run build:mac-win`).
+    - Employ `npm version <version>` (without `--no-git-tag-version`) for version management (updates `package.json`, `package-lock.json`, commits, tags).
+    - Publish releases using `npx electron-builder --<platform> --publish always`. Requires `GH_TOKEN` environment variable (prefer prepending `GH_TOKEN=...` before the command in MINGW64/Git Bash).
+    - Configure `electron-builder.json` and `package.json` for build targets, file exclusions (`directories.output` is "build"), and repository information.
+- **Auto-Update Pattern:**
+    - Implement auto-updates using `electron-updater`.
+    - Configure `electron-builder.json` with `provider: "github"` and `releaseType: "release"`.
+    - Initialize `electron-updater` in the main process (`src/electron/index.js`) only when `!isDevelopment`.
+    - Ensure `autoUpdater.autoDownload = true;` is set for automatic background downloads.
+    - Use `autoUpdater.on('event-name', ...)` to provide user feedback via notifications or UI updates.
+    - Add placeholder `src/dev-app-update.yml` to prevent errors in development.
+- **Git History Sanitization Pattern:**
+    - **Untracking:** Use `git rm -r --cached <path>` to remove files/directories from Git tracking without deleting local copies. Update `.gitignore` *before* committing the removal.
+    - **History Rewriting (Sensitive Data Removal):** Use `git-filter-repo --path <path> --invert-paths --force` to completely remove specific files/directories from all past commits. Requires re-adding the remote and force-pushing.
+    - **History Reset (Fresh Start):** To replace all history with the current state:
+        1. `rm -rf .git`
+        2. `git init -b main`
+        3. `git remote add origin <url>`
+        4. `git add .gitignore && git commit -m "Add .gitignore"`
+        5. `git add .`
+        6. `git commit -m "Initial commit of project files"`
+        7. `git push -u origin main --force`
+- **ASAR Patching/Restoration Pattern (Deprecated - See Copied Installation Pattern):**
+    - **Status:** This pattern is being replaced by the "Copied Installation Pattern".
+    - **Original Logic:**
+        - **Backup:** Before copying the custom ASAR (`assets/winapp.asar`), check if the original exists (`resources/app.asar` in the *original* AJC installation) and a backup (`resources/app.asar.unpatched`) does *not*. If so, rename the original to the backup path using `fs.promises.rename`.
+        - **Patch:** Copy the custom ASAR over the original path using `fs.promises.copyFile`.
+        - **Restore:** On application quit (`app.on('will-quit', ...)` in main process), check if the backup exists. If so, rename the backup back to the original path (`fs.promises.rename`), overwriting the patched version. **Do not** attempt to `rm` the patched ASAR first, as this can cause `EISDIR` errors.
+    - **Original Quit Handler (`will-quit`):**
+        - Use `event.preventDefault()` at the start.
+        - Use a flag (`this._isQuitting`) to prevent the handler running multiple times.
+        - Perform all critical cleanup operations within the `try` block:
+            - Check flags for specific cleanup actions (e.g., manual cache clear).
+            - Perform necessary `await`ed asynchronous operations (e.g., ASAR restore - *to be removed*, session cache clear).
+            - **Terminate Child Processes:** Explicitly kill forked processes (e.g., `this._apiProcess.kill()`).
+            - **Signal Background Tasks:** Signal long-running tasks to stop (e.g., set `this._isLeakCheckStopped = true`). Avoid awaiting indefinite stops.
+        - **Force Exit:** Call `app.exit(0)` in the `finally` block. This is necessary because the default quit resumption after `event.preventDefault()` proved unreliable in packaged builds. Using `app.exit(0)` ensures the process terminates after cleanup attempts.
+- **Copied Installation Pattern (Implemented):**
+    - **Goal:** Isolate Strawberry Jam's modifications from the original AJC installation for safety and simplicity.
+    - **Path Constants:**
+        - `STRAWBERRY_JAM_CLASSIC_BASE_PATH`: Path to the copied installation (e.g., `%LocalAppData%\Programs\strawberry-jam-classic` on Windows, `/Applications/Strawberry Jam Classic.app/Contents` on macOS).
+        - `STRAWBERRY_JAM_CLASSIC_CACHE_PATH`: Path to the cache for the copied installation (e.g., `%AppData%\Strawberry Jam Classic\Cache` on Windows, `~/Library/Application Support/Strawberry Jam Classic/Cache` on macOS).
+    - **Setup Implementation:**
+        - `ensureStrawberryJamVersionExists()` method in the `Patcher` class checks if the standalone copy already exists.
+        - If not, it verifies the original AJC installation is present at `ANIMAL_JAM_CLASSIC_BASE_PATH`.
+        - Creates parent directories as needed using `mkdir` with `{ recursive: true }`.
+        - Uses platform-specific copy commands for better performance and compatibility:
+          - Windows: `xcopy "${ANIMAL_JAM_CLASSIC_BASE_PATH}" "${STRAWBERRY_JAM_CLASSIC_BASE_PATH}" /E /I /H /Y`
+          - macOS: `cp -R "${ANIMAL_JAM_CLASSIC_BASE_PATH}/"* "${STRAWBERRY_JAM_CLASSIC_BASE_PATH}/"`
+        - Provides user feedback during the copy process via console messages.
+        - Handles errors gracefully with appropriate user messaging.
+    - **Patching Implementation:**
+        - `patchCustomInstallation()` method targets the standalone installation's `app.asar`.
+        - Removes any existing `app.asar` and `app.asar.unpacked` in the copied installation.
+        - Copies the custom ASAR (`assets/winapp.asar` or `assets/osxapp.asar`) to the target location.
+        - No backup/restore logic is needed since we're not modifying the original installation.
+    - **Cache Management:**
+        - Clears and recreates the cache directory for the standalone installation on each launch.
+        - Uses `rm` with `{ recursive: true }` followed by `mkdir` with `{ recursive: true }`.
+    - **Launching Implementation:**
+        - `killProcessAndPatch()` method launches the game from the standalone installation.
+        - Uses `spawn` for better process management: `spawn(exePath, [], { detached: false, stdio: 'ignore' })`.
+        - Provides console messages for launch status.
+    - **Cleanup:** 
+        - The `will-quit` handler in `src/electron/index.js` no longer calls `restoreOriginalAsar`.
+        - Other cleanup operations (killing API process, signaling tasks) remain unchanged.
+    - **UI Enhancement:**
+        - Updated "Play" button to a more prominent "Launch Strawberry Jam Classic" button.
+        - Added visual cues to indicate the button launches an external application.
+- **Cache Clearing on Quit Pattern (Manual Trigger):**
+    - **Trigger:** Renderer sends IPC message (e.g., `danger-zone:clear-cache`).
+    - **IPC Handler:** Sets a dedicated flag (e.g., `this._isClearingCacheAndQuitting = true`) and calls `app.quit()` (which triggers `will-quit`).
+    - **`will-quit` Handler:**
+        - Checks the dedicated flag (`if (this._isClearingCacheAndQuitting)`).
+        - If true, performs cache clearing actions *sequentially* within the `try` block:
+            - `await session.defaultSession.clearCache();`
+            - `await session.defaultSession.clearStorageData({...});`
+            - Spawn helper script (`clear-cache-helper.js`) *detached* (`spawn` with `detached: true`, `stdio: 'ignore'`, `unref()`). Pass necessary arguments like cache paths, a relaunch flag (`--relaunch-after-clear`), and the main app executable path (`app.getPath('exe')`). The main process does *not* wait for the helper.
+        - Proceeds with other cleanup (e.g., killing API process). *ASAR restore call will be removed.*
+- **Delayed Relaunch via Helper Script Pattern:**
+    - **Purpose:** To ensure a delay between application shutdown/cleanup and relaunch, preventing issues caused by relaunching too quickly (e.g., invisible windows).
+    - **Trigger:** Used after operations like manual cache clearing that require a full restart.
+    - **Implementation:**
+        - The main process's `will-quit` handler spawns the helper script (`clear-cache-helper.js`) detached, passing a flag (`--relaunch-after-clear`) and the main application's executable path (`app.getPath('exe')`).
+        - The helper script performs its primary task (e.g., cache deletion after an initial delay).
+        - If the primary task succeeds *and* the relaunch flag is present:
+            - The helper script waits for a secondary delay (`setTimeout`).
+            - After the delay, it uses `spawn` to execute the provided application executable path, again detached (`detached: true`, `stdio: 'ignore'`, `unref()`).
+        - The helper script then exits (`process.exit(0)`).
+- **Developer GUI Pattern:**
+    - **Purpose:** Provide a dedicated UI for common development tasks, separate from the main application.
+    - **Implementation:**
+        - Files located in the top-level `dev/` directory.
+        - Uses a separate Electron main process entry point (`dev/index.js`) and renderer (`dev/index.html`, `dev/preload.js`).
+        - Launched via `npm run devtools` (defined in `package.json`).
+        - Communicates with the main process via IPC (`contextBridge` in preload, `ipcMain.handle` in main) to execute commands (`exec`, `spawn`), read project files (`package.json`, `plugins/*.json`), manage files/folders (`shell.openPath`), etc.
+        - Provides UI elements (buttons, tabs, terminal view) for tasks like building, ASAR packing, plugin tag management, and running `package.json` scripts.
+        - Dynamically displays the current project version and calculates/shows examples for version bumps (patch, minor, major) in the UI.
+- **Script Execution via GUI Pattern:**
+    - **Purpose:** Allow developers to run `package.json` scripts directly from the Developer GUI.
+    - **Implementation:**
+        - The GUI fetches the `scripts` object from `package.json` via IPC.
+        - Buttons are dynamically generated for each script.
+        - A heuristic determines if a script is likely long-running (e.g., build, publish, dev) or short (e.g., version bump, pack).
+        - Clicking a button triggers the corresponding `npm run <script_name>` command via IPC, using `spawn` (for long-running with live output) or `exec` (for short).
+        - Output is displayed in the GUI's integrated terminal tab.
+- **Simplified `package.json` Scripts Pattern:**
+    - **Purpose:** Reduce redundancy and complexity in `package.json` scripts, relying more on the Developer GUI or direct CLI commands for specific variations.
+    - **Implementation:**
+        - Removed: `build:mac:dev`, `build:mac:public`, `build:all:dev`, `build:all:public`, `build:mac-win:dev`, `build:mac-win:public`, `plugin:tag:add`, `plugin:tag:remove`, `plugin:tag:beta:add`, `plugin:tag:beta:remove`, `publish:all`, `publish:win:no-bump`, `publish:all:no-bump`, `publish:mac-docker:no-bump`.
+        - Kept core scripts for: `devtools`, `dev`, `clean:public`, `verify`, `pack:asar:dev`, `pack:asar:public`, `build:win:dev`, `build:win:public`, `build:mac-docker:dev`, `build:mac-docker:public`, `version:*`, `publish:win`, `publish:mac-docker`, `plugin:tag`, `plugin:tag:list`.
+- **Main Window Close Button Pattern:**
+    - **Problem:** Inline `onclick` handlers on frameless window UI elements can be unreliable, potentially conflicting with drag regions or initialization timing.
+    - **Implementation:**
+        - Define the close button element (e.g., `<button id="closeButton">`) in the main renderer HTML (`src/electron/renderer/index.html`).
+        - Mark the button itself as non-draggable: `style="-webkit-app-region: no-drag;"`.
+        - Remove any inline `onclick` handlers from the button or its children.
+        - In the main renderer's JavaScript (`src/electron/renderer/application/index.js`), after the application object (`jam.application`) is fully instantiated, attach a click listener directly to the button element:
+          ```javascript
+          const closeButton = document.getElementById('closeButton');
+          if (closeButton) {
+            closeButton.addEventListener('click', () => {
+              this.close(); // Calls method that sends 'window-close' IPC
+            });
+          }
+          ```
+        - The `application.close()` method sends an IPC message (`window-close`) to the main process, which then calls `window.close()` on the main `BrowserWindow`, triggering the standard quit sequence (including the `will-quit` handler).
+- **Plugin Window Cleanup Pattern:**
+    - **Goal:** Ensure plugin windows close cleanly using their 'X' button without leaving orphaned resources specific to that plugin.
+    - **Implementation:**
+        - Use the standard `window.close()` method in the plugin HTML's 'X' button `onclick` handler (e.g., `onclick="window.close()"`). This closes only the specific plugin `BrowserWindow`.
+        - If the plugin script starts persistent background tasks (e.g., `setTimeout`, `setInterval`, network listeners like `window.jam.onPacket`), add a `window.addEventListener('beforeunload', cleanupFunction);` listener within the plugin's renderer script.
+        - The `cleanupFunction` must explicitly stop timers (`clearTimeout`, `clearInterval`) and unsubscribe from listeners (e.g., calling the unsubscribe function returned by `window.jam.onPacket`).
+        - Examples: `plugins/spammer/index.js` (clears timeout), `plugins/loginPacketManipulator/index.js` (unsubscribes from packet listener).
+- **Memory Bank Update Policy:** All new work, patterns, and findings are documented in activeContext.md, progress.md, and systemPatterns.md as appropriate, per project policy.
 
-## Testing Patterns
-
-*
-2025-05-06 20:49:25 - Added initial Coding and Architectural Patterns based on analysis of src/electron/index.js.
-2025-05-06 20:59:48 - Added Coding and Architectural Patterns observed in src/electron/renderer/index.js (main renderer process).
-2025-05-06 21:09:39 - Added Coding Patterns related to message handling and protocol parsing from src/networking/messages/XtMessage.js.
-2025-05-06 21:20:12 - Added Coding and Architectural Patterns related to standardized UI components for plugins, based on plugins/README.md.
-2025-05-06 21:40:21 - Added Coding and Architectural Patterns related to complex plugin structure (models, services, handlers, DI, lifecycle) based on plugins/UsernameLogger/index.js.
-2025-05-06 21:57:33 - Added Coding and Architectural Patterns related to build system, development workflow, and dependencies from package.json.
-2025-05-06 23:03:33 - Added Coding Pattern for ESLint and StandardJS setup.
-2025-05-06 23:10:08 - Added Architectural Patterns related to build configuration from electron-builder.json.
-2025-05-06 23:22:28 - Added Coding Pattern for Nodemon development workflow automation.
-2025-05-06 23:29:10 - Added Coding Pattern for Tailwind CSS configuration.
-2025-05-06 23:36:28 - Added Coding Pattern regarding the use of decompiled game code and definition packs from the dev/ directory.
-2025-05-07 00:00:31 - Added Coding Pattern for .gitignore usage and conventions.
-2025-05-07 00:06:09 - Added Architectural Pattern for the build cleaning script (clean-public-build.js).
-2025-05-07 00:16:28 - Added Coding Pattern for the pack-and-run.js developer utility script.
-2025-05-07 00:22:16 - Added Coding Pattern for the tag-plugin.js CLI utility script.
-2025-05-07 00:29:35 - Added Architectural Pattern for the build verification script (verify-build.js).
-2025-05-07 00:37:20 - Added Architectural Pattern for dev-app-update.yml configuration.
-2025-05-07 00:42:38 - Added Coding Pattern regarding the root settings.json file and its potential role.
-2025-05-07 00:49:25 - Refined 'Child Process for API' pattern to specify Express.js server, based on src/api/index.js.
-2025-05-07 00:59:15 - Added Architectural Pattern for controller-based API routing, based on src/api/routes/index.js.
-2025-05-07 01:07:29 - Added Architectural Pattern for API as Game Asset Proxy/Local Server, based on FilesController.js.
-2025-05-07 01:15:14 - Added Coding and Architectural Patterns related to the renderer's Application class (jQuery usage, dynamic UI, Promise for init, modular components).
-2025-05-07 01:25:28 - Added Coding Pattern for core command registration via src/electron/renderer/application/core-commands/index.js.
-2025-05-07 01:35:40 - Added Coding and Architectural Patterns related to the Dispatch class (plugin management, command/message hooking, state) from src/electron/renderer/application/dispatch/index.js.
-2025-05-07 01:45:59 - Added Architectural Pattern for the ModalSystem, based on src/electron/renderer/application/modals/index.js.
-2025-05-07 02:07:28 - Added Coding and Architectural Patterns related to the Plugin Library modal (API interaction, caching, local FS management) from src/electron/renderer/application/modals/plugins.js.
-2025-05-07 02:25:30 - Added Architectural Patterns related to game client sandboxing, patching, and environment variable injection from Patcher class.
-2025-05-07 02:37:07 - Added Coding and Architectural Patterns for renderer-side Settings class from src/electron/renderer/application/settings/index.js.
-2025-05-07 02:47:53 - Added Coding and Architectural Patterns related to client-side networking, proxying, and message transformation from src/networking/client/index.js.
-2025-05-07 02:56:46 - Refined 'Message Class Inheritance' pattern with details of the base Message class from src/networking/messages/index.js.
-2025-05-07 03:02:40 - Added Coding Pattern for JSON message parsing and typing from JsonMessage.js.
-2025-05-07 03:07:45 - Added Coding Pattern for XML message parsing with Cheerio from XmlMessage.js.
-2025-05-07 03:13:45 - Added Architectural Pattern for the local TCP proxy server from src/networking/server/index.js.
-2025-05-07 03:24:14 - Refined 'Stream Transformation for Protocol Handling' pattern with details of DelimiterTransform class from src/networking/transform/index.js.
-2025-05-07 03:31:36 - Added Coding and Architectural Patterns for HttpClient static utility class from src/services/HttpClient.js.
-2025-05-07 03:41:20 - Updated 'CLI Script for Plugin Metadata' pattern to include its dependency on plugin-tag-utils.js, based on src/utils/manage-plugin-tags.js.
-2025-05-07 03:49:43 - Added Coding Pattern for plugin metadata file utilities from src/utils/plugin-tag-utils.js.
+---
+...
